@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.1.1"
 }
 
-version = "1.0.0"
+version = "1.0.1"
 group = "com.gaskony"
 
 ignitionModule {
@@ -11,6 +11,7 @@ ignitionModule {
     name.set("Enhanced PLC Simulator")
     id.set("com.gaskony.plcsimulator")
     moduleVersion.set(project.version.toString())
+    license.set("license.html")
     moduleDescription.set("Multi-vendor PLC device simulator supporting Rockwell L5K, Siemens, Schneider, Beckhoff, Gaskony, and JSON formats with hierarchical OPC-UA tag structure. Developed by Gaskony.")
     requiredIgnitionVersion.set("8.3.0")
     freeModule.set(true)

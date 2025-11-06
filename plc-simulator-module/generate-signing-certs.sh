@@ -67,7 +67,7 @@ keytool -genkeypair \
     -keystore "$KEYSTORE_FILE" \
     -storepass "$PASSWORD" \
     -keypass "$PASSWORD" \
-    -dname "CN=PLC Simulator Module, OU=Development, O=Inductive Automation, L=Folsom, ST=CA, C=US" \
+    -dname "CN=Gaskony, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US" \
     -ext "SAN=DNS:localhost,IP:127.0.0.1"
 
 if [ $? -eq 0 ]; then
