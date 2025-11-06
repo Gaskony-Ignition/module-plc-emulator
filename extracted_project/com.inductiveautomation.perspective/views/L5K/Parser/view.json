@@ -1,0 +1,565 @@
+{
+  "custom": {},
+  "params": {},
+  "props": {
+    "defaultSize": {
+      "width": 1359
+    }
+  },
+  "root": {
+    "children": [
+      {
+        "events": {
+          "component": {
+            "onFileReceived": {
+              "config": {
+                "script": "\timport traceback\n\tl5kFile \u003d event.file.getString()\n\tselectTags \u003d self.getSibling(\"Checkbox\").props.selected\n\tallowHidden \u003d self.getSibling(\"Checkbox_0\").props.selected\n\tuseStoredValues \u003d self.getSibling(\"Checkbox_1\").props.selected\n\t\n\ttry:\n\t\t(udts, tags, programs, comments) \u003d L5K.Parser.parse(l5kFile, selectTags, allowHidden, useStoredValues)\n\t\tsuccess \u003d True\n\t\terror \u003d \"\"\n\texcept:\n\t\tudts \u003d []\n\t\ttags \u003d []\n\t\tprograms \u003d []\n\t\tcomments \u003d {}\n\t\tsuccess \u003d False\n\t\terror \u003d \"Error parsing L5K file. Please try again.\"\n\t\tlog \u003d system.util.getLogger(\"L5K Parser\")\n\t\tlog.info(traceback.format_exc())\n\t\tsystem.perspective.openPopup(id\u003d\"message\", view\u003d\"L5K/Message\", params\u003d{\"message\":error, \"error\":True}, title\u003d\"Error\")\n\t\t\n\tself.parent.custom.parsedFile \u003d {\"udts\":udts, \"tags\":tags, \"programs\":programs, \"comments\":comments, \"parsed\":True, \"success\":success, \"error\":error}"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "FileUpload"
+        },
+        "position": {
+          "height": 100,
+          "width": 332,
+          "x": 10,
+          "y": 418
+        },
+        "props": {
+          "fileSizeLimit": 20
+        },
+        "type": "ia.input.fileupload"
+      },
+      {
+        "meta": {
+          "name": "Label"
+        },
+        "position": {
+          "height": 32,
+          "width": 214,
+          "x": 10,
+          "y": 287
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 3: Browse for L5K file"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "children": [
+          {
+            "meta": {
+              "name": "Accordion"
+            },
+            "propConfig": {
+              "props.items": {
+                "binding": {
+                  "config": {
+                    "path": "/root.custom.parsedFile"
+                  },
+                  "transforms": [
+                    {
+                      "code": "\tif value.parsed and value.success:\n\t\tret \u003d []\n\t\tfor udt in value.udts:\n\t\t\tname \u003d udt.name\n\t\t\tdescription \u003d udt.description\n\t\t\tstringFamily \u003d udt.stringFamily\n\t\t\ttags \u003d udt.tags\n\t\t\tret.append({\n\t\t\t  \"expanded\": False,\n\t\t\t  \"header\": {\n\t\t\t    \"toggle\": {\n\t\t\t      \"enabled\": True,\n\t\t\t      \"expandedIcon\": {\n\t\t\t        \"path\": \"material/expand_less\",\n\t\t\t        \"color\": \"\",\n\t\t\t        \"style\": {\n\t\t\t          \"classes\": \"\"\n\t\t\t        }\n\t\t\t      },\n\t\t\t      \"collapsedIcon\": {\n\t\t\t        \"path\": \"material/expand_more\",\n\t\t\t        \"color\": \"\",\n\t\t\t        \"style\": {\n\t\t\t          \"classes\": \"\"\n\t\t\t        }\n\t\t\t      }\n\t\t\t    },\n\t\t\t    \"content\": {\n\t\t\t      \"type\": \"text\",\n\t\t\t      \"text\": name,\n\t\t\t      \"description\": description,\n\t\t\t      \"stringFamily\": stringFamily,\n\t\t\t      \"useDefaultViewWidth\": False,\n\t\t\t      \"useDefaultViewHeight\": False,\n\t\t\t      \"viewPath\": \"\",\n\t\t\t      \"viewParams\": {},\n\t\t\t      \"style\": {\n\t\t\t        \"classes\": \"\"\n\t\t\t      }\n\t\t\t    },\n\t\t\t    \"height\": \"40px\",\n\t\t\t    \"reverse\": False,\n\t\t\t    \"style\": {\n\t\t\t      \"classes\": \"\"\n\t\t\t    }\n\t\t\t  },\n\t\t\t  \"body\": {\n\t\t\t    \"viewPath\": \"L5K/Tags\",\n\t\t\t    \"viewParams\": {\n\t\t\t    \t\"tags\":tags\n\t\t\t    },\n\t\t\t    \"useDefaultViewWidth\": False,\n\t\t\t    \"useDefaultViewHeight\": False,\n\t\t\t    \"height\": \"auto\",\n\t\t\t    \"style\": {\n\t\t\t      \"classes\": \"\",\n\t\t\t      \"margin\": \"16px\"\n\t\t\t    }\n\t\t\t  }\n\t\t\t})\n\t\treturn ret\n\t\t\n\treturn []",
+                      "type": "script"
+                    }
+                  ],
+                  "type": "property"
+                }
+              }
+            },
+            "type": "ia.display.accordion"
+          },
+          {
+            "meta": {
+              "name": "EmbeddedView"
+            },
+            "position": {
+              "tabIndex": 1
+            },
+            "propConfig": {
+              "props.params.tags": {
+                "binding": {
+                  "config": {
+                    "path": "/root.custom.parsedFile.tags"
+                  },
+                  "type": "property"
+                }
+              }
+            },
+            "props": {
+              "path": "L5K/Tags"
+            },
+            "type": "ia.display.view"
+          },
+          {
+            "meta": {
+              "name": "Accordion_0"
+            },
+            "position": {
+              "tabIndex": 2
+            },
+            "propConfig": {
+              "props.items": {
+                "binding": {
+                  "config": {
+                    "path": "/root.custom.parsedFile"
+                  },
+                  "transforms": [
+                    {
+                      "code": "\tif value.parsed and value.success:\n\t\tret \u003d []\n\t\tfor program in value.programs:\n\t\t\tname \u003d program.name\n\t\t\ttags \u003d program.tags\n\t\t\tret.append({\n\t\t\t  \"expanded\": False,\n\t\t\t  \"header\": {\n\t\t\t    \"toggle\": {\n\t\t\t      \"enabled\": True,\n\t\t\t      \"expandedIcon\": {\n\t\t\t        \"path\": \"material/expand_less\",\n\t\t\t        \"color\": \"\",\n\t\t\t        \"style\": {\n\t\t\t          \"classes\": \"\"\n\t\t\t        }\n\t\t\t      },\n\t\t\t      \"collapsedIcon\": {\n\t\t\t        \"path\": \"material/expand_more\",\n\t\t\t        \"color\": \"\",\n\t\t\t        \"style\": {\n\t\t\t          \"classes\": \"\"\n\t\t\t        }\n\t\t\t      }\n\t\t\t    },\n\t\t\t    \"content\": {\n\t\t\t      \"type\": \"text\",\n\t\t\t      \"text\": name,\n\t\t\t      \"useDefaultViewWidth\": False,\n\t\t\t      \"useDefaultViewHeight\": False,\n\t\t\t      \"viewPath\": \"\",\n\t\t\t      \"viewParams\": {},\n\t\t\t      \"style\": {\n\t\t\t        \"classes\": \"\"\n\t\t\t      }\n\t\t\t    },\n\t\t\t    \"height\": \"40px\",\n\t\t\t    \"reverse\": False,\n\t\t\t    \"style\": {\n\t\t\t      \"classes\": \"\"\n\t\t\t    }\n\t\t\t  },\n\t\t\t  \"body\": {\n\t\t\t    \"viewPath\": \"L5K/Tags\",\n\t\t\t    \"viewParams\": {\n\t\t\t    \t\"tags\":tags\n\t\t\t    },\n\t\t\t    \"useDefaultViewWidth\": False,\n\t\t\t    \"useDefaultViewHeight\": False,\n\t\t\t    \"height\": \"auto\",\n\t\t\t    \"style\": {\n\t\t\t      \"classes\": \"\",\n\t\t\t      \"margin\": \"16px\"\n\t\t\t    }\n\t\t\t  }\n\t\t\t})\n\t\treturn ret\n\t\t\n\treturn []",
+                      "type": "script"
+                    }
+                  ],
+                  "type": "property"
+                }
+              }
+            },
+            "type": "ia.display.accordion"
+          }
+        ],
+        "meta": {
+          "name": "TabContainer"
+        },
+        "position": {
+          "height": 614,
+          "width": 973,
+          "x": 367,
+          "y": 43
+        },
+        "props": {
+          "tabSize": {
+            "width": 125
+          },
+          "tabs": [
+            "UDT Definitions",
+            "Global Tags",
+            "Program Tags"
+          ]
+        },
+        "type": "ia.container.tab"
+      },
+      {
+        "meta": {
+          "name": "Label_1"
+        },
+        "position": {
+          "height": 32,
+          "width": 286,
+          "x": 367,
+          "y": 7
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 4: Select tags to export"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_2"
+        },
+        "position": {
+          "height": 42,
+          "width": 277,
+          "x": 367,
+          "y": 667
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 5a: Create simulation export file \u0026 import into Gateway config"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_3"
+        },
+        "position": {
+          "height": 32,
+          "width": 294,
+          "x": 10,
+          "y": 7
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 1: Configure UDT \u0026 Device Info"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_4"
+        },
+        "position": {
+          "height": 32,
+          "width": 110,
+          "x": 10,
+          "y": 131
+        },
+        "props": {
+          "text": "Device Name:"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Device Name"
+        },
+        "position": {
+          "height": 32,
+          "width": 223,
+          "x": 123,
+          "y": 131
+        },
+        "type": "ia.input.text-field"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tdeviceName \u003d self.getSibling(\"Device Name\").props.text\n\tdevices \u003d system.dataset.toPyDataSet(system.device.listDevices())\n\texists \u003d False\n\tfor device in devices:\n\t\tif device[\"Name\"] \u003d\u003d deviceName:\n\t\t\texists \u003d True\n\t\t\tbreak\n\t\n\tif not exists:\n\t\tsystem.device.addDevice(deviceName\u003ddeviceName, deviceType\u003d\"ProgrammableSimulatorDevice\", deviceProps\u003d{})\n\t\tsystem.perspective.openPopup(id\u003d\"message\", view\u003d\"L5K/Message\", params\u003d{\"message\":\"Device \u0027%s\u0027 added\" % deviceName, \"error\":False}, title\u003d\"Message\")\n\telse:\n\t\tsystem.perspective.openPopup(id\u003d\"message\", view\u003d\"L5K/Message\", params\u003d{\"message\":\"Device \u0027%s\u0027 already exists\" % deviceName, \"error\":True}, title\u003d\"Error\")"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Create Simulation Device"
+        },
+        "position": {
+          "height": 34,
+          "width": 336,
+          "x": 10,
+          "y": 239
+        },
+        "propConfig": {
+          "props.enabled": {
+            "binding": {
+              "config": {
+                "expression": "len({../Device Name.props.text}) \u003e 0"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": "Create Simulation Device"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tudts \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion\").props.items\n\ttags \u003d self.parent.getChild(\"TabContainer\").getChild(\"EmbeddedView\").props.params.tags\n\tprograms \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion_0\").props.items\n\tcsv \u003d L5K.Parser.generateSimulationCSV(udts, tags, programs)\n\tsystem.perspective.download(filename\u003d\"instructions.csv\", data\u003dcsv, contentType\u003d\"application/csv\")"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Create Simulation Program Export"
+        },
+        "position": {
+          "height": 34,
+          "width": 274,
+          "x": 367,
+          "y": 721
+        },
+        "propConfig": {
+          "props.enabled": {
+            "binding": {
+              "config": {
+                "expression": "{parent.custom.parsedFile.parsed} \u0026\u0026 {parent.custom.parsedFile.success}"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": "Create Simulation Program Export"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tudtPrefix \u003d self.getSibling(\"UDT Prefix\").props.text\n\tudts \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion\").props.items\n\ttags \u003d self.parent.getChild(\"TabContainer\").getChild(\"EmbeddedView\").props.params.tags\n\tprograms \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion_0\").props.items\n\tjson \u003d L5K.Parser.generateUDTExport(udtPrefix, udts, tags, programs)\t\n\tsystem.perspective.download(filename\u003d\"udts.json\", data\u003djson, contentType\u003d\"application/json\")"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Create UDT Tag Export"
+        },
+        "position": {
+          "height": 34,
+          "width": 159,
+          "x": 697,
+          "y": 721
+        },
+        "propConfig": {
+          "props.enabled": {
+            "binding": {
+              "config": {
+                "expression": "{parent.custom.parsedFile.parsed} \u0026\u0026 {parent.custom.parsedFile.success}"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": "Create UDT Export"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "events": {
+          "component": {
+            "onActionPerformed": {
+              "config": {
+                "script": "\tdeviceName \u003d self.getSibling(\"Device Name\").props.text\n\tudtPrefix \u003d self.getSibling(\"UDT Prefix\").props.text\n\tudts \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion\").props.items\n\ttags \u003d self.parent.getChild(\"TabContainer\").getChild(\"EmbeddedView\").props.params.tags\n\tprograms \u003d self.parent.getChild(\"TabContainer\").getChild(\"Accordion_0\").props.items\n\tcomments \u003d self.parent.custom.parsedFile.comments\n\tjson \u003d L5K.Parser.generateTagExport(deviceName, udtPrefix, udts, tags, programs, comments)\n\tsystem.perspective.download(filename\u003d\"tags.json\", data\u003djson, contentType\u003d\"application/json\")"
+              },
+              "scope": "G",
+              "type": "script"
+            }
+          }
+        },
+        "meta": {
+          "name": "Create Tag Export"
+        },
+        "position": {
+          "height": 34,
+          "width": 159,
+          "x": 908,
+          "y": 721
+        },
+        "propConfig": {
+          "props.enabled": {
+            "binding": {
+              "config": {
+                "expression": "{parent.custom.parsedFile.parsed} \u0026\u0026 {parent.custom.parsedFile.success} \u0026\u0026 len({../Device Name.props.text})"
+              },
+              "type": "expr"
+            }
+          }
+        },
+        "props": {
+          "text": "Create Tag Export"
+        },
+        "type": "ia.input.button"
+      },
+      {
+        "meta": {
+          "name": "Label_5"
+        },
+        "position": {
+          "height": 42,
+          "width": 187,
+          "x": 697,
+          "y": 667
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 5b: Create UDT export file \u0026 import"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_6"
+        },
+        "position": {
+          "height": 42,
+          "width": 187,
+          "x": 908,
+          "y": 667
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 5c: Create Tag export file \u0026 import"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Checkbox"
+        },
+        "position": {
+          "height": 36,
+          "width": 300,
+          "x": 10,
+          "y": 318
+        },
+        "props": {
+          "selected": true,
+          "text": "Select all/none tags by default"
+        },
+        "type": "ia.input.checkbox"
+      },
+      {
+        "meta": {
+          "name": "Checkbox_0"
+        },
+        "position": {
+          "height": 36,
+          "width": 300,
+          "x": 10,
+          "y": 348
+        },
+        "props": {
+          "selected": true,
+          "text": "Allow hidden tags"
+        },
+        "type": "ia.input.checkbox"
+      },
+      {
+        "meta": {
+          "name": "Checkbox_1"
+        },
+        "position": {
+          "height": 36,
+          "width": 300,
+          "x": 10,
+          "y": 378
+        },
+        "props": {
+          "selected": true,
+          "text": "Use stored values"
+        },
+        "type": "ia.input.checkbox"
+      },
+      {
+        "meta": {
+          "name": "Label_7"
+        },
+        "position": {
+          "height": 32,
+          "width": 110,
+          "x": 10,
+          "y": 41
+        },
+        "props": {
+          "text": "UDT Prefix:"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "UDT Prefix"
+        },
+        "position": {
+          "height": 32,
+          "width": 223,
+          "x": 123,
+          "y": 41
+        },
+        "type": "ia.input.text-field"
+      },
+      {
+        "meta": {
+          "name": "Label_8"
+        },
+        "position": {
+          "height": 32,
+          "width": 345,
+          "x": 10,
+          "y": 207
+        },
+        "props": {
+          "style": {
+            "fontWeight": "bold"
+          },
+          "text": "Step 2: Optional - Create Device Simulator"
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_9"
+        },
+        "position": {
+          "height": 47,
+          "width": 221,
+          "x": 124,
+          "y": 77
+        },
+        "props": {
+          "style": {
+            "fontSize": "11px"
+          },
+          "text": "* Allows you to put UDT definitions inside of a folder to separate multiple L5K files since they may have overlapping UDTs."
+        },
+        "type": "ia.display.label"
+      },
+      {
+        "meta": {
+          "name": "Label_10"
+        },
+        "position": {
+          "height": 32,
+          "width": 221,
+          "x": 124,
+          "y": 166
+        },
+        "props": {
+          "style": {
+            "fontSize": "11px"
+          },
+          "text": "* Use only if you want to create UDT instances from your connected PLC"
+        },
+        "type": "ia.display.label"
+      }
+    ],
+    "meta": {
+      "name": "root"
+    },
+    "position": {
+      "x": -8,
+      "y": 7
+    },
+    "propConfig": {
+      "custom.parsedFile": {
+        "access": "PRIVATE",
+        "binding": {
+          "config": {
+            "expression": "now(0)"
+          },
+          "transforms": [
+            {
+              "code": "\treturn {\n\t  \"parsed\": False,\n\t  \"udts\": [],\n\t  \"tags\": [],\n\t  \"programs\": [],\n\t  \"comments\": {},\n\t  \"success\": True,\n\t  \"error\": \"\"\n\t}",
+              "type": "script"
+            }
+          ],
+          "type": "expr"
+        }
+      }
+    },
+    "type": "ia.container.coord"
+  }
+}

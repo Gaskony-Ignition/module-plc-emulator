@@ -1,0 +1,104 @@
+# PLC OPC-UA Simulator Configuration
+# Copy this file to config.yaml and customize
+
+server:
+  # OPC-UA endpoint
+  endpoint: "opc.tcp://0.0.0.0:4840/plc-simulator/"
+
+  # Server name
+  name: "PLC Simulator OPC-UA Server"
+
+  # Namespace URI
+  namespace: "http://plc-simulator.opcua"
+
+  # Hot reload: watch for file changes and reload
+  hot_reload: true
+
+  # Reload check interval (seconds)
+  reload_interval: 5
+
+# PLC Configurations
+# You can define multiple PLCs that will all be available on the same server
+plcs:
+  # First PLC - DemoWWTP WWTP
+  - name: "DemoWWTP"
+    enabled: true
+
+    # Path to PLC code file (L5K, JSON, etc.)
+    file: "../DemoWWTP-sample-a.L5K"
+
+    # Parser type: rockwell, siemens, json
+    parser: "rockwell"
+
+    # Parser options
+    parser_options:
+      select_tags: true
+      allow_hidden: false
+      use_stored_values: true
+
+    # Simulation configuration
+    simulation:
+      # Enable value simulation
+      enabled: true
+
+      # Update interval (seconds)
+      update_interval: 1.0
+
+      # Tag-specific simulation rules
+      # Format: tag_path: simulation_type
+      rules:
+        # Analog inputs - simulate with slow ramp
+        "AI_DOP201_DATA.PV":
+          type: "ramp"
+          min: 0
+          max: 100
+          step: 0.5
+
+        "AI_PLS102_DATA.PV":
+          type: "sine"
+          min: 0
+          max: 100
+          period: 60  # seconds
+
+        # Digital inputs - toggle periodically
+        "DI_*.Value":  # Wildcard pattern
+          type: "toggle"
+          interval: 10  # seconds
+
+        # Pumps - random on/off
+        "*.Running":
+          type: "random_bool"
+          probability: 0.7  # 70% chance of being on
+
+      # Default simulation for unmatched tags by data type
+      defaults:
+        BOOL: "static"      # Keep initial value
+        INT: "static"
+        REAL: "noise"       # Add small random noise
+        STRING: "static"
+
+  # Second PLC - Example for future use
+  - name: "TestPLC"
+    enabled: false
+    file: "../test.L5K"
+    parser: "rockwell"
+    simulation:
+      enabled: false
+
+# Logging configuration
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+  # Log to file
+  file:
+    enabled: true
+    path: "opcua_simulator.log"
+    max_bytes: 10485760  # 10 MB
+    backup_count: 5
+
+# Security (for future implementation)
+security:
+  enabled: false
+  # certificate_path: "server_cert.der"
+  # private_key_path: "server_key.pem"
