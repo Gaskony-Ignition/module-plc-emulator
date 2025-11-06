@@ -1,0 +1,9 @@
+[versions]
+ignition = "8.3.0"
+gson = "2.10.1"
+
+[libraries]
+ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
+ignition-gateway-api = { module = "com.inductiveautomation.ignitionsdk:gateway-api", version.ref = "ignition" }
+ignition-designer-api = { module = "com.inductiveautomation.ignitionsdk:designer-api", version.ref = "ignition" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }

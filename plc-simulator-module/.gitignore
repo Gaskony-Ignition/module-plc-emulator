@@ -1,0 +1,28 @@
+# Gradle build artifacts
+.gradle/
+build/
+bin/
+out/
+*.class
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+wrapper.log
+
+# Temp files
+.DS_Store
+Thumbs.db
+
+# Keep signing certificates for development
+# These are development-only with public passwords
+# !keystore.jks
+# !certificate.der
+# !sign.props

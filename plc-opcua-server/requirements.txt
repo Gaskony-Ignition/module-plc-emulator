@@ -1,0 +1,14 @@
+# PLC OPC-UA Simulator Server Dependencies
+
+# Core OPC-UA Server
+asyncua>=1.1.0
+
+# For configuration and logging
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# For value simulation
+numpy>=1.24.0
+
+# Optional: Performance monitoring
+psutil>=5.9.0
