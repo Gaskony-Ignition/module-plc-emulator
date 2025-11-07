@@ -32,12 +32,14 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         logger.info("Enhanced PLC Simulator module starting...");
 
         // Start parser service (shared by all device instances)
+        // NOTE: Parser service is optional - devices will use built-in Java parsers if unavailable
         try {
             parserService = new ParserService(logger, "localhost", 5000);
             parserService.start();
             logger.info("Parser service started on localhost:5000");
         } catch (Exception e) {
-            logger.error("Failed to start parser service", e);
+            logger.warn("Parser service not available (Python executable not bundled). Devices will use built-in parsers.", e);
+            parserService = null;
         }
 
         logger.info("Enhanced PLC Simulator module started successfully");
