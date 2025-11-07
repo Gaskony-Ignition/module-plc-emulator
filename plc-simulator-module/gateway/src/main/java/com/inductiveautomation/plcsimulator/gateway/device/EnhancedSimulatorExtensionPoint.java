@@ -98,17 +98,21 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
             errors.check(false, "Device name is required");
         }
 
-        // Validate file path exists
-        String filePath = config.parser().filePath();
-        if (filePath == null || filePath.trim().isEmpty()) {
-            errors.check(false, "PLC file path is required");
-        } else {
-            File file = new File(filePath);
+        // Validate file content or file name is provided
+        String fileContent = config.parser().fileContent();
+        String fileName = config.parser().fileName();
+
+        if ((fileContent == null || fileContent.trim().isEmpty()) &&
+            (fileName == null || fileName.trim().isEmpty())) {
+            errors.check(false, "Either paste PLC file content or specify a file name");
+        }
+
+        // If file name is provided without content, check if file exists
+        if ((fileContent == null || fileContent.trim().isEmpty()) &&
+            fileName != null && !fileName.trim().isEmpty()) {
+            File file = new File("/usr/local/bin/ignition/data/plc-simulator/" + fileName);
             if (!file.exists()) {
-                errors.check(false, "PLC file does not exist: " + filePath);
-            }
-            if (!file.canRead()) {
-                errors.check(false, "PLC file is not readable: " + filePath);
+                errors.check(false, "File does not exist: " + fileName + ". Please paste file content to upload.");
             }
         }
 

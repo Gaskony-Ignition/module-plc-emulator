@@ -110,11 +110,16 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      */
     public record ParserSettings(
         @FormCategory("PARSER")
-        @Label("PLC File Path")
-        @FormField(FormFieldType.FILE)
-        @Description("Path to PLC file accessible from Gateway (e.g., /usr/local/bin/ignition/data/plc-files/yourfile.L5K). For Docker: use mounted volumes or copy files to gateway container.")
-        @Required
-        String filePath,
+        @Label("Upload PLC File")
+        @FormField(FormFieldType.TEXTAREA)
+        @Description("Paste your PLC file content here, or use the file name field below to specify a file already on the Gateway")
+        String fileContent,
+
+        @FormCategory("PARSER")
+        @Label("File Name")
+        @FormField(FormFieldType.TEXT)
+        @Description("Original filename (e.g., 'DemoWWTP.L5K'). If file content is pasted above, this will be used to save the file. If empty, will look for existing file in /usr/local/bin/ignition/data/plc-simulator/")
+        String fileName,
 
         @FormCategory("PARSER")
         @Label("Parser Type")
