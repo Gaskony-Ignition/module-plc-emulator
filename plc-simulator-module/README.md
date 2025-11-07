@@ -4,8 +4,8 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v1.2.1
-**Status**: ✅ Fully Functional - All features working!
+**Version**: v1.3.0
+**Status**: ✅ Fully Functional - Enhanced workflow similar to original simulator!
 
 ### What Works ✅
 - ✅ **File upload feature** - "📁 Upload PLC File" button automatically appears in device config
@@ -35,7 +35,9 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 2. Select device type: **Enhanced PLC Simulator**
 3. Enter **Device Name** and select **Parser Type**
 4. Click **Save** - device will show "Ready - Waiting for file upload" status
-5. Later, edit the device and upload/paste your PLC file
+5. Add files later using one of these methods:
+   - **Edit Program Page**: `http://localhost:9088/res/plcsimulator/edit-program.html`
+   - **Device Edit**: Edit device and click "📁 Upload PLC File" button
 
 #### Create with File
 1. Go to Config > Devices > Create New Device
@@ -50,10 +52,22 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 4. Save the device
 5. Tags are automatically created and browseable via OPC-UA
 
+### Edit Program (Similar to Original Simulator)
+
+Access the dedicated Edit Program interface: **`http://localhost:9088/res/plcsimulator/edit-program.html`**
+
+Features:
+- 📁 Drag-and-drop file import
+- 📋 Step-by-step instructions
+- 🔗 Quick links to device configuration
+- 💡 Workflow guidance
+
+See [EDIT_PROGRAM_GUIDE.md](EDIT_PROGRAM_GUIDE.md) for detailed instructions.
+
 **Note**:
 - File content and filename are **completely optional** when creating the device
 - You can create the device first and add files later
-- The file upload button appears automatically! If it doesn't, see [FILE_UPLOAD_GUIDE.md](FILE_UPLOAD_GUIDE.md) for troubleshooting.
+- Multiple methods available for file import (choose what works best for you)
 
 ## Supported PLC Formats
 
