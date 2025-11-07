@@ -92,23 +92,8 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
             errors.check(false, "Device name is required");
         }
 
-        // Validate file content or file name is provided
-        String fileContent = config.parser().fileContent();
-        String fileName = config.parser().fileName();
-
-        if ((fileContent == null || fileContent.trim().isEmpty()) &&
-            (fileName == null || fileName.trim().isEmpty())) {
-            errors.check(false, "Either paste PLC file content or specify a file name");
-        }
-
-        // If file name is provided without content, check if file exists
-        if ((fileContent == null || fileContent.trim().isEmpty()) &&
-            fileName != null && !fileName.trim().isEmpty()) {
-            File file = new File("/usr/local/bin/ignition/data/plc-simulator/" + fileName);
-            if (!file.exists()) {
-                errors.check(false, "File does not exist: " + fileName + ". Please paste file content to upload.");
-            }
-        }
+        // Note: File content and file name are now optional - device can be created without them
+        // Device will start in "Ready - Waiting for file upload" status if no file provided
 
         // Validate parser type
         EnhancedSimulatorConfig.ParserType parserType = config.parser().parserType();
