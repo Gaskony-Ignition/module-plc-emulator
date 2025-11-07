@@ -15,6 +15,78 @@ import com.inductiveautomation.ignition.gateway.web.nav.FormFieldType;
 public record EnhancedSimulatorConfig(General general, ParserSettings parser, SimulationSettings simulation) {
 
     /**
+     * Supported PLC file parser types.
+     */
+    public enum ParserType {
+        ROCKWELL("rockwell", "Rockwell l5k (allen-bradley)"),
+        JSON("json", "Json format"),
+        SIEMENS("siemens", "Siemens tia portal"),
+        SCHNEIDER("schneider", "Schneider electric"),
+        BECKHOFF("beckhoff", "Beckhoff twincat");
+
+        private final String key;
+        private final String displayName;
+
+        ParserType(String key, String displayName) {
+            this.key = key;
+            this.displayName = displayName;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public static ParserType fromKey(String key) {
+            for (ParserType type : values()) {
+                if (type.key.equalsIgnoreCase(key)) {
+                    return type;
+                }
+            }
+            throw new IllegalArgumentException("Unknown parser type: " + key);
+        }
+    }
+
+    /**
+     * Simulation pattern types.
+     */
+    public enum SimulationPattern {
+        STATIC("static", "Static (no changes)"),
+        SINE("sine", "Sine wave"),
+        RAMP("ramp", "Linear ramp"),
+        RANDOM("random", "Random values"),
+        TOGGLE("toggle", "Boolean toggle");
+
+        private final String key;
+        private final String displayName;
+
+        SimulationPattern(String key, String displayName) {
+            this.key = key;
+            this.displayName = displayName;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public static SimulationPattern fromKey(String key) {
+            for (SimulationPattern pattern : values()) {
+                if (pattern.key.equalsIgnoreCase(key)) {
+                    return pattern;
+                }
+            }
+            return SINE; // Default fallback
+        }
+    }
+
+    /**
      * General device settings.
      */
     public record General(
@@ -39,18 +111,18 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
     public record ParserSettings(
         @FormCategory("PARSER")
         @Label("PLC File Path")
-        @FormField(FormFieldType.TEXT)
-        @Description("Absolute path to PLC file (.L5K, .json, etc.)")
+        @FormField(FormFieldType.FILE)
+        @Description("Path to PLC file accessible from Gateway (e.g., /usr/local/bin/ignition/data/plc-files/yourfile.L5K). For Docker: use mounted volumes or copy files to gateway container.")
         @Required
         String filePath,
 
         @FormCategory("PARSER")
         @Label("Parser Type")
-        @FormField(FormFieldType.TEXT)
-        @Description("Parser type: rockwell, json, siemens, schneider, beckhoff, or gaskony")
-        @DefaultValue("rockwell")
+        @FormField(FormFieldType.SELECT)
+        @Description("Select the PLC vendor/format")
+        @DefaultValue("ROCKWELL")
         @Required
-        String parserType,
+        ParserType parserType,
 
         @FormCategory("PARSER")
         @Label("Auto-reload on File Change")
@@ -87,9 +159,9 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
         @FormCategory("SIMULATION")
         @Label("Default Simulation Pattern")
-        @FormField(FormFieldType.TEXT)
-        @Description("Simulation pattern: static, sine, ramp, random, or toggle")
-        @DefaultValue("sine")
-        String defaultPattern
+        @FormField(FormFieldType.SELECT)
+        @Description("Default simulation behavior for tags")
+        @DefaultValue("SINE")
+        SimulationPattern defaultPattern
     ) {}
 }

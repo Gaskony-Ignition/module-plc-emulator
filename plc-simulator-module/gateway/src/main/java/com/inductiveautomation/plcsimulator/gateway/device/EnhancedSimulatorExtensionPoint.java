@@ -32,8 +32,8 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
     public EnhancedSimulatorExtensionPoint() {
         super(
             TYPE_ID,
-            "EnhancedSimulator.Meta.DisplayName",      // i18n key for "Enhanced PLC Simulator"
-            "EnhancedSimulator.Meta.Description",      // i18n key for description
+            "Enhanced PLC Simulator",      // Display name in device dropdown
+            "Multi-vendor PLC simulator supporting Rockwell, Siemens, Schneider, and Beckhoff with hierarchical tag structure",      // Description
             EnhancedSimulatorConfig.class
         );
     }
@@ -105,8 +105,8 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
         }
 
         // Validate parser type
-        String parserType = config.parser().parserType();
-        if (parserType == null || parserType.trim().isEmpty()) {
+        EnhancedSimulatorConfig.ParserType parserType = config.parser().parserType();
+        if (parserType == null) {
             errors.check(false, "Parser type is required");
         }
 

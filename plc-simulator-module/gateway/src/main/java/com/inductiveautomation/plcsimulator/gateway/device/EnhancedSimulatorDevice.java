@@ -146,24 +146,47 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
     /**
      * Parses the PLC file using the parser service.
+     * Falls back to built-in parser if service is unavailable.
      *
      * @return Parsed PLC data as JSON object
      */
     private JsonObject parseFile() {
         try {
             String filePath = config.parser().filePath();
-            String parserType = config.parser().parserType();
+            EnhancedSimulatorConfig.ParserType parserType = config.parser().parserType();
+            String parserKey = parserType.getKey();
 
-            logger.info("Parsing file: {} with parser: {}", filePath, parserType);
+            logger.info("Parsing file: {} with parser: {}", filePath, parserType.getDisplayName());
 
+            // First, try to use parser service if available
+            JsonObject result = tryParserService(filePath, parserKey);
+            if (result != null) {
+                logger.info("File parsed successfully using parser service");
+                return result;
+            }
+
+            // Fallback to built-in parser
+            logger.warn("Parser service unavailable, using built-in fallback parser");
+            return parseFileBuiltIn(filePath, parserType);
+
+        } catch (Exception e) {
+            logger.error("Error parsing file", e);
+            return null;
+        }
+    }
+
+    /**
+     * Attempts to parse using the external parser service.
+     */
+    private JsonObject tryParserService(String filePath, String parserKey) {
+        try {
             // Determine parser endpoint based on type
-            String endpoint = switch (parserType.toLowerCase()) {
+            String endpoint = switch (parserKey) {
                 case "rockwell" -> "l5k";
                 case "json" -> "json";
                 case "siemens" -> "siemens";
                 case "schneider" -> "schneider";
                 case "beckhoff" -> "beckhoff";
-                case "gaskony" -> "gaskony";
                 default -> "json";
             };
 
@@ -174,8 +197,8 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             URL url = new URL(parserUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(30000);
+            conn.setConnectTimeout(2000); // Shorter timeout for fallback
+            conn.setReadTimeout(10000);
 
             int responseCode = conn.getResponseCode();
             if (responseCode == 200) {
@@ -195,18 +218,67 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                     return null;
                 }
 
-                logger.info("File parsed successfully");
                 return result;
 
             } else {
-                logger.error("Parser service returned error code: {}", responseCode);
+                logger.warn("Parser service returned error code: {}", responseCode);
                 return null;
             }
 
         } catch (Exception e) {
-            logger.error("Error parsing file", e);
+            logger.debug("Parser service not available: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Built-in fallback parser for when parser service is unavailable.
+     * Creates a simple structure to demonstrate the device driver.
+     */
+    private JsonObject parseFileBuiltIn(String filePath, EnhancedSimulatorConfig.ParserType parserType) {
+        logger.info("Using built-in fallback parser for: {}", filePath);
+
+        File file = new File(filePath);
+        if (!file.exists()) {
+            logger.error("File does not exist: {}", filePath);
+            // Return a demo structure to allow device to start
+            return createDemoStructure();
+        }
+
+        // For now, create a simple demo structure
+        // TODO: Implement actual parsing logic for each vendor format
+        return createDemoStructure();
+    }
+
+    /**
+     * Creates a demo tag structure for testing.
+     */
+    private JsonObject createDemoStructure() {
+        String json = """
+            {
+                "tags": [
+                    {
+                        "name": "DemoTag1",
+                        "dataType": "DINT",
+                        "value": 0,
+                        "description": "Demo tag - Parser service unavailable"
+                    },
+                    {
+                        "name": "DemoTag2",
+                        "dataType": "REAL",
+                        "value": 0.0,
+                        "description": "Demo tag - Install Python parser for full functionality"
+                    },
+                    {
+                        "name": "DemoStatus",
+                        "dataType": "STRING",
+                        "value": "Parser service unavailable - showing demo tags",
+                        "description": "Status indicator"
+                    }
+                ]
+            }
+            """;
+        return gson.fromJson(json, JsonObject.class);
     }
 
     /**
