@@ -11,7 +11,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Additional parser implementations (Siemens, Schneider, Beckhoff)
 - Enhanced error handling and validation
 - Configuration import/export functionality
-- Drag-and-drop file upload support
+- Device list API integration for Edit Program page
+
+---
+
+## [1.3.0] - 2025-11-07
+
+### Added
+- **Edit Program page** - Dedicated interface for file import similar to original simulator
+  - Accessible at `/res/plcsimulator/edit-program.html`
+  - Drag-and-drop file upload support
+  - Step-by-step workflow instructions
+  - Quick links to device configuration
+  - Visual feedback and guidance
+- **EDIT_PROGRAM_GUIDE.md** - Comprehensive guide comparing workflows
+
+### Enhanced
+- Improved workflow matching original Programmable Device Simulator
+- Multiple methods for file import (Edit Program page, Device Edit, or Direct Upload)
+- Better user guidance and documentation
+- Clearer separation between device creation and file management
+
+### User Experience
+- Create device → Access Edit Program page → Import file (like original)
+- Or create device → Edit device → Upload file (direct method)
+- Or create device with file inline (all-in-one method)
+- Choose the workflow that fits your needs
+
+### Documentation
+- Updated README with Edit Program section
+- Added comparison with original simulator workflow
+- Detailed troubleshooting in EDIT_PROGRAM_GUIDE.md
+- Clear access instructions for all methods
 
 ---
 
