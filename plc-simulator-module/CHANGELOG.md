@@ -15,6 +15,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.1] - 2025-11-07
+
+### Changed
+- **File content and filename now fully optional** when creating device
+  - Devices can be created without any file configuration
+  - Device starts in "Ready - Waiting for file upload" status
+  - Files can be added later via edit/upload
+- Updated field descriptions to clarify optional nature
+  - "PLC File Content (Optional)" label
+  - "File Name (Optional)" label
+  - Clear messaging about ability to add files later
+
+### Technical Details
+- Modified `EnhancedSimulatorDevice.onStartup()` to handle missing file gracefully
+- Device creates empty root folder when no file provided
+- No error state when file is missing - shows "Ready - Waiting for file upload"
+- Updated properties file descriptions
+- Updated Java annotations descriptions
+
+### User Experience
+- Create device connection first, add file configuration later
+- More flexible workflow for device setup
+- Clearer UI messaging about optional fields
+
+---
+
 ## [1.2.0] - 2025-11-07
 
 ### ✅ Fixed

@@ -4,7 +4,7 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v1.2.0
+**Version**: v1.2.1
 **Status**: ✅ Fully Functional - All features working!
 
 ### What Works ✅
@@ -30,19 +30,30 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ### Creating a Simulated Device
 
+#### Quick Create (No File Required)
+1. Go to Config > Devices > Create New Device
+2. Select device type: **Enhanced PLC Simulator**
+3. Enter **Device Name** and select **Parser Type**
+4. Click **Save** - device will show "Ready - Waiting for file upload" status
+5. Later, edit the device and upload/paste your PLC file
+
+#### Create with File
 1. Go to Config > Devices > Create New Device
 2. Select device type: **Enhanced PLC Simulator**
 3. Configure device settings:
    - **Device Name**: Unique name for this simulator
    - **Parser Type**: Select your PLC vendor (Rockwell, Siemens, JSON, etc.)
-   - **File Content**:
+   - **File Content** (Optional):
      - Click the **"📁 Upload PLC File"** button (appears automatically)
      - Or paste your PLC export file content directly into the textarea
-   - **File Name**: Automatically populated when uploading, or enter manually
+   - **File Name** (Optional): Automatically populated when uploading, or enter manually
 4. Save the device
 5. Tags are automatically created and browseable via OPC-UA
 
-**Note**: The file upload button appears automatically! If it doesn't, see [FILE_UPLOAD_GUIDE.md](FILE_UPLOAD_GUIDE.md) for troubleshooting.
+**Note**:
+- File content and filename are **completely optional** when creating the device
+- You can create the device first and add files later
+- The file upload button appears automatically! If it doesn't, see [FILE_UPLOAD_GUIDE.md](FILE_UPLOAD_GUIDE.md) for troubleshooting.
 
 ## Supported PLC Formats
 

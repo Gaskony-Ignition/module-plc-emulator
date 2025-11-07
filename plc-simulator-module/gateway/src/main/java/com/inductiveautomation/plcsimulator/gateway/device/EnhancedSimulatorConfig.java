@@ -122,13 +122,13 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormCategory("PARSER")
         @Label("PLC File Content")
         @FormField(FormFieldType.TEXTAREA)
-        @Description("Paste your PLC file content here (open file on your computer, copy all text, paste here). File will be saved to Gateway filesystem automatically.")
+        @Description("OPTIONAL: Click 'Upload PLC File' button or paste content here. You can create the device first and add the file later.")
         String fileContent,
 
         @FormCategory("PARSER")
         @Label("File Name")
         @FormField(FormFieldType.TEXT)
-        @Description("Filename to save as (e.g., 'DemoWWTP.L5K'). Required if pasting file content above.")
+        @Description("OPTIONAL: Filename to save as (e.g., 'DemoWWTP.L5K'). Auto-populated when uploading. You can leave this empty when creating the device.")
         String fileName,
 
         @FormCategory("PARSER")
