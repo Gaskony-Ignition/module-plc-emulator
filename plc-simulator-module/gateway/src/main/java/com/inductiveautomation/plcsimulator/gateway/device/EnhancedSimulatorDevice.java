@@ -84,8 +84,16 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             logger.info("Starting Enhanced PLC Simulator device: {}", context.getName());
             deviceStatus = "Starting";
 
+            // Save uploaded file content if provided
+            String actualFilePath = prepareFile();
+            if (actualFilePath == null) {
+                deviceStatus = "Error: Failed to prepare file";
+                logger.error("Failed to prepare PLC file");
+                return;
+            }
+
             // Parse the PLC file
-            parsedData = parseFile();
+            parsedData = parseFile(actualFilePath);
 
             if (parsedData == null) {
                 deviceStatus = "Error: Failed to parse file";
@@ -145,14 +153,66 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
+     * Prepares the PLC file for parsing.
+     * If file content was uploaded, saves it to the Gateway filesystem.
+     *
+     * @return Path to the prepared file, or null if preparation failed
+     */
+    private String prepareFile() {
+        try {
+            String fileContent = config.parser().fileContent();
+            String fileName = config.parser().fileName();
+
+            // Create storage directory if it doesn't exist
+            File storageDir = new File("/usr/local/bin/ignition/data/plc-simulator");
+            if (!storageDir.exists()) {
+                storageDir.mkdirs();
+                logger.info("Created PLC file storage directory: {}", storageDir.getAbsolutePath());
+            }
+
+            // If file content was uploaded, save it
+            if (fileContent != null && !fileContent.trim().isEmpty()) {
+                if (fileName == null || fileName.trim().isEmpty()) {
+                    fileName = "uploaded-" + context.getName() + ".L5K";
+                }
+
+                File targetFile = new File(storageDir, fileName);
+                java.nio.file.Files.writeString(targetFile.toPath(), fileContent);
+                logger.info("Saved uploaded file to: {}", targetFile.getAbsolutePath());
+
+                return targetFile.getAbsolutePath();
+            }
+
+            // Otherwise, use existing file
+            if (fileName != null && !fileName.trim().isEmpty()) {
+                File targetFile = new File(storageDir, fileName);
+                if (targetFile.exists()) {
+                    logger.info("Using existing file: {}", targetFile.getAbsolutePath());
+                    return targetFile.getAbsolutePath();
+                } else {
+                    logger.error("File not found: {}", targetFile.getAbsolutePath());
+                    return null;
+                }
+            }
+
+            logger.error("No file content or file name provided");
+            return null;
+
+        } catch (Exception e) {
+            logger.error("Error preparing file", e);
+            return null;
+        }
+    }
+
+    /**
      * Parses the PLC file using the parser service.
      * Falls back to built-in parser if service is unavailable.
      *
+     * @param filePath Path to the PLC file
      * @return Parsed PLC data as JSON object
      */
-    private JsonObject parseFile() {
+    private JsonObject parseFile(String filePath) {
         try {
-            String filePath = config.parser().filePath();
             EnhancedSimulatorConfig.ParserType parserType = config.parser().parserType();
             String parserKey = parserType.getKey();
 
