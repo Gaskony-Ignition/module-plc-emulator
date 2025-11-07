@@ -3,10 +3,12 @@ package com.inductiveautomation.plcsimulator.gateway;
 import com.inductiveautomation.ignition.common.BundleUtil;
 import com.inductiveautomation.ignition.common.licensing.LicenseState;
 import com.inductiveautomation.ignition.gateway.config.migration.IdbMigrationStrategy;
+import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.AbstractDeviceModuleHook;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceExtensionPoint;
 import com.inductiveautomation.plcsimulator.gateway.device.EnhancedSimulatorExtensionPoint;
+import com.inductiveautomation.plcsimulator.gateway.web.FileUploadRoutes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,5 +102,33 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
      */
     public ParserService getParserService() {
         return parserService;
+    }
+
+    /**
+     * Mount HTTP routes for file upload functionality.
+     * Routes will be available at /main/data/plcsimulator/*
+     */
+    @Override
+    public void mountRouteHandlers(RouteGroup routes) {
+        logger.info("Mounting file upload routes...");
+        new FileUploadRoutes(context, routes).mountRoutes();
+    }
+
+    /**
+     * Mount web resources from the "mounted" folder.
+     * This makes plc-file-upload.js accessible at /res/plcsimulator/plc-file-upload.js
+     */
+    @Override
+    public Optional<String> getMountedResourceFolder() {
+        return Optional.of("mounted");
+    }
+
+    /**
+     * Return the mount path alias for web resources.
+     * Resources will be available at /res/plcsimulator/*
+     */
+    @Override
+    public Optional<String> getMountPathAlias() {
+        return Optional.of("plcsimulator");
     }
 }

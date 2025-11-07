@@ -8,10 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Planned
-- File upload feature redesign (investigating hybrid module architecture)
 - Additional parser implementations (Siemens, Schneider, Beckhoff)
 - Enhanced error handling and validation
 - Configuration import/export functionality
+- Drag-and-drop file upload support
+
+---
+
+## [1.2.0] - 2025-11-07
+
+### ✅ Fixed
+- **File upload now working!** - Complete implementation using HTTP routes and mounted web resources
+  - Client-side JavaScript automatically injects "📁 Upload PLC File" button
+  - Supports L5K, JSON, CSV, and XML files
+  - Auto-populates both file content and filename fields
+  - Visual feedback for loading/success/error states
+
+### Added
+- `FileUploadRoutes` class for handling HTTP file upload endpoints
+  - POST `/main/data/plcsimulator/upload` - File upload endpoint
+  - GET `/main/data/plcsimulator/health` - Health check endpoint
+- `plc-file-upload.js` - Client-side file upload UI (auto-injected)
+- `enable-file-upload.html` - Manual activation page (if needed)
+- FILE_UPLOAD_GUIDE.md - Comprehensive usage documentation
+
+### Technical Details
+- Extended `SimulatorModuleHook` with:
+  - `mountRouteHandlers()` for HTTP routes
+  - `getMountedResourceFolder()` returning "mounted"
+  - `getMountPathAlias()` returning "plcsimulator"
+- Web resources accessible at `/res/plcsimulator/*`
+- HTTP routes available at `/main/data/plcsimulator/*`
+- Uses `RequestContext` and `JSONObject` for route handlers
+- Jakarta Servlet API compatibility (jakarta.servlet.*)
+
+### Status
+- ✅ All core features working
+- ✅ File upload functional
+- ✅ Display names and dropdowns correct (from v1.0.9/v1.0.10)
+- ✅ Device driver architecture stable
+- ✅ Ready for production use
 
 ---
 
