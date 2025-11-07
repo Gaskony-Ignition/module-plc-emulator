@@ -87,8 +87,12 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             // Save uploaded file content if provided
             String actualFilePath = prepareFile();
             if (actualFilePath == null) {
-                deviceStatus = "Error: Failed to prepare file";
-                logger.error("Failed to prepare PLC file");
+                // No file provided yet - device is ready but waiting for configuration
+                deviceStatus = "Ready - Waiting for file upload";
+                logger.info("Device started without file configuration. Use file upload to add PLC file.");
+
+                // Create empty root folder so device appears in OPC-UA browser
+                createRootNode();
                 return;
             }
 
