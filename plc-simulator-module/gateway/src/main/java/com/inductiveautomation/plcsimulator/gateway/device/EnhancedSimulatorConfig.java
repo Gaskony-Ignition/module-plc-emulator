@@ -18,11 +18,11 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      * Supported PLC file parser types.
      */
     public enum ParserType {
-        ROCKWELL("rockwell", "Rockwell l5k (allen-bradley)"),
-        JSON("json", "Json format"),
-        SIEMENS("siemens", "Siemens tia portal"),
-        SCHNEIDER("schneider", "Schneider electric"),
-        BECKHOFF("beckhoff", "Beckhoff twincat");
+        ROCKWELL("rockwell", "Rockwell L5k (Allen-Bradley)"),
+        JSON("json", "Json Format"),
+        SIEMENS("siemens", "Siemens Tia Portal"),
+        SCHNEIDER("schneider", "Schneider Electric"),
+        BECKHOFF("beckhoff", "Beckhoff Twincat");
 
         private final String key;
         private final String displayName;
@@ -54,11 +54,11 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      * Simulation pattern types.
      */
     public enum SimulationPattern {
-        STATIC("static", "Static (no changes)"),
-        SINE("sine", "Sine wave"),
-        RAMP("ramp", "Linear ramp"),
-        RANDOM("random", "Random values"),
-        TOGGLE("toggle", "Boolean toggle");
+        STATIC("static", "Static (No Changes)"),
+        SINE("sine", "Sine Wave"),
+        RAMP("ramp", "Linear Ramp"),
+        RANDOM("random", "Random Values"),
+        TOGGLE("toggle", "Boolean Toggle");
 
         private final String key;
         private final String displayName;
