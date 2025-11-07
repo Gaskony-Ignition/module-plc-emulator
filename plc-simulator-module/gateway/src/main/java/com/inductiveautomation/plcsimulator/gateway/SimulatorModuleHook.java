@@ -12,6 +12,7 @@ import com.inductiveautomation.plcsimulator.gateway.web.FileUploadRoutes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -131,4 +132,5 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     public Optional<String> getMountPathAlias() {
         return Optional.of("plcsimulator");
     }
+
 }

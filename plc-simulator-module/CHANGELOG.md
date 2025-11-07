@@ -11,7 +11,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Additional parser implementations (Siemens, Schneider, Beckhoff)
 - Enhanced error handling and validation
 - Configuration import/export functionality
-- Device list API integration for Edit Program page
+- Gateway Config menu integration (requires web UI dependencies)
+
+---
+
+## [1.3.1] - 2025-11-07
+
+### Added
+- **Landing page** at `/res/plcsimulator/` for easy navigation
+  - Quick start guide with workflow instructions
+  - Feature highlights
+  - Direct links to Edit Program and Device Config
+  - Bookmarkable URLs for quick access
+
+### Enhanced
+- Module description now includes Edit Program URL
+- Better discoverability of Edit Program functionality
+- Clean, modern UI for landing page
+
+### Technical Notes
+- Removed attempted Gateway Config integration (incompatible with AbstractDeviceModuleHook)
+- Device drivers using AbstractDeviceModuleHook cannot register custom config pages
+- Edit Program remains accessible via direct URL: `/res/plcsimulator/edit-program.html`
+- Landing page accessible at: `/res/plcsimulator/` or `/res/plcsimulator/index.html`
+
+### User Access
+- Navigate to `/res/plcsimulator/` for the landing page
+- Click "Open Edit Program" button or navigate directly to `/res/plcsimulator/edit-program.html`
+- Bookmark for easy access
 
 ---
 
