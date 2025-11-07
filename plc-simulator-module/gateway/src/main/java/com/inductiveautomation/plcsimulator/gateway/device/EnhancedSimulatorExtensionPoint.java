@@ -28,12 +28,13 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
 
     /**
      * Constructor registers this device type with Ignition.
+     * IMPORTANT: DeviceExtensionPoint expects DIRECT STRINGS, not i18n keys!
      */
     public EnhancedSimulatorExtensionPoint() {
         super(
             TYPE_ID,
-            "EnhancedSimulator.Meta.DisplayName",      // i18n key for display name
-            "EnhancedSimulator.Meta.Description",      // i18n key for description
+            "Enhanced PLC Simulator",      // Direct display name (NOT i18n key!)
+            "Multi-vendor PLC simulator supporting Rockwell, Siemens, Schneider, and Beckhoff",      // Direct description
             EnhancedSimulatorConfig.class
         );
     }
