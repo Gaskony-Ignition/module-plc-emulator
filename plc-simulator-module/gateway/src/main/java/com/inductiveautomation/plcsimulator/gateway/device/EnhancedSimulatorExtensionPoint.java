@@ -32,18 +32,10 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
     public EnhancedSimulatorExtensionPoint() {
         super(
             TYPE_ID,
-            TYPE_ID,      // Use TYPE_ID as fallback for i18n key
-            TYPE_ID,      // Use TYPE_ID as fallback for i18n key
+            "EnhancedSimulator.Meta.DisplayName",      // i18n key for display name
+            "EnhancedSimulator.Meta.Description",      // i18n key for description
             EnhancedSimulatorConfig.class
         );
-    }
-
-    public String getDisplayName() {
-        return "Enhanced PLC Simulator";
-    }
-
-    public String getDescription() {
-        return "Multi-vendor PLC simulator supporting Rockwell, Siemens, Schneider, and Beckhoff with hierarchical tag structure";
     }
 
     /**

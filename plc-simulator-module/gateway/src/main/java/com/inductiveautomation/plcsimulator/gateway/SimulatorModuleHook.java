@@ -1,5 +1,6 @@
 package com.inductiveautomation.plcsimulator.gateway;
 
+import com.inductiveautomation.ignition.common.BundleUtil;
 import com.inductiveautomation.ignition.common.licensing.LicenseState;
 import com.inductiveautomation.ignition.gateway.config.migration.IdbMigrationStrategy;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
@@ -30,6 +31,14 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     @Override
     public void startup(LicenseState licenseState) {
         logger.info("Enhanced PLC Simulator module starting...");
+
+        // Register resource bundle for i18n support
+        BundleUtil.get().addBundle(
+            "EnhancedSimulator",
+            EnhancedSimulatorExtensionPoint.class,
+            "EnhancedSimulator"
+        );
+        logger.info("Registered EnhancedSimulator resource bundle");
 
         // Start parser service (shared by all device instances)
         // NOTE: Parser service is optional - devices will use built-in Java parsers if unavailable

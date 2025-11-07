@@ -18,11 +18,11 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      * Supported PLC file parser types.
      */
     public enum ParserType {
-        ROCKWELL("rockwell", "Rockwell L5k (Allen-Bradley)"),
-        JSON("json", "Json Format"),
-        SIEMENS("siemens", "Siemens Tia Portal"),
+        ROCKWELL("rockwell", "Rockwell L5K (Allen-Bradley)"),
+        JSON("json", "JSON Format"),
+        SIEMENS("siemens", "Siemens TIA Portal"),
         SCHNEIDER("schneider", "Schneider Electric"),
-        BECKHOFF("beckhoff", "Beckhoff Twincat");
+        BECKHOFF("beckhoff", "Beckhoff TwinCAT");
 
         private final String key;
         private final String displayName;
@@ -111,8 +111,8 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
     public record ParserSettings(
         @FormCategory("PARSER")
         @Label("Upload PLC File")
-        @FormField(FormFieldType.TEXTAREA)
-        @Description("Paste your PLC file content here, or use the file name field below to specify a file already on the Gateway")
+        @FormField(FormFieldType.FILE)
+        @Description("Click to browse and upload a PLC file from your computer (L5K, JSON, etc.)")
         String fileContent,
 
         @FormCategory("PARSER")
