@@ -110,15 +110,15 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      */
     public record ParserSettings(
         @FormCategory("PARSER")
-        @Label("Upload PLC File")
-        @FormField(FormFieldType.FILE)
-        @Description("Click to browse and upload a PLC file from your computer (L5K, JSON, etc.)")
+        @Label("PLC File Content")
+        @FormField(FormFieldType.TEXTAREA)
+        @Description("Paste your PLC file content here (open file on your computer, copy all text, paste here). File will be saved to Gateway filesystem automatically.")
         String fileContent,
 
         @FormCategory("PARSER")
         @Label("File Name")
         @FormField(FormFieldType.TEXT)
-        @Description("Original filename (e.g., 'DemoWWTP.L5K'). If file content is pasted above, this will be used to save the file. If empty, will look for existing file in /usr/local/bin/ignition/data/plc-simulator/")
+        @Description("Filename to save as (e.g., 'DemoWWTP.L5K'). Required if pasting file content above.")
         String fileName,
 
         @FormCategory("PARSER")
