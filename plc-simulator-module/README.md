@@ -4,20 +4,19 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v1.1.0
-**Status**: Partially Functional - Core features working, file upload feature not implemented
+**Version**: v1.2.0
+**Status**: ✅ Fully Functional - All features working!
 
 ### What Works ✅
-- Device driver appears in device connection dropdown as "Enhanced PLC Simulator"
-- Parser dropdown shows friendly vendor names (e.g., "Rockwell L5K (Allen-Bradley)")
-- Module installs and runs in Ignition Gateway
-- Device driver architecture functional
-- i18n display names working correctly
-- Parser type enum dropdowns functional
-
-### What Doesn't Work ❌
-- File upload feature attempted in v1.1.0 (requires redesign - see KNOWN_ISSUES.md)
-- Users must currently copy/paste file content into textarea field
+- ✅ **File upload feature** - "📁 Upload PLC File" button automatically appears in device config
+- ✅ Device driver appears in device connection dropdown as "Enhanced PLC Simulator"
+- ✅ Parser dropdown shows friendly vendor names (e.g., "Rockwell L5K (Allen-Bradley)")
+- ✅ Module installs and runs in Ignition Gateway
+- ✅ Device driver architecture functional
+- ✅ i18n display names working correctly
+- ✅ Parser type enum dropdowns functional
+- ✅ Web resources properly mounted
+- ✅ HTTP routes for file operations
 
 ## Quick Start
 
@@ -36,10 +35,14 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 3. Configure device settings:
    - **Device Name**: Unique name for this simulator
    - **Parser Type**: Select your PLC vendor (Rockwell, Siemens, JSON, etc.)
-   - **File Content**: Paste your PLC export file content (L5K, JSON, etc.)
-   - **Device Name (in file)**: Name used in OPC paths (e.g., `[DeviceName]`)
+   - **File Content**:
+     - Click the **"📁 Upload PLC File"** button (appears automatically)
+     - Or paste your PLC export file content directly into the textarea
+   - **File Name**: Automatically populated when uploading, or enter manually
 4. Save the device
 5. Tags are automatically created and browseable via OPC-UA
+
+**Note**: The file upload button appears automatically! If it doesn't, see [FILE_UPLOAD_GUIDE.md](FILE_UPLOAD_GUIDE.md) for troubleshooting.
 
 ## Supported PLC Formats
 
