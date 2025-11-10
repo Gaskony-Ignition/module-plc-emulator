@@ -13,8 +13,9 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #f5f7fa;
+            background: #1a1d23;
             padding: 20px;
+            color: #e4e4e7;
         }
 
         .container {
@@ -23,21 +24,22 @@
         }
 
         .header {
-            background: white;
+            background: #27292e;
             padding: 24px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
             margin-bottom: 24px;
+            border: 1px solid #3a3d45;
         }
 
         h1 {
-            color: #2c3e50;
+            color: #f0f0f1;
             font-size: 28px;
             margin-bottom: 8px;
         }
 
         .subtitle {
-            color: #7f8c8d;
+            color: #a1a1aa;
             font-size: 14px;
         }
 
@@ -47,15 +49,17 @@
         }
 
         .device-card {
-            background: white;
+            background: #27292e;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             padding: 20px;
-            transition: box-shadow 0.2s;
+            transition: all 0.2s;
+            border: 1px solid #3a3d45;
         }
 
         .device-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border-color: #4a5568;
         }
 
         .device-header {
@@ -68,7 +72,7 @@
         .device-name {
             font-size: 20px;
             font-weight: 600;
-            color: #2c3e50;
+            color: #f0f0f1;
         }
 
         .device-status {
@@ -79,18 +83,18 @@
         }
 
         .status-running {
-            background: #d4edda;
-            color: #155724;
+            background: #10b981;
+            color: #d1fae5;
         }
 
         .status-waiting {
-            background: #fff3cd;
-            color: #856404;
+            background: #f59e0b;
+            color: #fef3c7;
         }
 
         .status-error {
-            background: #f8d7da;
-            color: #721c24;
+            background: #ef4444;
+            color: #fee2e2;
         }
 
         .device-info {
@@ -99,8 +103,9 @@
             gap: 12px;
             margin-bottom: 16px;
             padding: 12px;
-            background: #f8f9fa;
+            background: #1f2128;
             border-radius: 4px;
+            border: 1px solid #3a3d45;
         }
 
         .info-item {
@@ -108,12 +113,12 @@
         }
 
         .info-label {
-            color: #7f8c8d;
+            color: #a1a1aa;
             font-weight: 500;
         }
 
         .info-value {
-            color: #2c3e50;
+            color: #e4e4e7;
             margin-top: 4px;
         }
 
@@ -136,30 +141,31 @@
         }
 
         .btn-primary {
-            background: #007bff;
+            background: #3b82f6;
             color: white;
         }
 
         .btn-primary:hover {
-            background: #0056b3;
+            background: #2563eb;
         }
 
         .btn-secondary {
-            background: #6c757d;
+            background: #4b5563;
             color: white;
+            border: 1px solid #6b7280;
         }
 
         .btn-secondary:hover {
-            background: #545b62;
+            background: #374151;
         }
 
         .btn-success {
-            background: #28a745;
+            background: #10b981;
             color: white;
         }
 
         .btn-success:hover {
-            background: #1e7e34;
+            background: #059669;
         }
 
         .upload-modal {
@@ -169,20 +175,22 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.75);
             z-index: 1000;
             align-items: center;
             justify-content: center;
         }
 
         .modal-content {
-            background: white;
+            background: #27292e;
             border-radius: 12px;
             padding: 32px;
             max-width: 600px;
             width: 90%;
             max-height: 80vh;
             overflow-y: auto;
+            border: 1px solid #3a3d45;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
         }
 
         .modal-header {
@@ -191,23 +199,23 @@
 
         .modal-title {
             font-size: 24px;
-            color: #2c3e50;
+            color: #f0f0f1;
             margin-bottom: 8px;
         }
 
         .drop-zone {
-            border: 2px dashed #cbd5e0;
+            border: 2px dashed #4b5563;
             border-radius: 8px;
             padding: 48px;
             text-align: center;
-            background: #f7fafc;
+            background: #1f2128;
             transition: all 0.2s;
             cursor: pointer;
         }
 
         .drop-zone.dragover {
-            border-color: #007bff;
-            background: #e7f3ff;
+            border-color: #3b82f6;
+            background: #1e3a8a;
         }
 
         .drop-zone-icon {
@@ -216,13 +224,13 @@
         }
 
         .drop-zone-text {
-            color: #4a5568;
+            color: #d4d4d8;
             font-size: 16px;
             margin-bottom: 8px;
         }
 
         .drop-zone-hint {
-            color: #a0aec0;
+            color: #a1a1aa;
             font-size: 14px;
         }
 
@@ -234,8 +242,10 @@
             display: none;
             margin-top: 16px;
             padding: 16px;
-            background: #e7f3ff;
+            background: #1e3a8a;
             border-radius: 8px;
+            border: 1px solid #3b82f6;
+            color: #dbeafe;
         }
 
         .file-info.visible {
@@ -246,23 +256,38 @@
             float: right;
             font-size: 28px;
             font-weight: bold;
-            color: #aaa;
+            color: #a1a1aa;
             cursor: pointer;
+            transition: color 0.2s;
         }
 
         .close-btn:hover {
-            color: #000;
+            color: #f0f0f1;
         }
 
         .empty-state {
             text-align: center;
             padding: 48px;
-            color: #7f8c8d;
+            color: #a1a1aa;
         }
 
         .empty-state-icon {
             font-size: 64px;
             margin-bottom: 16px;
+        }
+
+        a {
+            color: #60a5fa;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        a:hover {
+            color: #93c5fd;
+        }
+
+        strong {
+            color: #f0f0f1;
         }
     </style>
 </head>
@@ -270,7 +295,11 @@
     <div class="container">
         <div class="header">
             <h1>📁 Edit Program - Enhanced PLC Simulator</h1>
-            <p class="subtitle">Import and manage PLC files for your simulated devices</p>
+            <p class="subtitle" id="pageSubtitle">Import and manage PLC files for your simulated devices</p>
+            <div id="deviceBanner" style="display: none; margin-top: 12px; padding: 12px; background: #065f46; border: 1px solid #10b981; border-radius: 6px; color: #d1fae5;">
+                <strong>🎯 Device:</strong> <span id="currentDevice"></span>
+                <p style="margin-top: 4px; font-size: 13px; opacity: 0.9;">Files uploaded here will be applied directly to this device</p>
+            </div>
         </div>
 
         <div id="deviceList" class="device-list">
@@ -316,7 +345,21 @@
         let selectedFile = null;
 
         // Load devices on page load
-        window.addEventListener('load', loadDevices);
+        window.addEventListener('load', function() {
+            // Check for device parameter in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const deviceParam = urlParams.get('device');
+
+            if (deviceParam) {
+                currentDevice = deviceParam;
+                // Show device-specific banner
+                document.getElementById('currentDevice').textContent = deviceParam;
+                document.getElementById('deviceBanner').style.display = 'block';
+                document.getElementById('pageSubtitle').textContent = `Managing PLC program for device: ${deviceParam}`;
+            }
+
+            loadDevices();
+        });
 
         function loadDevices() {
             const deviceList = document.getElementById('deviceList');
@@ -326,20 +369,24 @@
                         <div class="device-name">📍 How to Import PLC Files</div>
                     </div>
                     <div style="padding: 16px; line-height: 1.6;">
-                        <p style="margin-bottom: 12px;"><strong>Method 1: Direct Upload (Recommended)</strong></p>
+                        <p style="margin-bottom: 12px;"><strong>Method 1: Direct Upload in Device Config (Recommended)</strong></p>
                         <ol style="margin-left: 20px; margin-bottom: 20px;">
-                            <li>Go to <strong>Config → Devices</strong> in the Gateway</li>
-                            <li>Find your Enhanced PLC Simulator device and click to edit</li>
-                            <li>Look for the <strong>"📁 Upload PLC File"</strong> button above the file content field</li>
-                            <li>Click it and select your L5K, JSON, CSV, or XML file</li>
-                            <li>File will be automatically uploaded and device will update</li>
+                            <li>Go to <strong>Config → OPC UA → Device Connections</strong></li>
+                            <li>Click "Edit" on the device you want to update</li>
+                            <li>Look for the <strong>"📁 Upload PLC File"</strong> button</li>
+                            <li>Select your L5K, JSON, CSV, or XML file</li>
+                            <li>Save the device</li>
                         </ol>
 
                         <p style="margin-bottom: 12px;"><strong>Method 2: Drag and Drop (Below)</strong></p>
-                        <p style="margin-bottom: 12px;">Use the import tool below to upload files with drag-and-drop support.</p>
+                        <p style="margin-bottom: 12px;">Upload files using the tool below, then paste content into your chosen device.</p>
 
-                        <div style="background: #e7f3ff; padding: 12px; border-radius: 4px; margin-top: 16px;">
-                            <strong>💡 Tip:</strong> The file upload button appears automatically in device configuration pages. If you don't see it, try refreshing the page or clearing your browser cache.
+                        <div style="background: #065f46; padding: 12px; border-radius: 4px; margin-top: 16px; border: 1px solid #10b981; color: #d1fae5;">
+                            <strong>✨ Multiple Devices:</strong> You can create multiple Enhanced PLC Simulator devices (e.g., "Building1_PLC", "TestRig_Simulator"). Each device is independent - upload different files to simulate different PLCs simultaneously!
+                        </div>
+
+                        <div style="background: #1e3a8a; padding: 12px; border-radius: 4px; margin-top: 12px; border: 1px solid #3b82f6; color: #dbeafe;">
+                            <strong>💡 Tip:</strong> Give your devices meaningful names so you can easily identify which simulator to upload to.
                         </div>
                     </div>
                 </div>
@@ -428,26 +475,140 @@
             document.getElementById('importBtn').style.display = 'inline-flex';
         }
 
-        function importFile() {
-            if (!selectedFile || !currentDevice) return;
+        async function importFile() {
+            if (!selectedFile) return;
 
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                const content = e.target.result;
+            const importBtn = document.getElementById('importBtn');
+            const originalText = importBtn.textContent;
+            importBtn.disabled = true;
+            importBtn.textContent = 'Uploading...';
 
-                // TODO: Send to Gateway API to update device configuration
-                console.log('Importing file for device:', currentDevice);
-                console.log('File content length:', content.length);
+            console.log('Starting file upload...', {
+                fileName: selectedFile.name,
+                fileSize: selectedFile.size,
+                currentDevice: currentDevice
+            });
 
-                alert(`File "${selectedFile.name}" imported successfully!\n\nNext: The device configuration will be updated and tags will be created.\n\n(Implementation in progress)`);
-                closeModal();
-            };
+            try {
+                // Read file content
+                console.log('Reading file content...');
+                const content = await readFileAsText(selectedFile);
+                console.log('File read successfully, length:', content.length);
 
-            reader.onerror = function() {
-                alert('Error reading file');
-            };
+                // Choose endpoint based on whether device is specified
+                let uploadUrl = '/data/plcsimulator/upload';
+                if (currentDevice && currentDevice !== 'universal') {
+                    uploadUrl = `/data/plcsimulator/upload?device=${encodeURIComponent(currentDevice)}`;
+                }
+                console.log('Upload URL:', uploadUrl);
 
-            reader.readAsText(selectedFile);
+                // Send to Gateway file upload endpoint
+                console.log('Sending fetch request...');
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain',
+                        'X-Filename': selectedFile.name
+                    },
+                    body: content
+                });
+
+                console.log('Response received:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    ok: response.ok,
+                    contentType: response.headers.get('content-type')
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+                }
+
+                // Parse response
+                console.log('Parsing JSON response...');
+                const result = await response.json();
+                console.log('JSON parsed successfully:', result);
+
+                if (result.success) {
+                    // Device-specific success message
+                    if (currentDevice) {
+                        const deviceMessage = `
+✅ File uploaded successfully for device "${currentDevice}"!
+
+📄 File: ${selectedFile.name}
+📦 Size: ${(result.size / 1024).toFixed(2)} KB
+🔧 Type: ${selectedFile.name.split('.').pop().toUpperCase()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEXT STEP - Apply to Device:
+
+1. Go to: Config → OPC UA → Device Connections
+2. Click "Edit" on device: ${currentDevice}
+3. Find "File Content (Internal)" field
+4. Paste the uploaded content (or it may auto-fill)
+5. Verify "Current File" shows: ${selectedFile.name}
+6. Click "Save"
+
+The file has been uploaded and is ready to apply!
+                        `.trim();
+                        alert(deviceMessage);
+                    } else {
+                        // Generic success message
+                        const genericMessage = `
+✅ File "${selectedFile.name}" uploaded successfully!
+
+📦 Size: ${(result.size / 1024).toFixed(2)} KB
+🔧 Type: ${selectedFile.name.split('.').pop().toUpperCase()}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEXT STEP - Choose Device:
+
+1. Go to: Config → OPC UA → Device Connections
+2. Edit the device you want to update
+3. Paste file content into "File Content (Internal)"
+4. Update "Current File" to: ${selectedFile.name}
+5. Save
+
+💡 TIP: Open this page with ?device=YourDeviceName
+      to upload directly for a specific device!
+                        `.trim();
+                        alert(genericMessage);
+                    }
+
+                    closeModal();
+                } else {
+                    throw new Error(result.error || 'Upload failed');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                console.error('Error stack:', error.stack);
+
+                let errorDetails = error.message;
+                if (error.name === 'TypeError') {
+                    errorDetails += '\n\nThis might be a network error or CORS issue.';
+                }
+
+                alert(`❌ Upload failed: ${errorDetails}\n\n` +
+                      `The upload encountered an error.\n` +
+                      `Please check the browser console (F12) for more details.\n\n` +
+                      `Common causes:\n` +
+                      `- Gateway not responding\n` +
+                      `- Invalid file format\n` +
+                      `- Network connectivity issue`);
+            } finally {
+                console.log('Resetting button state');
+                importBtn.disabled = false;
+                importBtn.textContent = originalText;
+            }
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = () => reject(new Error('Failed to read file'));
+                reader.readAsText(file);
+            });
         }
 
         // Close modal on ESC key

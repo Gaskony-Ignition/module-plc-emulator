@@ -120,16 +120,23 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      */
     public record ParserSettings(
         @FormCategory("PARSER")
-        @Label("PLC File Content")
-        @FormField(FormFieldType.TEXTAREA)
-        @Description("OPTIONAL: Click 'Upload PLC File' button or paste content here. You can create the device first and add the file later.")
-        String fileContent,
+        @Label("📁 Manage PLC Program")
+        @FormField(FormFieldType.TEXT)
+        @Description("<a href='/res/plcsimulator/edit-program.html' target='_blank' style='display:inline-block;padding:10px 20px;background:#0066cc;color:white;text-decoration:none;border-radius:4px;font-weight:500;margin-bottom:8px;'>Open Program Manager ↗</a><br/><br/>Opens drag-and-drop interface for uploading L5K, JSON, CSV, or XML files. After uploading, paste the content into the 'File Content (Internal)' field below.")
+        @DefaultValue("See link above")
+        String programManagerLink,
 
         @FormCategory("PARSER")
-        @Label("File Name")
+        @Label("Current File")
         @FormField(FormFieldType.TEXT)
-        @Description("OPTIONAL: Filename to save as (e.g., 'DemoWWTP.L5K'). Auto-populated when uploading. You can leave this empty when creating the device.")
+        @Description("Currently loaded PLC file (read-only). Use Program Manager link above to change.")
         String fileName,
+
+        @FormCategory("PARSER")
+        @Label("File Content (Internal)")
+        @FormField(FormFieldType.TEXTAREA)
+        @Description("Internal storage for PLC file content. Managed automatically by Program Manager. You can also paste content here directly if needed.")
+        String fileContent,
 
         @FormCategory("PARSER")
         @Label("Parser Type")

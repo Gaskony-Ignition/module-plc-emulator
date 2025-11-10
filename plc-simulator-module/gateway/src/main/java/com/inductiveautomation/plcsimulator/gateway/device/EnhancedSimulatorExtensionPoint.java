@@ -60,6 +60,7 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
     /**
      * Provides the web UI component for device configuration.
      * This generates the configuration form in the Gateway automatically.
+     * Automatically injects plc-file-upload.js to enable file upload button.
      *
      * @param type Component type
      * @return Web UI component for configuration form
@@ -73,7 +74,7 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
                 TYPE_ID,
                 SchemaUtil.fromType(DeviceProfileConfig.class),
                 SchemaUtil.fromType(EnhancedSimulatorConfig.class),
-                Set.of()
+                Set.of("/res/plcsimulator/plc-file-upload.js")
             )
         );
     }
