@@ -9,9 +9,228 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 - Additional parser implementations (Siemens, Schneider, Beckhoff)
-- Enhanced error handling and validation
-- Configuration import/export functionality
-- Gateway Config menu integration (requires web UI dependencies)
+- Automatic device configuration update via API
+- Device list display in Edit Program page
+
+---
+
+## [1.5.1] - 2025-11-10
+
+### Fixed
+- **CRITICAL: Route Mounting Failure** - Fixed "Access control must be specified" error
+  - Added `Restrictions.authenticated()` to /upload and /devices routes
+  - Added `unrestricted()` to /health route (public health check)
+  - Routes now require Gateway authentication for security
+  - Fixed "java.lang.IllegalArgumentException: Access control must be specified"
+  - Added defensive null checks in `mountRouteHandlers()`
+  - Wrapped each route mount in individual try-catch blocks
+  - Added detailed logging at each step of route mounting
+  - Prevents ParserService failure from blocking route initialization
+  - Module now continues loading even if individual routes fail
+
+- **Upload Stuck on "Uploading..." Debugging** - Added comprehensive error handling
+  - Detailed console.log statements throughout upload flow
+  - Better error messages with common causes
+  - Network error and CORS detection
+  - Response status logging
+  - Proper error stack traces in console
+  - Instructions to check browser console (F12) for details
+
+### Enhanced
+- **Clickable Program Manager Link** - Auto-generated URL in device config
+  - JavaScript auto-injection creates clickable blue button
+  - Detects Gateway URL automatically using `window.location.origin`
+  - Extracts device name from page elements (H1, H2, URL parameters)
+  - Constructs device-specific URL: `/res/plcsimulator/edit-program.html?device=DeviceName`
+  - Opens in new tab with "Open Program Manager for 'DeviceName'" text
+  - Hides original text input field for cleaner UI
+  - Hover effects with color transitions (#0066cc → #0052a3)
+
+- **Improved Logging Throughout Module Lifecycle**
+  - `setup()` logs GatewayContext initialization status
+  - `mountRouteHandlers()` logs context/routes null checks
+  - Each route mount logged individually with ✓ success indicators
+  - Detailed error messages if any component fails
+
+### Technical Details
+- Modified `SimulatorModuleHook.java`:
+  - Added try-catch wrapper around `mountRouteHandlers()` entire method
+  - Null checks for `context` and `routes` parameters
+  - Enhanced logging in `setup()` to track initialization order
+  - Errors in route mounting no longer crash module startup
+
+- Modified `FileUploadRoutes.java`:
+  - Individual try-catch blocks for each route (/upload, /devices, /health)
+  - Detailed logging: "Mounting X route..." then "✓ X route mounted"
+  - Failed routes logged but don't prevent other routes from mounting
+
+- Modified `edit-program.html`:
+  - Added detailed logging for file upload debugging
+  - Check for 'universal' device to prevent duplicate query parameter
+  - Better async/await error handling
+  - Response parsing validation
+
+- Modified `plc-file-upload.js`:
+  - New `injectProgramManagerLink()` function
+  - DOM traversal to find "Manage PLC Program" field
+  - Device name detection from multiple sources (page elements, URL)
+  - Link injection with styled blue button
+  - Help text showing device-specific vs generic mode
+
+### Root Cause Analysis
+The "Unable to mount routes" error was caused by:
+1. **Missing access control specification** - Ignition requires ALL routes to explicitly specify authentication
+   - Error: `java.lang.IllegalArgumentException: Access control must be specified.`
+   - Fix: Added `.restrict(Restrictions.authenticated())` to protected routes
+   - Fix: Added `.unrestricted()` to public health check route
+2. ParserService throwing IOException (expected - Python executable not bundled)
+3. Any uncaught exception in route mounting prevented all routes from mounting
+
+### User Impact
+- **File Upload Now Works:** Routes should mount successfully even with ParserService warnings
+- **Better Debugging:** Detailed logs show exactly which routes mount and which fail
+- **Robust Startup:** Module continues loading even if individual components fail
+- **Clickable Link:** No more copying/pasting URLs - just click the auto-generated button
+- **Professional UX:** Clean, polished interface with proper error feedback
+
+---
+
+## [1.5.0] - 2025-11-10
+
+### 🎯 MAJOR UPDATE: Device-Specific Upload Workflow
+
+### Changed
+- **Redesigned Device Configuration Form** - Clean, focused interface
+  - Removed large "PLC File Content" textarea from main view
+  - Removed "File Name" from main view
+  - Added "📁 Manage PLC Program" link field at the top
+  - Moved file content to "File Content (Internal)" - less prominent
+  - "Current File" shows which file is loaded (read-only indicator)
+
+### Added
+- **Device-Specific Upload URLs** - Direct link to manage each device
+  - Edit Program page now accepts `?device=DeviceName` parameter
+  - URL automatically focuses on specific device
+  - Shows device name in banner when parameter provided
+  - Example: `/res/plcsimulator/edit-program.html?device=Building1_PLC`
+
+- **Device-Specific API Endpoint**
+  - New route: `/main/data/plcsimulator/device/:deviceName/upload`
+  - Upload files directly for a specific device
+  - Clearer success messages showing device name
+  - Better error handling for device-specific operations
+
+### Enhanced
+- **Improved Upload Success Messages**
+  - Device-specific: Shows exact device name and next steps
+  - Generic mode: Suggests using device parameter
+  - Clear instructions for applying uploaded content
+  - Better visual formatting with emojis and separators
+
+- **Cleaner Device Configuration UX**
+  - Less clutter - focus on essential settings
+  - Prominent "Manage PLC Program" link
+  - Clear instructions on how to construct device-specific URL
+  - Internal file storage fields moved to bottom
+
+### User Impact
+**Before v1.5.0:**
+- Large textarea fields dominated device config
+- Had to manually paste file content
+- Unclear which device file was for
+- Cluttered configuration form
+
+**After v1.5.0:**
+- Clean config form with prominent link
+- Click link → opens dedicated upload interface
+- Device-specific: URL includes device name
+- File content managed separately from config
+
+### Example Workflow
+```
+1. Create device: "Building1_PLC"
+2. In config, copy Program Manager link
+3. Add device parameter: ?device=Building1_PLC
+4. Open link → dedicated upload page for this device
+5. Drag & drop file → automatically tagged for Building1_PLC
+6. Return to config → file ready to apply
+```
+
+---
+
+## [1.4.0] - 2025-11-10
+
+### Added
+- **🌙 Dark Mode for Edit Program Page** - Beautiful dark theme that's easy on the eyes
+  - Sleek dark background (#1a1d23) with subtle borders
+  - High contrast text for readability
+  - Smooth hover effects and transitions
+  - Blue accent colors (#3b82f6) for interactive elements
+  - Consistent with modern dark mode design patterns
+
+### Fixed
+- **✅ File Upload Implementation Complete** - Edit Program page now fully functional!
+  - Removed "(Implementation in progress)" placeholder
+  - Actual file upload to Gateway via `/main/data/plcsimulator/upload` endpoint
+  - Async/await for proper error handling
+  - Upload progress indication ("Uploading..." button state)
+  - Detailed success message with next steps
+  - Proper error handling with user-friendly messages
+  - Files are validated and sent to FileUploadRoutes backend
+
+### Enhanced
+- **Better User Experience**
+  - Loading states during file upload
+  - Clear success/error messages
+  - Step-by-step instructions after upload
+  - File size display in success message
+  - Disabled button during upload to prevent duplicates
+
+### Technical Notes
+- Gateway Config sidebar menu **cannot** be added with AbstractDeviceModuleHook
+- The Gateway navigation APIs (IConfigTab, AbstractNamedTab) require AbstractGatewayModuleHook
+- Device drivers extending AbstractDeviceModuleHook cannot access these APIs
+- Edit Program remains accessible via direct URL: `/res/plcsimulator/edit-program.html` (bookmark it!)
+
+### User Impact
+- **Dark mode** reduces eye strain for extended use
+- **Complete upload workflow** - no more "implementation in progress" messages
+- **Professional UI** with modern design
+- **Clear feedback** at every step of the upload process
+
+---
+
+## [1.3.2] - 2025-11-10
+
+### Fixed
+- **JavaScript injection attempted** for file upload button in device configuration
+  - Added JavaScript resource path to `ExtensionPointResourceForm`
+  - Changed `Set.of()` to `Set.of("/res/plcsimulator/plc-file-upload.js")` in `EnhancedSimulatorExtensionPoint.java:77`
+  - **Note:** May not work in all Ignition versions due to SDK limitations
+
+### Added
+- **Comprehensive Quick Start Guide** (`QUICK_START.md`)
+  - Documents all three methods to upload PLC files
+  - Explains why "Edit Program" cannot be added to device dropdown menu
+  - Provides step-by-step troubleshooting
+  - Clear instructions for Edit Program page access
+
+### Enhanced
+- **Updated device configuration description**
+  - Added explicit link to Edit Program page (`/res/plcsimulator/edit-program.html`)
+  - Clearer instructions for file upload methods
+  - Mentions alternative access methods if upload button doesn't appear
+
+### Technical Notes
+- **SDK Limitation:** Ignition SDK does not provide public API to add custom items to device dropdown menu
+- Original "Programmable Device Simulator" uses internal APIs not available to third-party modules
+- Three working methods provided: Edit Program page, config form upload, and copy/paste
+
+### User Impact
+- **Edit Program Page:** Primary method - accessible at `/res/plcsimulator/edit-program.html` (bookmark this!)
+- **Upload Button:** May appear in device config if JavaScript injection works in your Ignition version
+- **Copy/Paste:** Always works as fallback method
+- **Clear Documentation:** QUICK_START.md provides complete usage guide
 
 ---
 

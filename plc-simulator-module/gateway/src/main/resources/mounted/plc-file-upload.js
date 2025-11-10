@@ -8,6 +8,10 @@
 (function() {
     'use strict';
 
+    console.log('=== PLC SIMULATOR SCRIPT LOADED ===');
+    console.log('Current URL:', window.location.href);
+    console.log('Document ready state:', document.readyState);
+
     // Prevent multiple injections
     if (window.plcSimulatorUploadInjected) {
         console.log('PLC Simulator: Upload UI already injected');
@@ -19,20 +23,31 @@
 
     // Wait for DOM to be ready
     if (document.readyState === 'loading') {
+        console.log('DOM still loading, adding DOMContentLoaded listener');
         document.addEventListener('DOMContentLoaded', initFileUpload);
     } else {
+        console.log('DOM already ready, initializing immediately');
         initFileUpload();
     }
 
     function initFileUpload() {
+        console.log('=== initFileUpload() called ===');
+
+        // First, try to inject the clickable Program Manager link
+        console.log('Attempting to inject Program Manager link...');
+        injectProgramManagerLink();
+
         // Find the textarea for file content
-        const textarea = findTextareaByLabel('PLC File Content') || findTextareaByLabel('File Content');
+        console.log('Looking for file content textarea...');
+        const textarea = findTextareaByLabel('PLC File Content') || findTextareaByLabel('File Content (Internal)');
 
         if (!textarea) {
             console.log('PLC Simulator: File content textarea not found, retrying in 1s...');
             setTimeout(initFileUpload, 1000);
             return;
         }
+
+        console.log('Found textarea:', textarea);
 
         // Check if we already added the upload button
         if (textarea.parentElement.querySelector('.plc-upload-button')) {
@@ -41,8 +56,139 @@
         }
 
         // Create file upload UI
+        console.log('Creating upload UI...');
         createUploadUI(textarea);
         console.log('PLC Simulator: File upload UI injected successfully');
+    }
+
+    function injectProgramManagerLink() {
+        console.log('=== injectProgramManagerLink() called ===');
+
+        // Find the "Manage PLC Program" field
+        const labels = document.querySelectorAll('label');
+        console.log('Found', labels.length, 'labels on page');
+
+        let manageLinkField = null;
+
+        for (const label of labels) {
+            const labelText = label.textContent;
+            console.log('Checking label:', labelText.substring(0, 50));
+
+            if (labelText.includes('Manage PLC Program') || labelText.includes('📁')) {
+                console.log('FOUND matching label:', labelText);
+                const container = label.closest('.form-group, .field-container, div');
+                console.log('Container found:', !!container);
+
+                if (container) {
+                    manageLinkField = container.querySelector('input[type="text"]');
+                    console.log('Input field found:', !!manageLinkField);
+                    if (manageLinkField) {
+                        console.log('Input field value:', manageLinkField.value);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!manageLinkField) {
+            console.log('PLC Simulator: Manage PLC Program field not found - link injection failed');
+            return;
+        }
+
+        console.log('Found manageLinkField, checking if already injected...');
+
+        // Check if link already injected
+        if (manageLinkField.parentElement.querySelector('.plc-program-manager-link')) {
+            console.log('Link already injected, skipping');
+            return;
+        }
+
+        console.log('No existing link found, proceeding with injection...');
+
+        // Get device name from page (usually in h1 or page title)
+        let deviceName = '';
+        const h1Elements = document.querySelectorAll('h1, h2, .page-title, .device-name');
+        console.log('Searching for device name in', h1Elements.length, 'heading elements');
+
+        for (const h of h1Elements) {
+            const text = h.textContent.trim();
+            console.log('Checking heading text:', text);
+            if (text && !text.includes('Config') && !text.includes('Gateway')) {
+                deviceName = text;
+                console.log('Found device name from heading:', deviceName);
+                break;
+            }
+        }
+
+        // If couldn't find device name, try to get from URL or form
+        if (!deviceName) {
+            console.log('Device name not found in headings, checking URL...');
+            const urlMatch = window.location.href.match(/device[=/]([^&/]+)/i);
+            if (urlMatch) {
+                deviceName = decodeURIComponent(urlMatch[1]);
+                console.log('Found device name from URL:', deviceName);
+            } else {
+                console.log('Device name not found in URL either');
+            }
+        }
+
+        // Construct the full URL
+        const baseUrl = window.location.origin;
+        console.log('Base URL:', baseUrl);
+
+        const editProgramUrl = deviceName
+            ? `${baseUrl}/res/plcsimulator/edit-program.html?device=${encodeURIComponent(deviceName)}`
+            : `${baseUrl}/res/plcsimulator/edit-program.html`;
+
+        console.log('Constructed edit program URL:', editProgramUrl);
+
+        // Create clickable link element
+        console.log('Creating link container element...');
+        const linkContainer = document.createElement('div');
+        linkContainer.className = 'plc-program-manager-link';
+        linkContainer.style.cssText = 'margin-bottom: 12px; padding: 12px; background: #e7f3ff; border: 1px solid #0066cc; border-radius: 6px;';
+
+        const link = document.createElement('a');
+        link.href = editProgramUrl;
+        link.target = '_blank';
+        link.style.cssText = 'display: inline-block; padding: 10px 20px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; font-size: 14px;';
+        link.innerHTML = deviceName
+            ? `📁 Open Program Manager for "${deviceName}" ↗`
+            : '📁 Open Program Manager ↗';
+
+        link.addEventListener('mouseover', function() {
+            this.style.background = '#0052a3';
+        });
+        link.addEventListener('mouseout', function() {
+            this.style.background = '#0066cc';
+        });
+
+        const helpText = document.createElement('div');
+        helpText.style.cssText = 'margin-top: 8px; font-size: 12px; color: #666;';
+        helpText.textContent = deviceName
+            ? 'Opens drag-and-drop interface for this specific device'
+            : 'Opens drag-and-drop interface (device name will be detected automatically)';
+
+        linkContainer.appendChild(link);
+        linkContainer.appendChild(helpText);
+
+        console.log('Link and help text created, inserting into DOM...');
+        console.log('manageLinkField.parentElement:', manageLinkField.parentElement);
+
+        // Insert above the input field
+        try {
+            manageLinkField.parentElement.insertBefore(linkContainer, manageLinkField);
+            console.log('Link container inserted successfully');
+        } catch (e) {
+            console.error('Failed to insert link container:', e);
+            return;
+        }
+
+        // Hide the input field since we have the link now
+        manageLinkField.style.display = 'none';
+        console.log('Original input field hidden');
+
+        console.log('=== PLC Simulator: Program Manager link injected successfully! ===');
     }
 
     function findTextareaByLabel(labelText) {

@@ -29,7 +29,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     @Override
     public void setup(GatewayContext context) {
         this.context = context;
-        logger.info("Enhanced PLC Simulator module setup");
+        logger.info("Enhanced PLC Simulator module setup - GatewayContext initialized: {}", (context != null));
     }
 
     @Override
@@ -111,8 +111,37 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
      */
     @Override
     public void mountRouteHandlers(RouteGroup routes) {
-        logger.info("Mounting file upload routes...");
-        new FileUploadRoutes(context, routes).mountRoutes();
+        try {
+            logger.info("=== ROUTE MOUNTING DEBUG ===");
+            logger.info("mountRouteHandlers called");
+            logger.info("GatewayContext null? {}", (context == null));
+            logger.info("RouteGroup null? {}", (routes == null));
+
+            if (routes != null) {
+                logger.info("RouteGroup class: {}", routes.getClass().getName());
+                logger.info("RouteGroup toString: {}", routes.toString());
+            }
+
+            if (context == null) {
+                logger.error("GatewayContext is null - cannot mount routes! This should not happen.");
+                return;
+            }
+
+            if (routes == null) {
+                logger.error("RouteGroup is null - cannot mount routes! This should not happen.");
+                return;
+            }
+
+            FileUploadRoutes uploadRoutes = new FileUploadRoutes(context, routes);
+            uploadRoutes.mountRoutes();
+
+            logger.info("File upload routes mounted successfully");
+            logger.info("=== END ROUTE MOUNTING DEBUG ===");
+        } catch (Exception e) {
+            logger.error("CRITICAL: Failed to mount file upload routes", e);
+            e.printStackTrace();
+            // Don't rethrow - we want the module to continue loading even if routes fail
+        }
     }
 
     /**
@@ -132,5 +161,14 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     public Optional<String> getMountPathAlias() {
         return Optional.of("plcsimulator");
     }
+
+    /**
+     * NOTE: Cannot add Gateway Config sidebar menu items with AbstractDeviceModuleHook.
+     * The Gateway navigation APIs (IConfigTab, AbstractNamedTab) are not available when
+     * extending AbstractDeviceModuleHook, only when extending AbstractGatewayModuleHook.
+     *
+     * Edit Program page is accessible via direct URL: /res/plcsimulator/edit-program.html
+     * Bookmark this URL for easy access!
+     */
 
 }

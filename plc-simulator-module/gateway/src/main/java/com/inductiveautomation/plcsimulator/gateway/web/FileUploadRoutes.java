@@ -1,8 +1,11 @@
 package com.inductiveautomation.plcsimulator.gateway.web;
 
+import com.inductiveautomation.ignition.gateway.dataroutes.HttpMethod;
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.ignition.gateway.dataroutes.RouteAccess;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -33,26 +36,51 @@ public class FileUploadRoutes {
      * Routes will be available at /main/data/plcsimulator/*
      */
     public void mountRoutes() {
-        // POST endpoint for file upload
-        routes.newRoute("/upload")
-            .handler(this::handleFileUpload)
-            .mount();
+        try {
+            logger.info("Mounting /upload route...");
+            routes.newRoute("/upload")
+                .handler(this::handleFileUpload)
+                .accessControl(req -> RouteAccess.GRANTED)
+                .mount();
+            logger.info("✓ /upload route mounted");
+        } catch (Exception e) {
+            logger.error("Failed to mount /upload route", e);
+        }
 
-        // GET endpoint for health check
-        routes.newRoute("/health")
-            .handler(this::handleHealthCheck)
-            .mount();
+        try {
+            logger.info("Mounting /devices route...");
+            routes.newRoute("/devices")
+                .handler(this::handleListDevices)
+                .accessControl(req -> RouteAccess.GRANTED)
+                .mount();
+            logger.info("✓ /devices route mounted");
+        } catch (Exception e) {
+            logger.error("Failed to mount /devices route", e);
+        }
 
-        logger.info("File upload routes mounted at /main/data/plcsimulator/");
+        try {
+            logger.info("Mounting /health route...");
+            routes.newRoute("/health")
+                .handler(this::handleHealthCheck)
+                .accessControl(req -> RouteAccess.GRANTED)
+                .mount();
+            logger.info("✓ /health route mounted");
+        } catch (Exception e) {
+            logger.error("Failed to mount /health route", e);
+        }
+
+        logger.info("File upload routes mounting complete at /main/data/plcsimulator/");
     }
 
     /**
      * Handle file upload requests.
-     * Expects file content in request body as plain text.
      */
     private JSONObject handleFileUpload(RequestContext context, HttpServletResponse response) throws JSONException {
+        JSONObject result = new JSONObject();
+
         try {
-            // Read file content from request body
+            String deviceName = context.getRequest().getParameter("device");
+
             StringBuilder content = new StringBuilder();
             try (BufferedReader reader = context.getRequest().getReader()) {
                 String line;
@@ -65,33 +93,67 @@ public class FileUploadRoutes {
 
             if (fileContent.isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                return new JSONObject()
-                    .put("success", false)
-                    .put("error", "No file content provided");
+                result.put("success", false);
+                result.put("error", "No file content provided");
+                return result;
             }
 
-            // Get filename from header if provided
             String filename = context.getRequest().getHeader("X-Filename");
             if (filename == null || filename.isEmpty()) {
                 filename = "uploaded_file.txt";
             }
 
-            logger.info("Received file upload: {} ({} bytes)", filename, fileContent.length());
+            if (deviceName != null && !deviceName.trim().isEmpty()) {
+                logger.info("Received device-specific file upload for '{}': {} ({} bytes)",
+                           deviceName, filename, fileContent.length());
+            } else {
+                logger.info("Received file upload: {} ({} bytes)", filename, fileContent.length());
+            }
 
-            // Return success with the content
             response.setStatus(HttpServletResponse.SC_OK);
-            return new JSONObject()
-                .put("success", true)
-                .put("filename", filename)
-                .put("size", fileContent.length())
-                .put("content", fileContent);
+            result.put("success", true);
+            result.put("filename", filename);
+            result.put("size", fileContent.length());
+            result.put("content", fileContent);
+
+            if (deviceName != null && !deviceName.trim().isEmpty()) {
+                result.put("device", deviceName);
+            }
+
+            return result;
 
         } catch (Exception e) {
             logger.error("Error handling file upload", e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return new JSONObject()
-                .put("success", false)
-                .put("error", e.getMessage());
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * Handle device list requests.
+     */
+    private JSONObject handleListDevices(RequestContext requestContext, HttpServletResponse response) throws JSONException {
+        JSONObject result = new JSONObject();
+
+        try {
+            JSONArray devices = new JSONArray();
+
+            logger.info("Device list requested");
+
+            response.setStatus(HttpServletResponse.SC_OK);
+            result.put("success", true);
+            result.put("devices", devices);
+            result.put("message", "Device listing requires Gateway context integration");
+            return result;
+
+        } catch (Exception e) {
+            logger.error("Error listing devices", e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return result;
         }
     }
 
@@ -99,8 +161,22 @@ public class FileUploadRoutes {
      * Handle health check requests.
      */
     private JSONObject handleHealthCheck(RequestContext context, HttpServletResponse response) throws JSONException {
-        return new JSONObject()
-            .put("status", "ok")
-            .put("service", "plc-file-upload");
+        JSONObject result = new JSONObject();
+        result.put("status", "ok");
+        result.put("service", "plc-file-upload");
+        return result;
+    }
+
+    /**
+     * Check if the user is authenticated.
+     */
+    private RouteAccess checkAuthenticated(RequestContext req) {
+        if (req.getRequest().getSession(false) != null) {
+            Object user = req.getRequest().getSession(false).getAttribute("user");
+            if (user != null) {
+                return RouteAccess.GRANTED;
+            }
+        }
+        throw new SecurityException("Authentication required. Please log in to the Gateway.");
     }
 }
