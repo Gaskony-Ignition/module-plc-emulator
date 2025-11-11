@@ -45,9 +45,9 @@ public class FileUploadRoutes {
             logger.info("Mounting /upload route...");
             routes.newRoute("/upload")
                 .handler(this::handleFileUpload)
-                .accessControl(req -> RouteAccess.GRANTED)
+                .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /upload route mounted");
+            logger.info("✓ /upload route mounted (requires authentication)");
         } catch (Exception e) {
             logger.error("Failed to mount /upload route", e);
         }
@@ -56,9 +56,9 @@ public class FileUploadRoutes {
             logger.info("Mounting /devices route...");
             routes.newRoute("/devices")
                 .handler(this::handleListDevices)
-                .accessControl(req -> RouteAccess.GRANTED)
+                .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /devices route mounted");
+            logger.info("✓ /devices route mounted (requires authentication)");
         } catch (Exception e) {
             logger.error("Failed to mount /devices route", e);
         }
@@ -67,9 +67,9 @@ public class FileUploadRoutes {
             logger.info("Mounting /device/{name}/status route...");
             routes.newRoute("/device/{name}/status")
                 .handler(this::handleDeviceStatus)
-                .accessControl(req -> RouteAccess.GRANTED)
+                .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /device/{name}/status route mounted");
+            logger.info("✓ /device/{name}/status route mounted (requires authentication)");
         } catch (Exception e) {
             logger.error("Failed to mount /device/{name}/status route", e);
         }
@@ -78,9 +78,9 @@ public class FileUploadRoutes {
             logger.info("Mounting /health route...");
             routes.newRoute("/health")
                 .handler(this::handleHealthCheck)
-                .accessControl(req -> RouteAccess.GRANTED)
+                .accessControl(req -> RouteAccess.GRANTED)  // Health check can remain public
                 .mount();
-            logger.info("✓ /health route mounted");
+            logger.info("✓ /health route mounted (public)");
         } catch (Exception e) {
             logger.error("Failed to mount /health route", e);
         }
