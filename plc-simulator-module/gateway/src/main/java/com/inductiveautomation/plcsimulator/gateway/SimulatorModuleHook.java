@@ -12,9 +12,13 @@ import com.inductiveautomation.plcsimulator.gateway.web.FileUploadRoutes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.inductiveautomation.plcsimulator.gateway.device.EnhancedSimulatorDevice;
 
 /**
  * Module hook for the Enhanced PLC Simulator.
@@ -25,6 +29,9 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private GatewayContext context;
     private ParserService parserService;
+
+    // Device registry for file upload routes to access devices
+    private static final Map<String, EnhancedSimulatorDevice> deviceRegistry = new ConcurrentHashMap<>();
 
     @Override
     public void setup(GatewayContext context) {
@@ -146,7 +153,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
 
     /**
      * Mount web resources from the "mounted" folder.
-     * This makes plc-file-upload.js accessible at /res/plcsimulator/plc-file-upload.js
+     * This makes plc-file-upload.js and React app accessible at /res/plcsimulator/*
      */
     @Override
     public Optional<String> getMountedResourceFolder() {
@@ -156,6 +163,12 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     /**
      * Return the mount path alias for web resources.
      * Resources will be available at /res/plcsimulator/*
+     *
+     * This includes:
+     * - /res/plcsimulator/index.html - Landing page
+     * - /res/plcsimulator/edit-program.html - File upload UI (vanilla JS)
+     * - /res/plcsimulator/app - React application (advanced UI)
+     * - /res/plcsimulator/plc-file-upload.js - Form enhancement script
      */
     @Override
     public Optional<String> getMountPathAlias() {
@@ -163,12 +176,43 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     }
 
     /**
-     * NOTE: Cannot add Gateway Config sidebar menu items with AbstractDeviceModuleHook.
-     * The Gateway navigation APIs (IConfigTab, AbstractNamedTab) are not available when
-     * extending AbstractDeviceModuleHook, only when extending AbstractGatewayModuleHook.
-     *
-     * Edit Program page is accessible via direct URL: /res/plcsimulator/edit-program.html
-     * Bookmark this URL for easy access!
+     * Get the gateway context for use by other components.
      */
+    public GatewayContext getGatewayContext() {
+        return context;
+    }
+
+    /**
+     * Register a device instance when it starts up.
+     * This allows FileUploadRoutes to find devices by name.
+     */
+    public static void registerDevice(String deviceName, EnhancedSimulatorDevice device) {
+        deviceRegistry.put(deviceName, device);
+        LoggerFactory.getLogger(SimulatorModuleHook.class)
+            .info("Device registered: {}", deviceName);
+    }
+
+    /**
+     * Unregister a device instance when it shuts down.
+     */
+    public static void unregisterDevice(String deviceName) {
+        deviceRegistry.remove(deviceName);
+        LoggerFactory.getLogger(SimulatorModuleHook.class)
+            .info("Device unregistered: {}", deviceName);
+    }
+
+    /**
+     * Get all registered devices.
+     */
+    public static Collection<EnhancedSimulatorDevice> getRegisteredDevices() {
+        return deviceRegistry.values();
+    }
+
+    /**
+     * Find a device by name.
+     */
+    public static Optional<EnhancedSimulatorDevice> findDeviceByName(String deviceName) {
+        return Optional.ofNullable(deviceRegistry.get(deviceName));
+    }
 
 }

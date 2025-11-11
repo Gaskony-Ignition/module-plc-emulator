@@ -1,8 +1,0 @@
-TagName,DataType,Description,InitialValue,Folder
-Tank1_Level,REAL,Tank 1 level sensor,0.0,Tanks
-Tank2_Level,REAL,Tank 2 level sensor,0.0,Tanks
-Pump1_Status,BOOL,Main pump status,false,Pumps
-Pump2_Status,BOOL,Backup pump status,false,Pumps
-Temperature,INT,System temperature,20,Sensors
-Pressure,INT,System pressure,100,Sensors
-SystemReady,BOOL,System ready flag,false,

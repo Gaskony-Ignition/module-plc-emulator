@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.4.0"
 }
 
-version = "1.5.1"
+version = "2.0.4"
 group = "com.gaskony"
 
 ignitionModule {
@@ -13,7 +13,7 @@ ignitionModule {
     id.set("com.inductiveautomation.opcua.drivers.plcsimulator")
     moduleVersion.set(project.version.toString())
     license.set("license.html")
-    moduleDescription.set("Multi-vendor PLC device simulator supporting Rockwell L5K, Siemens, Schneider, Beckhoff, and JSON formats with hierarchical OPC-UA tag structure. Access Edit Program at: /res/plcsimulator/edit-program.html")
+    moduleDescription.set("Multi-vendor PLC device simulator with clickable upload button in device config. Click '📤 Upload PLC File' button in device settings to open upload page. Supports L5K, JSON, CSV formats with hierarchical OPC-UA tags.")
     requiredIgnitionVersion.set("8.3.0")
     freeModule.set(true)
 

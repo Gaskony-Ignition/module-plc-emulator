@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Enhanced PLC Simulator</title>
+    <script>
+        // Auto-redirect to upload page after 3 seconds (or click link immediately)
+        setTimeout(function() {
+            window.location.href = '/res/plcsimulator/simple-upload.html';
+        }, 3000);
+    </script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -149,19 +155,37 @@
             </div>
         </div>
 
+        <div class="card" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border: 2px solid #60a5fa;">
+            <h2 style="font-size: 32px; margin-bottom: 20px;">⚡ Redirecting to Upload Page...</h2>
+            <p style="font-size: 18px; margin-bottom: 30px;">You'll be automatically redirected in 3 seconds, or click below:</p>
+            <a href="/res/plcsimulator/simple-upload.html" style="display: inline-block; background: #fde047; color: #1e3a8a; padding: 20px 40px; border-radius: 12px; text-decoration: none; font-size: 20px; font-weight: bold; box-shadow: 0 4px 12px rgba(253, 224, 71, 0.4);">
+                📤 Go to Upload Page Now!
+            </a>
+        </div>
+
+        <div class="card">
+            <h2 style="font-size: 24px; margin-bottom: 20px;">🚀 Quick Start Guide</h2>
+            <ol style="margin-left: 20px; line-height: 1.8;">
+                <li><strong>Step 1:</strong> Create device at <code style="background: #374151; padding: 3px 8px; border-radius: 4px;">Config → OPC UA → Device Connections → Create New → Enhanced PLC Simulator</code></li>
+                <li><strong>Step 2:</strong> Upload your PLC file (L5K, JSON, CSV)</li>
+                <li><strong>Step 3:</strong> Copy the file content and paste it into the device's "File Content" field</li>
+                <li><strong>Step 4:</strong> Save the device configuration and connect!</li>
+            </ol>
+        </div>
+
         <div class="card">
             <h2>📖 Access URLs</h2>
             <p>Bookmark these URLs for quick access:</p>
             <ul>
-                <li><strong>Edit Program:</strong> <code>/res/plcsimulator/edit-program.html</code></li>
-                <li><strong>Device Config:</strong> <code>/config/devices.devices</code></li>
-                <li><strong>Upload API:</strong> <code>/main/data/plcsimulator/upload</code></li>
+                <li><strong>🎯 PLC File Upload:</strong> <a href="/res/plcsimulator/simple-upload.html"><code>/res/plcsimulator/simple-upload.html</code></a> <span style="color: #10b981;">(Start Here!)</span></li>
+                <li><strong>📊 Device Dashboard:</strong> <code>/res/plcsimulator/dashboard.html</code></li>
+                <li><strong>⚙️ Device Config:</strong> <code>/config/devices.devices</code></li>
             </ul>
         </div>
 
         <div class="card">
             <h2>ℹ️ About</h2>
-            <p>Enhanced PLC Simulator v1.3.1 - An enhanced version of the original Programmable Device Simulator with multi-vendor support and modern UI.</p>
+            <p>Enhanced PLC Simulator v2.0.0 - Multi-vendor PLC device simulator with Java-based parsers for Rockwell L5K, JSON, CSV formats.</p>
             <p style="color: #a0aec0; font-size: 0.9em; margin-top: 15px;">Vendor: Gaskony | Module ID: com.inductiveautomation.opcua.drivers.plcsimulator</p>
         </div>
     </div>

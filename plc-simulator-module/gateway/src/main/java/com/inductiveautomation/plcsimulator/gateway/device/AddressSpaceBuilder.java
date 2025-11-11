@@ -95,32 +95,46 @@ public class AddressSpaceBuilder {
             }
         }
 
-        // Create Program folders
+        // Create Programs parent folder if there are any programs
         if (plcData.has("programs")) {
             JsonArray programs = plcData.getAsJsonArray("programs");
-            for (JsonElement programElement : programs) {
-                JsonObject program = programElement.getAsJsonObject();
-                String programName = program.get("name").getAsString();
-                String folderName = "Program:" + programName;
-
-                UaFolderNode programFolder = createFolder(
+            if (programs.size() > 0) {
+                // Create "Programs" parent folder to match real PLC structure
+                UaFolderNode programsParentFolder = createFolder(
                     context,
-                    folderName,
-                    folderName
+                    "Programs",
+                    "Programs"
                 );
-                nodeAdder.accept(programFolder);
-                rootNode.addOrganizes(programFolder);
+                nodeAdder.accept(programsParentFolder);
+                rootNode.addOrganizes(programsParentFolder);
 
-                // Add program tags
-                if (program.has("tags")) {
-                    JsonArray programTags = program.getAsJsonArray("tags");
-                    for (JsonElement tagElement : programTags) {
-                        JsonObject tag = tagElement.getAsJsonObject();
-                        addTag(tag, programFolder, context, folderName);
+                // Create individual program folders under Programs
+                for (JsonElement programElement : programs) {
+                    JsonObject program = programElement.getAsJsonObject();
+                    String programName = program.get("name").getAsString();
+
+                    // Use just the program name (not "Program:ProgramName")
+                    UaFolderNode programFolder = createFolder(
+                        context,
+                        "Programs/" + programName,
+                        programName
+                    );
+                    nodeAdder.accept(programFolder);
+                    programsParentFolder.addOrganizes(programFolder);
+
+                    // Add program tags
+                    if (program.has("tags")) {
+                        JsonArray programTags = program.getAsJsonArray("tags");
+                        for (JsonElement tagElement : programTags) {
+                            JsonObject tag = tagElement.getAsJsonObject();
+                            addTag(tag, programFolder, context, "Programs/" + programName);
+                        }
+
+                        logger.info("Created Programs/{} with {} tags", programName, programTags.size());
                     }
-
-                    logger.info("Created {} with {} tags", folderName, programTags.size());
                 }
+
+                logger.info("Created Programs folder with {} program(s)", programs.size());
             }
         }
 
@@ -130,6 +144,7 @@ public class AddressSpaceBuilder {
     /**
      * Adds a tag to the address space.
      * If tag is a UDT instance, creates a folder with member variables.
+     * If tag is an array, creates individual array element nodes.
      * If tag is atomic, creates a single variable node.
      */
     private void addTag(
@@ -162,6 +177,38 @@ public class AddressSpaceBuilder {
 
                 logger.debug("Created UDT folder: {} with {} members", tagName, members.size());
                 return;
+            }
+        }
+
+        // Check if this is an array tag
+        if (tag.has("isArray") && tag.get("isArray").getAsBoolean()) {
+            if (tag.has("dimensions")) {
+                String dimensions = tag.get("dimensions").getAsString();
+                try {
+                    // Parse dimensions (e.g., "10" for 1D array, "5,3" for 2D array)
+                    String[] dims = dimensions.split(",");
+                    int arraySize = Integer.parseInt(dims[0].trim());
+
+                    // Create individual array element nodes
+                    for (int i = 0; i < arraySize; i++) {
+                        JsonObject arrayElement = new JsonObject();
+                        arrayElement.addProperty("name", tagName + "[" + i + "]");
+                        arrayElement.addProperty("data_type", dataType);
+
+                        // Copy initial value if present
+                        if (tag.has("initial_value")) {
+                            arrayElement.add("initial_value", tag.get("initial_value"));
+                        }
+
+                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix);
+                    }
+
+                    logger.debug("Created array: {} with {} elements", tagName, arraySize);
+                    return;
+
+                } catch (NumberFormatException e) {
+                    logger.warn("Could not parse array dimensions: {} - creating single node", dimensions);
+                }
             }
         }
 

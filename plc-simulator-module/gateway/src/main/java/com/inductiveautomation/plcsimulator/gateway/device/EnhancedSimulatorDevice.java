@@ -4,7 +4,13 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.Device;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
+import com.inductiveautomation.plcsimulator.gateway.FileVersionManager;
+import com.inductiveautomation.plcsimulator.gateway.FileWatcher;
+import com.inductiveautomation.plcsimulator.gateway.OpcUaSimulationEngine;
 import com.inductiveautomation.plcsimulator.gateway.ParserService;
+import com.inductiveautomation.plcsimulator.gateway.SimulatorModuleHook;
+import com.inductiveautomation.plcsimulator.gateway.parser.ParserFactory;
+import com.inductiveautomation.plcsimulator.gateway.parser.PLCParser;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.server.ManagedAddressSpaceWithLifecycle;
 import org.eclipse.milo.opcua.sdk.server.items.DataItem;
@@ -47,9 +53,10 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     private UaFolderNode rootNode;
     private JsonObject parsedData;
     private String deviceStatus = "Initializing";
-
-    // Will be used for simulation in future enhancement
-    // private SimulationEngine simulationEngine;
+    private OpcUaSimulationEngine simulationEngine;
+    private FileWatcher fileWatcher;
+    private FileVersionManager versionManager;
+    private String currentFilePath;
 
     /**
      * Creates a new Enhanced Simulator Device.
@@ -76,6 +83,27 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
+     * Get the device name.
+     */
+    public String getName() {
+        return context.getName();
+    }
+
+    /**
+     * Get the device configuration.
+     */
+    public EnhancedSimulatorConfig getConfiguration() {
+        return config;
+    }
+
+    /**
+     * Get the device context.
+     */
+    public DeviceContext getDeviceContext() {
+        return context;
+    }
+
+    /**
      * Called when device starts up.
      * Parses PLC file and builds address space.
      */
@@ -85,8 +113,8 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             deviceStatus = "Starting";
 
             // Save uploaded file content if provided
-            String actualFilePath = prepareFile();
-            if (actualFilePath == null) {
+            currentFilePath = prepareFile();
+            if (currentFilePath == null) {
                 // No file provided yet - device is ready but waiting for configuration
                 deviceStatus = "Ready - Waiting for file upload";
                 logger.info("Device started without file configuration. Use file upload to add PLC file.");
@@ -97,7 +125,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             }
 
             // Parse the PLC file
-            parsedData = parseFile(actualFilePath);
+            parsedData = parseFile(currentFilePath);
 
             if (parsedData == null) {
                 deviceStatus = "Error: Failed to parse file";
@@ -111,15 +139,15 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             // Build address space from parsed data
             buildAddressSpace();
 
-            // TODO: Initialize simulation engine if enabled
-            // if (config.simulation().enabled()) {
-            //     initializeSimulation();
-            // }
+            // Initialize simulation engine if enabled
+            if (config.simulation().enabled()) {
+                initializeSimulation();
+            }
 
-            // TODO: Setup file watcher if hot reload is enabled
-            // if (config.parser().hotReload()) {
-            //     setupFileWatcher();
-            // }
+            // Setup file watcher if hot reload is enabled
+            if (config.parser().hotReload()) {
+                setupFileWatcher();
+            }
 
             deviceStatus = "Running";
             logger.info("Enhanced PLC Simulator device started successfully: {}", context.getName());
@@ -129,6 +157,9 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                 context.getSubscriptionModel()
                     .getDataItems(context.getName())
             );
+
+            // Register device with module hook so FileUploadRoutes can find it
+            SimulatorModuleHook.registerDevice(context.getName(), this);
 
         } catch (Exception e) {
             deviceStatus = "Error: " + e.getMessage();
@@ -142,15 +173,25 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     private void onShutdown() {
         logger.info("Shutting down Enhanced PLC Simulator device: {}", context.getName());
 
+        // Unregister device from module hook
+        SimulatorModuleHook.unregisterDevice(context.getName());
+
+        // Stop file watcher
+        if (fileWatcher != null && fileWatcher.isRunning()) {
+            fileWatcher.stop();
+            logger.info("File watcher stopped");
+        }
+
+        // Stop simulation engine
+        if (simulationEngine != null && simulationEngine.isRunning()) {
+            simulationEngine.stop();
+            logger.info("Simulation engine stopped");
+        }
+
         // Set all values to uncertain
         context.getSubscriptionModel()
             .getDataItems(context.getName())
             .forEach(item -> item.setQuality(new StatusCode(StatusCodes.Uncertain_LastUsableValue)));
-
-        // TODO: Stop simulation engine
-        // if (simulationEngine != null) {
-        //     simulationEngine.stop();
-        // }
 
         deviceStatus = "Stopped";
         logger.info("Device shutdown complete: {}", context.getName());
@@ -167,12 +208,17 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             String fileContent = config.parser().fileContent();
             String fileName = config.parser().fileName();
 
-            // Create storage directory if it doesn't exist
-            File storageDir = new File("/usr/local/bin/ignition/data/plc-simulator");
+            // Use Ignition's data directory API for proper cross-platform support
+            File dataDir = context.getGatewayContext().getSystemManager().getDataDir();
+            File storageDir = new File(dataDir, "plc-simulator");
+
             if (!storageDir.exists()) {
                 storageDir.mkdirs();
                 logger.info("Created PLC file storage directory: {}", storageDir.getAbsolutePath());
             }
+
+            // Initialize version manager
+            versionManager = new FileVersionManager(storageDir, context.getName());
 
             // If file content was uploaded, save it
             if (fileContent != null && !fileContent.trim().isEmpty()) {
@@ -181,6 +227,12 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                 }
 
                 File targetFile = new File(storageDir, fileName);
+
+                // Save version of existing file before overwriting
+                if (targetFile.exists()) {
+                    versionManager.saveVersion(targetFile, fileName);
+                }
+
                 java.nio.file.Files.writeString(targetFile.toPath(), fileContent);
                 logger.info("Saved uploaded file to: {}", targetFile.getAbsolutePath());
 
@@ -296,11 +348,11 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
-     * Built-in fallback parser for when parser service is unavailable.
-     * Creates a simple structure to demonstrate the device driver.
+     * Built-in Java parser using ParserFactory.
+     * Selects appropriate parser based on file type and parses the PLC file.
      */
     private JsonObject parseFileBuiltIn(String filePath, EnhancedSimulatorConfig.ParserType parserType) {
-        logger.info("Using built-in fallback parser for: {}", filePath);
+        logger.info("Using built-in Java parser for: {}", filePath);
 
         File file = new File(filePath);
         if (!file.exists()) {
@@ -309,9 +361,35 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             return createDemoStructure();
         }
 
-        // For now, create a simple demo structure
-        // TODO: Implement actual parsing logic for each vendor format
-        return createDemoStructure();
+        try {
+            // Get appropriate parser from factory
+            PLCParser parser = ParserFactory.getParserByType(parserType.getKey());
+
+            if (parser == null) {
+                logger.warn("No parser available for type: {}, trying file extension detection", parserType);
+                parser = ParserFactory.getParser(file.getName());
+            }
+
+            if (parser == null) {
+                logger.error("No parser found for file: {}", file.getName());
+                return createDemoStructure();
+            }
+
+            // Parse the file
+            JsonObject result = parser.parse(filePath);
+
+            if (result != null) {
+                logger.info("Successfully parsed file using {} parser", parser.getParserType());
+                return result;
+            } else {
+                logger.error("Parser returned null - file may be invalid or corrupted");
+                return createDemoStructure();
+            }
+
+        } catch (Exception e) {
+            logger.error("Error in built-in parser", e);
+            return createDemoStructure();
+        }
     }
 
     /**
@@ -397,22 +475,109 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
         logger.info("Address space built successfully");
     }
 
-    // TODO: Future enhancement - simulation engine integration
-    // private void initializeSimulation() {
-    //     simulationEngine = new OpcUaSimulationEngine(getNodeManager(), logger);
-    //
-    //     context.getGatewayContext().getExecutionManager().registerAtFixedRate(
-    //         EnhancedSimulatorExtensionPoint.TYPE_ID,
-    //         context.getName() + "-simulation",
-    //         simulationEngine,
-    //         config.simulation().updateInterval(), TimeUnit.MILLISECONDS
-    //     );
-    // }
+    /**
+     * Initialize and start the simulation engine.
+     */
+    private void initializeSimulation() {
+        try {
+            // Get all data items for this device
+            List<DataItem> dataItems = context.getSubscriptionModel()
+                .getDataItems(context.getName());
 
-    // TODO: Future enhancement - hot reload support
-    // private void setupFileWatcher() {
-    //     // Watch file for changes and trigger reload
-    // }
+            if (dataItems.isEmpty()) {
+                logger.warn("No data items found for simulation - skipping simulation engine startup");
+                return;
+            }
+
+            // Create simulation engine with configured settings
+            EnhancedSimulatorConfig.SimulationPattern pattern = config.simulation().defaultPattern();
+            int updateInterval = config.simulation().updateInterval();
+
+            simulationEngine = new OpcUaSimulationEngine(pattern, updateInterval);
+
+            // Start the engine
+            simulationEngine.start(dataItems);
+
+            logger.info("Simulation engine started: {} pattern, {}ms interval, {} tags",
+                       pattern, updateInterval, dataItems.size());
+
+        } catch (Exception e) {
+            logger.error("Failed to initialize simulation engine", e);
+            simulationEngine = null;
+        }
+    }
+
+    /**
+     * Setup file watcher for hot reload.
+     */
+    private void setupFileWatcher() {
+        if (currentFilePath == null) {
+            logger.warn("Cannot setup file watcher - no file path available");
+            return;
+        }
+
+        try {
+            int reloadInterval = config.parser().reloadInterval();
+
+            fileWatcher = new FileWatcher(
+                currentFilePath,
+                this::handleFileChange,
+                reloadInterval
+            );
+
+            fileWatcher.start();
+
+            logger.info("File watcher started for: {} ({}s interval)",
+                       currentFilePath, reloadInterval);
+
+        } catch (Exception e) {
+            logger.error("Failed to setup file watcher", e);
+            fileWatcher = null;
+        }
+    }
+
+    /**
+     * Handle file change event from file watcher.
+     */
+    private void handleFileChange(File changedFile) {
+        logger.info("File change detected, reloading device: {}", context.getName());
+
+        try {
+            deviceStatus = "Reloading";
+
+            // Stop simulation engine temporarily
+            if (simulationEngine != null && simulationEngine.isRunning()) {
+                simulationEngine.stop();
+            }
+
+            // Re-parse the file
+            parsedData = parseFile(currentFilePath);
+
+            if (parsedData == null) {
+                deviceStatus = "Error: Failed to parse file after reload";
+                logger.error("Failed to parse file during hot reload");
+                return;
+            }
+
+            // Rebuild address space
+            // Note: Full rebuild - incremental updates would be better but more complex
+            getNodeManager().removeNode(rootNode.getNodeId());
+            createRootNode();
+            buildAddressSpace();
+
+            // Restart simulation if it was running
+            if (config.simulation().enabled()) {
+                initializeSimulation();
+            }
+
+            deviceStatus = "Running";
+            logger.info("Device successfully reloaded from file change");
+
+        } catch (Exception e) {
+            logger.error("Error handling file change", e);
+            deviceStatus = "Error: Hot reload failed - " + e.getMessage();
+        }
+    }
 
     @Override
     public void onDataItemsCreated(List<DataItem> dataItems) {

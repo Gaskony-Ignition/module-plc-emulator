@@ -33,7 +33,11 @@
     function initFileUpload() {
         console.log('=== initFileUpload() called ===');
 
-        // First, try to inject the clickable Program Manager link
+        // First, inject the prominent upload page button
+        console.log('Attempting to inject Upload Page button...');
+        injectUploadPageButton();
+
+        // Then, try to inject the clickable Program Manager link
         console.log('Attempting to inject Program Manager link...');
         injectProgramManagerLink();
 
@@ -349,6 +353,113 @@
             }
         }
         return null;
+    }
+
+    function injectUploadPageButton() {
+        console.log('=== Attempting to inject Upload Page button ===');
+
+        // Find the "File Name" field to insert button near it
+        const labels = document.querySelectorAll('label');
+        let fileNameField = null;
+
+        for (const label of labels) {
+            const labelText = label.textContent.trim();
+            if (labelText.includes('File Name') || labelText.includes('FileName')) {
+                console.log('Found File Name label:', labelText);
+                const container = label.closest('.form-group, .field-container, div');
+                if (container) {
+                    fileNameField = container.querySelector('input[type="text"]') ||
+                                   container.querySelector('textarea');
+                    if (fileNameField) {
+                        console.log('Found File Name field element');
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!fileNameField) {
+            console.log('File Name field not found, cannot inject button');
+            return;
+        }
+
+        // Check if button already injected
+        if (fileNameField.parentElement.querySelector('.plc-upload-page-button')) {
+            console.log('Upload page button already injected, skipping');
+            return;
+        }
+
+        console.log('Creating upload page button...');
+
+        // Get base URL
+        const baseUrl = window.location.origin;
+        const uploadPageUrl = `${baseUrl}/res/plcsimulator/simple-upload.html`;
+
+        // Create button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'plc-upload-page-button';
+        buttonContainer.style.cssText = 'margin-bottom: 16px; padding: 16px; background: #e7f3ff; border: 2px solid #0066cc; border-radius: 8px;';
+
+        // Create the clickable button
+        const button = document.createElement('a');
+        button.href = uploadPageUrl;
+        button.target = '_blank';
+        button.style.cssText = `
+            display: inline-block;
+            padding: 12px 24px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: background-color 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        `;
+        button.innerHTML = '📤 Upload PLC File (Opens in New Tab) ↗';
+
+        // Hover effects
+        button.addEventListener('mouseover', function() {
+            this.style.background = '#0052a3';
+            this.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
+        });
+        button.addEventListener('mouseout', function() {
+            this.style.background = '#0066cc';
+            this.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        });
+
+        // Help text
+        const helpText = document.createElement('div');
+        helpText.style.cssText = 'margin-top: 10px; font-size: 13px; color: #555; line-height: 1.5;';
+        helpText.innerHTML = `
+            <strong>Click the button above</strong> to open the file upload page.<br>
+            Upload your L5K, JSON, or CSV file there, then copy the content and paste it into the "File Content" field below.
+        `;
+
+        buttonContainer.appendChild(button);
+        buttonContainer.appendChild(helpText);
+
+        console.log('Inserting button into DOM...');
+
+        // Insert at the very top of the parent container
+        try {
+            const formContainer = fileNameField.closest('.form-container, form, .settings-panel') ||
+                                 fileNameField.parentElement.parentElement;
+
+            if (formContainer) {
+                formContainer.insertBefore(buttonContainer, formContainer.firstChild);
+                console.log('Upload page button inserted at top of form successfully');
+            } else {
+                // Fallback: insert above the file name field
+                fileNameField.parentElement.insertBefore(buttonContainer, fileNameField.parentElement.firstChild);
+                console.log('Upload page button inserted above file name field');
+            }
+        } catch (e) {
+            console.error('Failed to insert upload page button:', e);
+            return;
+        }
+
+        console.log('=== Upload Page button injected successfully! ===');
     }
 
     console.log('PLC Simulator: File upload enhancement loaded successfully');
