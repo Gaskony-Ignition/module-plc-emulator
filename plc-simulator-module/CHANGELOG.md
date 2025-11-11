@@ -13,6 +13,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.5] - 2025-11-11
+
+### Enhanced
+- **Full URL Display in Device Config** - The "📁 Manage PLC Program" field now shows the complete gateway URL
+  - Field displays full URL (e.g., `http://localhost:8088/res/plcsimulator/simple-upload.html`)
+  - Field is read-only and clickable to select/copy
+  - JavaScript automatically populates with `window.location.origin + path`
+  - Works with any gateway configuration (ports, HTTPS, proxies, hostnames)
+
+### Added
+- **"Direct URL" Display Row** - New UI element below the main button showing the full URL
+  - Displays URL in monospace green text on dark background for visibility
+  - Includes "📋 Copy" button for one-click clipboard copy
+  - Copy button provides visual feedback ("✅ Copied!" for 2 seconds)
+  - Fallback copy method for older browsers
+
+### Improved
+- **Better Field Description** - Updated description text explains the clickable link and full URL display
+  - Clarifies that button will appear when page loads
+  - Shows example URL format with gateway address
+  - Explains click-to-copy functionality
+
+### Technical Details
+- Modified `plc-file-upload.js`:
+  - Added 48 lines for URL display row with copy button (lines 179-225)
+  - Changed field hiding to read-only with full URL population (lines 239-245)
+  - Field styling: blue text, light blue background, monospace font
+  - Copy button with proper error handling and fallback
+- Updated `EnhancedSimulatorConfig.java` description (line 132)
+
+---
+
 ## [2.0.4] - 2025-11-11
 
 ### Added
