@@ -198,6 +198,32 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
+     * Sanitizes a filename to prevent path traversal attacks.
+     * Removes path separators, parent directory references, and special characters.
+     *
+     * @param fileName User-provided filename
+     * @return Sanitized filename safe for file system operations
+     */
+    private String sanitizeFileName(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            return "uploaded-" + context.getName() + ".L5K";
+        }
+
+        // Remove path separators and parent directory references
+        String sanitized = fileName.replaceAll("[/\\\\]", "_")
+                                   .replaceAll("\\.\\.", "_")
+                                   .replaceAll("[^a-zA-Z0-9._-]", "_");
+
+        // Ensure filename isn't empty after sanitization
+        if (sanitized.trim().isEmpty()) {
+            sanitized = "uploaded-" + context.getName() + ".L5K";
+        }
+
+        logger.debug("Sanitized filename: {} -> {}", fileName, sanitized);
+        return sanitized;
+    }
+
+    /**
      * Prepares the PLC file for parsing.
      * If file content was uploaded, saves it to the Gateway filesystem.
      *
@@ -222,15 +248,14 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
             // If file content was uploaded, save it
             if (fileContent != null && !fileContent.trim().isEmpty()) {
-                if (fileName == null || fileName.trim().isEmpty()) {
-                    fileName = "uploaded-" + context.getName() + ".L5K";
-                }
+                // Sanitize filename to prevent path traversal attacks
+                String sanitizedFileName = sanitizeFileName(fileName);
 
-                File targetFile = new File(storageDir, fileName);
+                File targetFile = new File(storageDir, sanitizedFileName);
 
                 // Save version of existing file before overwriting
                 if (targetFile.exists()) {
-                    versionManager.saveVersion(targetFile, fileName);
+                    versionManager.saveVersion(targetFile, sanitizedFileName);
                 }
 
                 java.nio.file.Files.writeString(targetFile.toPath(), fileContent);
@@ -241,7 +266,9 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
             // Otherwise, use existing file
             if (fileName != null && !fileName.trim().isEmpty()) {
-                File targetFile = new File(storageDir, fileName);
+                // Sanitize filename to prevent path traversal attacks
+                String sanitizedFileName = sanitizeFileName(fileName);
+                File targetFile = new File(storageDir, sanitizedFileName);
                 if (targetFile.exists()) {
                     logger.info("Using existing file: {}", targetFile.getAbsolutePath());
                     return targetFile.getAbsolutePath();
@@ -293,8 +320,12 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
     /**
      * Attempts to parse using the external parser service.
+     * Properly handles HTTP connection cleanup to prevent resource leaks.
      */
     private JsonObject tryParserService(String filePath, String parserKey) {
+        HttpURLConnection conn = null;
+        BufferedReader reader = null;
+
         try {
             // Determine parser endpoint based on type
             String endpoint = switch (parserKey) {
@@ -311,21 +342,20 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                 endpoint, filePath);
 
             URL url = new URL(parserUrl);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setConnectTimeout(2000); // Shorter timeout for fallback
             conn.setReadTimeout(10000);
 
             int responseCode = conn.getResponseCode();
             if (responseCode == 200) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String inputLine;
 
-                while ((inputLine = in.readLine()) != null) {
+                while ((inputLine = reader.readLine()) != null) {
                     response.append(inputLine);
                 }
-                in.close();
 
                 JsonObject result = gson.fromJson(response.toString(), JsonObject.class);
 
@@ -344,6 +374,22 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
         } catch (Exception e) {
             logger.debug("Parser service not available: {}", e.getMessage());
             return null;
+        } finally {
+            // Ensure resources are closed even in error paths
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception e) {
+                    logger.debug("Error closing reader: {}", e.getMessage());
+                }
+            }
+            if (conn != null) {
+                try {
+                    conn.disconnect();
+                } catch (Exception e) {
+                    logger.debug("Error disconnecting HTTP connection: {}", e.getMessage());
+                }
+            }
         }
     }
 
