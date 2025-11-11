@@ -4,19 +4,20 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v1.3.0
-**Status**: ✅ Fully Functional - Enhanced workflow similar to original simulator!
+**Version**: v2.0.5
+**Status**: ✅ Production Ready - Major v2.0.0 Release!
 
-### What Works ✅
-- ✅ **File upload feature** - "📁 Upload PLC File" button automatically appears in device config
-- ✅ Device driver appears in device connection dropdown as "Enhanced PLC Simulator"
-- ✅ Parser dropdown shows friendly vendor names (e.g., "Rockwell L5K (Allen-Bradley)")
-- ✅ Module installs and runs in Ignition Gateway
-- ✅ Device driver architecture functional
-- ✅ i18n display names working correctly
-- ✅ Parser type enum dropdowns functional
-- ✅ Web resources properly mounted
-- ✅ HTTP routes for file operations
+### What's New in v2.0.0
+- ✅ **Automatic File Upload & Apply** - Upload → Device updated → Tags created automatically
+- ✅ **Pure Java Parsers** - L5X, JSON, CSV parsing (no Python dependency)
+- ✅ **Clickable Program Manager URL** - Full gateway URL with copy button in device config
+- ✅ **Simulation Engine** - 5 dynamic patterns (STATIC, RAMP, SINE, RANDOM, TOGGLE)
+- ✅ **Hot Reload** - Automatic device update when PLC file changes
+- ✅ **File Versioning** - Last 5 versions kept with rollback support
+- ✅ **Gateway Dashboard** - Professional device management UI
+- ✅ **Gateway Sidebar Menu** - "PLC Simulator" tab in Gateway Config
+- ✅ **Proper PLC Structure** - Controller:Global hierarchy matches real PLCs
+- ✅ **UDT Expansion** - UDT instances appear as folders with member variables
 
 ## Quick Start
 
@@ -99,27 +100,25 @@ See [EDIT_PROGRAM_GUIDE.md](EDIT_PROGRAM_GUIDE.md) for detailed instructions.
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent versions:**
-- **v1.1.0** (Current) - Attempted file upload feature (not functional)
-- **v1.0.10** - Fixed enum toString() for dropdown display
-- **v1.0.9** - Fixed i18n bundle registration
-- **v1.0.5-v1.0.8** - Various i18n and display name fixes
-- **v1.0.1** - Updated vendor name to Gaskony
+- **v2.0.5** (Current) - Full URL display with copy button in device config
+- **v2.0.4** - Clickable Program Manager URL field
+- **v2.0.0** - Major production release with Java parsers and automatic file upload
+- **v1.5.1** - Route mounting and UI improvements
+- **v1.3.0** - Edit Program page workflow
 
-## Known Issues
-
-**File Upload Not Working** (v1.1.0):
-- Attempted implementation using web resources not compatible with AbstractDeviceModuleHook
-- Workaround: Users must copy/paste file content into textarea
-- See KNOWN_ISSUES.md for details and future plans
+**Migration Note:** If upgrading from v1.x, see notes in CHANGELOG.md about v2.0.0 breaking changes (module architecture completely refactored).
 
 ## Architecture
 
 The module is built using Ignition's device driver architecture:
 
-- **AbstractDeviceModuleHook** - Module lifecycle and device registration
-- **DeviceType** - Device driver definition with configuration schema
-- **AbstractEvaluationDriver** - Core device driver implementation
-- **i18n Resource Bundles** - Internationalized display names
+- **AbstractGatewayModuleHook** - Module lifecycle and manual device registration (v2.0.0+)
+- **DeviceExtensionPoint** - Device driver extension point for dropdown registration
+- **ManagedAddressSpaceWithLifecycle** - Core device driver implementation
+- **Java Parsers** - L5XParser, JsonPLCParser, CsvParser with ParserFactory
+- **OPC-UA Integration** - Hierarchical address space with Controller:Global structure
+- **Web Routes** - REST API for file upload and device management
+- **Gateway UI** - Dashboard and sidebar menu integration
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed architecture information.
 
