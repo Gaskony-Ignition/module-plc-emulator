@@ -129,7 +129,7 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormCategory("PARSER")
         @Label("📁 Manage PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("Click the link above to upload and manage PLC files for this device")
+        @Description("A clickable button will appear above when the page loads. Click 'Open Program Manager' to upload PLC files. The field below shows the full URL including your gateway address (e.g., http://gateway:8088/res/plcsimulator/simple-upload.html). You can click the field to select and copy the URL, or use the 'Copy' button.")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
 

@@ -176,6 +176,54 @@
         linkContainer.appendChild(link);
         linkContainer.appendChild(helpText);
 
+        // Add full URL display with copy button
+        const urlRow = document.createElement('div');
+        urlRow.style.cssText = 'display: flex; align-items: center; margin-top: 10px; gap: 10px;';
+
+        const urlLabel = document.createElement('span');
+        urlLabel.style.cssText = 'font-size: 12px; color: #666; font-weight: 500; white-space: nowrap;';
+        urlLabel.textContent = 'Direct URL:';
+
+        const urlCode = document.createElement('code');
+        urlCode.style.cssText = 'flex: 1; background: #2d3748; color: #68d391; padding: 6px 10px; border-radius: 4px; font-size: 12px; overflow-x: auto; white-space: nowrap;';
+        urlCode.textContent = editProgramUrl;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.textContent = '📋 Copy';
+        copyBtn.style.cssText = 'padding: 6px 12px; background: #4a5568; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; white-space: nowrap; transition: background 0.2s;';
+        copyBtn.onclick = function(e) {
+            e.preventDefault();
+            navigator.clipboard.writeText(editProgramUrl).then(() => {
+                this.textContent = '✅ Copied!';
+                this.style.background = '#48bb78';
+                setTimeout(() => {
+                    this.textContent = '📋 Copy';
+                    this.style.background = '#4a5568';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = editProgramUrl;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                this.textContent = '✅ Copied!';
+                this.style.background = '#48bb78';
+                setTimeout(() => {
+                    this.textContent = '📋 Copy';
+                    this.style.background = '#4a5568';
+                }, 2000);
+            });
+        };
+
+        urlRow.appendChild(urlLabel);
+        urlRow.appendChild(urlCode);
+        urlRow.appendChild(copyBtn);
+        linkContainer.appendChild(urlRow);
+
         console.log('Link and help text created, inserting into DOM...');
         console.log('manageLinkField.parentElement:', manageLinkField.parentElement);
 
@@ -188,9 +236,13 @@
             return;
         }
 
-        // Hide the input field since we have the link now
-        manageLinkField.style.display = 'none';
-        console.log('Original input field hidden');
+        // Make input field read-only and show full URL instead of hiding it
+        manageLinkField.readOnly = true;
+        manageLinkField.value = editProgramUrl;
+        manageLinkField.style.cssText = 'width: 100%; color: #0066cc; background: #f0f8ff; border: 1px solid #b3d9ff; padding: 8px; border-radius: 4px; font-family: "Courier New", monospace; font-size: 13px; cursor: pointer;';
+        manageLinkField.title = 'Click to select and copy URL';
+        manageLinkField.onclick = function() { this.select(); };
+        console.log('Original input field updated to show full URL (read-only)');
 
         console.log('=== PLC Simulator: Program Manager link injected successfully! ===');
     }
