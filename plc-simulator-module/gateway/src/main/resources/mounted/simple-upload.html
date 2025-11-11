@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PLC File Upload - Enhanced PLC Simulator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #cbd5e1;
+            font-size: 16px;
+        }
+
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+
+        .upload-zone {
+            border: 3px dashed #475569;
+            border-radius: 12px;
+            padding: 60px 30px;
+            text-align: center;
+            background: #0f172a;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-zone:hover {
+            border-color: #3b82f6;
+            background: #1e293b;
+        }
+
+        .upload-zone.dragover {
+            border-color: #3b82f6;
+            background: #1e3a8a;
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            border: none;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-secondary {
+            background: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #64748b;
+        }
+
+        #result {
+            display: none;
+        }
+
+        .file-content {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .instructions {
+            background: #1e40af;
+            border-left: 4px solid #3b82f6;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+
+        .instructions li {
+            margin: 8px 0;
+        }
+
+        .success {
+            color: #10b981;
+        }
+
+        .filename {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .step {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .copy-btn {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏭 PLC File Upload</h1>
+            <div class="subtitle">Enhanced PLC Simulator - Upload your PLC program file</div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin-bottom: 20px;">📁 Step 1: Select Your PLC File</h2>
+
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon">📤</div>
+                <h3>Drag & Drop File Here</h3>
+                <p style="color: #94a3b8; margin: 10px 0;">or</p>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">Browse Files</button>
+                <p style="color: #64748b; font-size: 14px; margin-top: 15px;">
+                    Supported: L5K, L5X, JSON, CSV, XML
+                </p>
+            </div>
+
+            <input type="file" id="fileInput" class="file-input" accept=".l5k,.l5x,.json,.csv,.xml,.txt,.L5K,.L5X,.JSON,.CSV,.XML,.TXT">
+        </div>
+
+        <div id="result" class="card">
+            <h2 style="margin-bottom: 20px;">✅ File Loaded Successfully</h2>
+
+            <p><strong>File:</strong> <span class="filename" id="fileName"></span></p>
+            <p><strong>Size:</strong> <span id="fileSize"></span></p>
+            <p><strong>Type:</strong> <span id="fileType"></span></p>
+
+            <div class="instructions">
+                <h3 style="margin-bottom: 10px;">📋 Step 2: Copy & Paste to Device Configuration</h3>
+                <ol>
+                    <li>Click the <strong>"Copy Content"</strong> button below</li>
+                    <li>Go to: <strong>Config → OPC UA → Device Connections</strong></li>
+                    <li>Find your <strong>Enhanced PLC Simulator</strong> device and click <strong>Edit</strong></li>
+                    <li>In the <strong>"File Content (Internal)"</strong> field, paste the copied content</li>
+                    <li>Update the <strong>"Current File"</strong> field with your filename: <span class="filename" id="fileNameCopy"></span></li>
+                    <li>Click <strong>Save</strong> to apply the changes</li>
+                    <li>The device will reload and parse your PLC file!</li>
+                </ol>
+            </div>
+
+            <div class="file-content" id="fileContent"></div>
+
+            <button class="btn copy-btn" onclick="copyToClipboard()">📋 Copy Content to Clipboard</button>
+            <button class="btn btn-secondary copy-btn" onclick="resetUpload()">Upload Another File</button>
+        </div>
+
+        <div class="card" style="background: #0f172a; border: 1px solid #334155;">
+            <h3 style="margin-bottom: 15px;">💡 Quick Tips</h3>
+            <ul style="margin-left: 20px;">
+                <li>Supported formats: Rockwell L5K/L5X, JSON, CSV, XML</li>
+                <li>File content is processed client-side (secure, no upload to server)</li>
+                <li>Tags appear as: [DeviceName]/Controller:Global/TagName</li>
+                <li>UDT instances appear as folders with member variables</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const resultDiv = document.getElementById('result');
+        let currentFileContent = '';
+
+        // Drag and drop handlers
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('dragover');
+        });
+
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                currentFileContent = e.target.result;
+                displayResult(file, currentFileContent);
+            };
+
+            reader.onerror = () => {
+                alert('Error reading file. Please try again.');
+            };
+
+            reader.readAsText(file);
+        }
+
+        function displayResult(file, content) {
+            document.getElementById('fileName').textContent = file.name;
+            document.getElementById('fileNameCopy').textContent = file.name;
+            document.getElementById('fileSize').textContent = formatBytes(file.size);
+            document.getElementById('fileType').textContent = file.name.split('.').pop().toUpperCase();
+
+            // Show preview (first 500 characters)
+            const preview = content.substring(0, 500) + (content.length > 500 ? '\n\n... (truncated, ' + (content.length - 500) + ' more characters)' : '');
+            document.getElementById('fileContent').textContent = preview;
+
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyToClipboard() {
+            navigator.clipboard.writeText(currentFileContent).then(() => {
+                const btn = event.target;
+                const originalText = btn.textContent;
+                btn.textContent = '✅ Copied!';
+                btn.style.background = '#10b981';
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = currentFileContent;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                alert('Content copied to clipboard!');
+            });
+        }
+
+        function resetUpload() {
+            resultDiv.style.display = 'none';
+            fileInput.value = '';
+            currentFileContent = '';
+            uploadZone.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html>

@@ -117,25 +117,34 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * Parser and file settings.
+     *
+     * HOW TO UPLOAD FILES:
+     * 1. Go to Gateway Home → Click "PLC Simulator" in the left menu
+     * 2. Upload your L5K/L5X/JSON/CSV file
+     * 3. Click "Copy to Clipboard"
+     * 4. Return here and paste into the "File Content" field below
+     * 5. Enter the filename and save
      */
     public record ParserSettings(
         @FormCategory("PARSER")
         @Label("📁 Manage PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("<a href='/res/plcsimulator/edit-program.html' target='_blank' style='display:inline-block;padding:10px 20px;background:#0066cc;color:white;text-decoration:none;border-radius:4px;font-weight:500;margin-bottom:8px;'>Open Program Manager ↗</a><br/><br/>Opens drag-and-drop interface for uploading L5K, JSON, CSV, or XML files. After uploading, paste the content into the 'File Content (Internal)' field below.")
-        @DefaultValue("See link above")
-        String programManagerLink,
+        @Description("Click the link above to upload and manage PLC files for this device")
+        @DefaultValue("/res/plcsimulator/simple-upload.html")
+        String programManagerUrl,
 
         @FormCategory("PARSER")
-        @Label("Current File")
+        @Label("File Name")
         @FormField(FormFieldType.TEXT)
-        @Description("Currently loaded PLC file (read-only). Use Program Manager link above to change.")
+        @Description("Name of your PLC file (e.g., 'program.l5k' or 'tags.json'). To upload: Go to Gateway Home → PLC Simulator menu.")
+        @DefaultValue("")
         String fileName,
 
         @FormCategory("PARSER")
-        @Label("File Content (Internal)")
+        @Label("File Content")
         @FormField(FormFieldType.TEXTAREA)
-        @Description("Internal storage for PLC file content. Managed automatically by Program Manager. You can also paste content here directly if needed.")
+        @Description("Paste your PLC file content here. Upload files via Gateway Home → PLC Simulator menu, then copy/paste content here.")
+        @DefaultValue("")
         String fileContent,
 
         @FormCategory("PARSER")
