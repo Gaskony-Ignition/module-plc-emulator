@@ -184,6 +184,7 @@ After uploading a file:
 
 ## Version
 
-**Module Version:** 1.3.2
-**Release Date:** 2025-11-10
+**Module Version:** 2.0.5
+**Release Date:** 2025-11-11
 **Ignition Compatibility:** 8.3.0+
+**Major Release:** v2.0.0 - Production ready with Java parsers and automatic file upload
