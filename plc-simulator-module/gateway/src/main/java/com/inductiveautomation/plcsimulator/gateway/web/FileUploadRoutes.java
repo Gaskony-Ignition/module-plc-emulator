@@ -18,8 +18,10 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Collection;
@@ -104,15 +106,18 @@ public class FileUploadRoutes {
         try {
             String deviceName = context.getRequest().getParameter("device");
 
-            StringBuilder content = new StringBuilder();
-            try (BufferedReader reader = context.getRequest().getReader()) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
+            // Read file content from request body - preserve original format including line endings
+            String fileContent;
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(context.getRequest().getInputStream(), StandardCharsets.UTF_8))) {
+                StringBuilder content = new StringBuilder();
+                char[] buffer = new char[8192];
+                int charsRead;
+                while ((charsRead = reader.read(buffer)) != -1) {
+                    content.append(buffer, 0, charsRead);
                 }
+                fileContent = content.toString();
             }
-
-            String fileContent = content.toString();
 
             if (fileContent.isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
