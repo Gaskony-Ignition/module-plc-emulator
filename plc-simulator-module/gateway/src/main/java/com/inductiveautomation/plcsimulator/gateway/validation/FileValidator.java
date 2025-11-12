@@ -134,14 +134,34 @@ public class FileValidator {
                 }
             }
 
-            if (lowerName.endsWith(".l5x") || lowerName.endsWith(".l5k")) {
-                // L5K/L5X files must be valid XML with RSLogix5000Content root element
+            if (lowerName.endsWith(".l5x")) {
+                // L5X files are XML format with RSLogix5000Content root element
                 if (!content.contains("<RSLogix5000Content")) {
-                    return ValidationResult.failure("Invalid L5K/L5X file - missing <RSLogix5000Content> root element. This is not a valid Studio 5000 export file.");
+                    return ValidationResult.failure("Invalid L5X file - missing <RSLogix5000Content> root element. This is not a valid Studio 5000 XML export file.");
                 }
-                // L5K/L5X files must have reasonable size (at least 1KB for minimal valid XML)
+                // L5X files must have reasonable size (at least 1KB for minimal valid XML)
                 if (content.length() < 1000) {
-                    return ValidationResult.failure("L5K/L5X file too small (" + content.length() + " bytes). Valid Studio 5000 files are typically 10KB or larger.");
+                    return ValidationResult.failure("L5X file too small (" + content.length() + " bytes). Valid Studio 5000 XML files are typically 10KB or larger.");
+                }
+            }
+
+            if (lowerName.endsWith(".l5k")) {
+                // L5K files are plain text format (NOT XML)
+                // Look for typical L5K markers like CONTROLLER, DATATYPE, TAG, PROGRAM, etc.
+                String upperContent = content.toUpperCase();
+                boolean hasL5KMarkers = upperContent.contains("CONTROLLER") ||
+                                        upperContent.contains("DATATYPE") ||
+                                        upperContent.contains("TAG") ||
+                                        upperContent.contains("PROGRAM") ||
+                                        upperContent.contains("ROUTINE") ||
+                                        upperContent.contains("MODULE");
+
+                if (!hasL5KMarkers) {
+                    return ValidationResult.failure("Invalid L5K file - missing expected L5K format markers (CONTROLLER, DATATYPE, TAG, etc). This does not appear to be a valid RSLogix 5000 L5K export file.");
+                }
+                // L5K files must have reasonable size
+                if (content.length() < 100) {
+                    return ValidationResult.failure("L5K file too small (" + content.length() + " bytes). Valid L5K files are typically 1KB or larger.");
                 }
             }
 
