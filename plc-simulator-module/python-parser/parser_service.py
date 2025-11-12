@@ -12,6 +12,10 @@ import logging
 from flask import Flask, request, jsonify
 from pathlib import Path
 import tempfile
+# Force PyInstaller to include xml modules
+import xml
+import xml.etree
+import xml.etree.ElementTree
 
 # Add parent directory to path to import parsers
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'plc-simulator-refactored'))
@@ -154,7 +158,7 @@ def project_to_dict(project: PLCProject) -> dict:
     for tag in project.global_tags:
         controller_tags.append({
             'name': tag.name,
-            'data_type': tag.data_type,
+            'data_type': str(tag.data_type) if hasattr(tag.data_type, 'value') else str(tag.data_type),
             'scope': 'Controller:Global',
             'initial_value': tag.initial_value
         })
@@ -166,7 +170,7 @@ def project_to_dict(project: PLCProject) -> dict:
         for tag in program.tags:
             prog_tags.append({
                 'name': tag.name,
-                'data_type': tag.data_type,
+                'data_type': str(tag.data_type) if hasattr(tag.data_type, 'value') else str(tag.data_type),
                 'scope': f'Program:{program.name}',
                 'initial_value': tag.initial_value
             })
@@ -182,7 +186,7 @@ def project_to_dict(project: PLCProject) -> dict:
         for member in udt.members:
             members.append({
                 'name': member.name,
-                'data_type': member.data_type,
+                'data_type': str(member.data_type) if hasattr(member.data_type, 'value') else str(member.data_type),
                 'description': getattr(member, 'description', '')
             })
 

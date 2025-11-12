@@ -387,7 +387,8 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             };
 
             // Call parser service REST API
-            String parserUrl = String.format("http://localhost:5000/parse/%s?file=%s",
+            // Use Docker bridge gateway IP to access host from container
+            String parserUrl = String.format("http://172.17.0.1:5000/parse/%s?file=%s",
                 endpoint, filePath);
 
             URL url = new URL(parserUrl);
