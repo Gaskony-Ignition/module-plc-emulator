@@ -48,6 +48,13 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
             }
             throw new IllegalArgumentException("Unknown parser type: " + key);
         }
+
+        @Override
+        public String toString() {
+            // Return the i18n key for Ignition to look up in properties file
+            // This is what makes the dropdown show proper display names
+            return "EnhancedSimulatorConfig.ParserType." + name();
+        }
     }
 
     /**
@@ -83,6 +90,13 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
                 }
             }
             return SINE; // Default fallback
+        }
+
+        @Override
+        public String toString() {
+            // Return the i18n key for Ignition to look up in properties file
+            // This is what makes the dropdown show proper display names
+            return "EnhancedSimulatorConfig.SimulationPattern." + name();
         }
     }
 
