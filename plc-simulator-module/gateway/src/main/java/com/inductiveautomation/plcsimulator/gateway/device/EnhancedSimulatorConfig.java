@@ -40,11 +40,6 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
             return displayName;
         }
 
-        @Override
-        public String toString() {
-            return displayName;
-        }
-
         public static ParserType fromKey(String key) {
             for (ParserType type : values()) {
                 if (type.key.equalsIgnoreCase(key)) {
@@ -78,11 +73,6 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         }
 
         public String getDisplayName() {
-            return displayName;
-        }
-
-        @Override
-        public String toString() {
             return displayName;
         }
 
