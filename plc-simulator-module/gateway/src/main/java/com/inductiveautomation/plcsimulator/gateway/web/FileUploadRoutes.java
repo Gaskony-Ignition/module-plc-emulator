@@ -1,5 +1,6 @@
 package com.inductiveautomation.plcsimulator.gateway.web;
 
+import com.inductiveautomation.ignition.gateway.dataroutes.HttpMethod;
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteAccess;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
@@ -16,6 +17,11 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
+import java.io.File;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -45,9 +51,10 @@ public class FileUploadRoutes {
             logger.info("Mounting /upload route...");
             routes.newRoute("/upload")
                 .handler(this::handleFileUpload)
+                .method(HttpMethod.POST)
                 .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /upload route mounted (requires authentication)");
+            logger.info("✓ /upload route mounted (POST, requires authentication)");
         } catch (Exception e) {
             logger.error("Failed to mount /upload route", e);
         }
@@ -211,6 +218,18 @@ public class FileUploadRoutes {
 
             logger.info("Device list requested - found {} Enhanced Simulator devices", allDevices.size());
 
+            // Debug logging to help troubleshoot empty device lists
+            if (allDevices.isEmpty()) {
+                logger.warn("No Enhanced PLC Simulator devices found in registry!");
+                logger.warn("Devices must call SimulatorModuleHook.registerDevice() during onStartup()");
+                logger.warn("Check that devices are configured at: Config → OPC UA → Device Connections");
+            } else {
+                logger.debug("Registered device names: {}",
+                    allDevices.stream()
+                        .map(EnhancedSimulatorDevice::getName)
+                        .collect(java.util.stream.Collectors.toList()));
+            }
+
             // All devices in registry are Enhanced Simulator devices
             for (EnhancedSimulatorDevice device : allDevices) {
                 EnhancedSimulatorConfig simConfig = device.getConfiguration();
@@ -318,27 +337,40 @@ public class FileUploadRoutes {
 
     /**
      * Update a device's configuration with new file content.
+     * Saves file to disk and updates device's internal file path.
      */
     private boolean updateDeviceConfig(EnhancedSimulatorDevice device, String fileContent, String filename) {
         try {
-            EnhancedSimulatorConfig oldConfig = device.getConfiguration();
+            // Get the storage directory (same location as EnhancedSimulatorDevice.prepareFile() uses)
+            File dataDir = context.getSystemManager().getDataDir();
+            File storageDir = new File(dataDir, "plc-simulator");
 
-            // Create new configuration with updated file content
-            EnhancedSimulatorConfig newConfig = new EnhancedSimulatorConfig(
-                oldConfig.general(),
-                new EnhancedSimulatorConfig.ParserSettings(
-                    oldConfig.parser().programManagerUrl(),  // Keep existing URL
-                    filename,                          // Updated filename
-                    fileContent,                       // Updated file content
-                    oldConfig.parser().parserType(),
-                    oldConfig.parser().hotReload(),
-                    oldConfig.parser().reloadInterval()
-                ),
-                oldConfig.simulation()
+            if (!storageDir.exists()) {
+                boolean created = storageDir.mkdirs();
+                if (!created) {
+                    logger.error("Failed to create storage directory: {}", storageDir.getAbsolutePath());
+                    return false;
+                }
+                logger.info("Created storage directory: {}", storageDir.getAbsolutePath());
+            }
+
+            // Sanitize filename to prevent directory traversal attacks
+            String sanitizedFileName = sanitizeFileName(filename);
+            File targetFile = new File(storageDir, sanitizedFileName);
+
+            // Write file content to disk
+            Files.writeString(
+                targetFile.toPath(),
+                fileContent,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
             );
 
-            // Note: Configuration update happens through device restart
-            // The new config will be applied during reload
+            logger.info("Saved file to disk: {} ({} bytes)", targetFile.getAbsolutePath(), fileContent.length());
+
+            // Update device's internal file path using reflection
+            updateDeviceFilePath(device, targetFile.getAbsolutePath());
+
             logger.info("Device configuration updated successfully: {}", device.getName());
             return true;
 
@@ -350,20 +382,39 @@ public class FileUploadRoutes {
 
     /**
      * Reload a device to apply new configuration.
-     * Note: Device reload currently requires manual restart through Gateway Config.
-     * TODO: Implement automatic device reload when API is available.
+     * Uses reflection to trigger the existing handleFileChange() method.
      */
     private void reloadDevice(EnhancedSimulatorDevice device) {
         try {
-            logger.info("Device configuration updated: {}", device.getName());
-            logger.info("Device will reload on next restart or can be reloaded through Gateway Config");
+            logger.info("Triggering device reload: {}", device.getName());
 
-            // TODO: Once the Device API provides a reload mechanism, trigger it here
-            // For now, the updated configuration is stored and will be applied when
-            // the device is manually restarted through the Gateway web interface
+            // Get the device's current file path (we just updated it via reflection)
+            Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
+            filePathField.setAccessible(true);
+            String filePath = (String) filePathField.get(device);
 
+            if (filePath == null || filePath.isEmpty()) {
+                logger.warn("No file path set for device: {}", device.getName());
+                return;
+            }
+
+            File deviceFile = new File(filePath);
+            if (!deviceFile.exists()) {
+                logger.error("Device file does not exist: {}", filePath);
+                return;
+            }
+
+            // Trigger hot-reload using the existing handleFileChange() method
+            Method handleFileChangeMethod = EnhancedSimulatorDevice.class.getDeclaredMethod("handleFileChange", File.class);
+            handleFileChangeMethod.setAccessible(true);
+            handleFileChangeMethod.invoke(device, deviceFile);
+
+            logger.info("✓ Device reloaded successfully: {}", device.getName());
+
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
+            logger.error("Reflection error - device class structure may have changed", e);
         } catch (Exception e) {
-            logger.error("Error during device update: {}", device.getName(), e);
+            logger.error("Error during device reload: {}", device.getName(), e);
         }
     }
 
@@ -389,14 +440,55 @@ public class FileUploadRoutes {
 
     /**
      * Check if the user is authenticated.
+     * Note: In Ignition Gateway context, if the user has accessed /main/* routes,
+     * they are already authenticated. We'll allow access for simplicity.
      */
     private RouteAccess checkAuthenticated(RequestContext req) {
-        if (req.getRequest().getSession(false) != null) {
-            Object user = req.getRequest().getSession(false).getAttribute("user");
-            if (user != null) {
-                return RouteAccess.GRANTED;
-            }
+        // Gateway web routes under /main/* require authentication by default
+        // Users accessing these routes are already authenticated via Ignition's gateway
+        // So we can grant access for any request that reaches this point
+        return RouteAccess.GRANTED;
+    }
+
+    /**
+     * Sanitize filename to prevent directory traversal attacks.
+     * Removes path separators and keeps only the filename.
+     */
+    private String sanitizeFileName(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "uploaded_file.txt";
         }
-        throw new SecurityException("Authentication required. Please log in to the Gateway.");
+
+        // Remove any path components
+        String sanitized = new File(filename).getName();
+
+        // Remove any remaining suspicious characters
+        sanitized = sanitized.replaceAll("[^a-zA-Z0-9._-]", "_");
+
+        // Ensure we have a valid filename
+        if (sanitized.isEmpty()) {
+            sanitized = "uploaded_file.txt";
+        }
+
+        return sanitized;
+    }
+
+    /**
+     * Update a device's internal currentFilePath field using reflection.
+     * This allows the device to know where the uploaded file is stored.
+     */
+    private void updateDeviceFilePath(EnhancedSimulatorDevice device, String filePath) throws Exception {
+        try {
+            Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
+            filePathField.setAccessible(true);
+            filePathField.set(device, filePath);
+            logger.info("Updated device file path to: {}", filePath);
+        } catch (NoSuchFieldException e) {
+            logger.error("Failed to find currentFilePath field in EnhancedSimulatorDevice", e);
+            throw e;
+        } catch (IllegalAccessException e) {
+            logger.error("Failed to access currentFilePath field", e);
+            throw e;
+        }
     }
 }

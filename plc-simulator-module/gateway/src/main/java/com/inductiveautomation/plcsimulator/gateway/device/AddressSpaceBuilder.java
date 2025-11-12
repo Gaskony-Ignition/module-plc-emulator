@@ -138,7 +138,14 @@ public class AddressSpaceBuilder {
             }
         }
 
-        logger.info("Address space building complete");
+        // Validate that at least some tags were created
+        int totalTags = countTotalTags(plcData);
+        if (totalTags == 0) {
+            logger.warn("⚠️  WARNING: Zero tags created in address space! File may be invalid, empty, or incorrectly formatted.");
+            logger.warn("Check that your file contains valid PLC tag definitions.");
+        } else {
+            logger.info("✓ Address space building complete - {} total tags created", totalTags);
+        }
     }
 
     /**
@@ -152,6 +159,16 @@ public class AddressSpaceBuilder {
         UaFolderNode parentFolder,
         NodeContext context,
         String pathPrefix) {
+
+        // Defensive null checks - parser might not provide all fields
+        if (tag.get("name") == null) {
+            logger.warn("Skipping tag without 'name' field: {}", tag);
+            return;
+        }
+        if (tag.get("data_type") == null) {
+            logger.warn("Skipping tag '{}' without 'data_type' field", tag.get("name").getAsString());
+            return;
+        }
 
         String tagName = tag.get("name").getAsString();
         String dataType = tag.get("data_type").getAsString();
@@ -224,6 +241,16 @@ public class AddressSpaceBuilder {
         UaFolderNode parentFolder,
         NodeContext context,
         String pathPrefix) {
+
+        // Defensive null checks - parser might not provide all fields
+        if (tag.get("name") == null) {
+            logger.warn("Skipping atomic tag without 'name' field: {}", tag);
+            return;
+        }
+        if (tag.get("data_type") == null) {
+            logger.warn("Skipping atomic tag '{}' without 'data_type' field", tag.get("name").getAsString());
+            return;
+        }
 
         String tagName = tag.get("name").getAsString();
         String dataType = tag.get("data_type").getAsString();
@@ -309,6 +336,34 @@ public class AddressSpaceBuilder {
             case "STRING" -> initialValueElement.getAsString();
             default -> initialValueElement.getAsString();
         };
+    }
+
+    /**
+     * Count total tags in the parsed PLC data structure.
+     * Used for validation to detect empty/invalid files.
+     */
+    private static int countTotalTags(JsonObject plcData) {
+        int count = 0;
+
+        // Count global tags
+        if (plcData.has("global_tags")) {
+            JsonArray globalTags = plcData.getAsJsonArray("global_tags");
+            count += globalTags.size();
+        }
+
+        // Count program tags
+        if (plcData.has("programs")) {
+            JsonArray programs = plcData.getAsJsonArray("programs");
+            for (JsonElement programElement : programs) {
+                JsonObject program = programElement.getAsJsonObject();
+                if (program.has("tags")) {
+                    JsonArray programTags = program.getAsJsonArray("tags");
+                    count += programTags.size();
+                }
+            }
+        }
+
+        return count;
     }
 
     /**

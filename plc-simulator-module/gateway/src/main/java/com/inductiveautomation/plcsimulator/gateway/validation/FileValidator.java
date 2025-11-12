@@ -135,9 +135,13 @@ public class FileValidator {
             }
 
             if (lowerName.endsWith(".l5x") || lowerName.endsWith(".l5k")) {
-                // Quick XML validation
+                // L5K/L5X files must be valid XML with RSLogix5000Content root element
                 if (!content.contains("<RSLogix5000Content")) {
-                    logger.warn("L5X file may be invalid - missing RSLogix5000Content root element");
+                    return ValidationResult.failure("Invalid L5K/L5X file - missing <RSLogix5000Content> root element. This is not a valid Studio 5000 export file.");
+                }
+                // L5K/L5X files must have reasonable size (at least 1KB for minimal valid XML)
+                if (content.length() < 1000) {
+                    return ValidationResult.failure("L5K/L5X file too small (" + content.length() + " bytes). Valid Studio 5000 files are typically 10KB or larger.");
                 }
             }
 
