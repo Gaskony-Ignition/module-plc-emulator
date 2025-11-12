@@ -112,6 +112,10 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             logger.info("Starting Enhanced PLC Simulator device: {}", context.getName());
             deviceStatus = "Starting";
 
+            // Register device with module hook so FileUploadRoutes can find it
+            // This must happen BEFORE any early returns to ensure all devices are discoverable
+            SimulatorModuleHook.registerDevice(context.getName(), this);
+
             // Save uploaded file content if provided
             currentFilePath = prepareFile();
             if (currentFilePath == null) {
@@ -157,9 +161,6 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                 context.getSubscriptionModel()
                     .getDataItems(context.getName())
             );
-
-            // Register device with module hook so FileUploadRoutes can find it
-            SimulatorModuleHook.registerDevice(context.getName(), this);
 
         } catch (Exception e) {
             deviceStatus = "Error: " + e.getMessage();
@@ -224,6 +225,45 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
+     * Find an existing file in the storage directory that was previously uploaded.
+     * This is a fallback for when device config doesn't have filename but file exists on disk.
+     *
+     * @param storageDir Directory to search for files
+     * @return First matching PLC file found, or null if none exist
+     */
+    private File findExistingFileForDevice(File storageDir) {
+        if (storageDir == null || !storageDir.exists()) {
+            return null;
+        }
+
+        // Look for common PLC file extensions
+        String[] extensions = {".L5K", ".l5k", ".L5X", ".l5x", ".json", ".JSON", ".csv", ".CSV"};
+
+        File[] files = storageDir.listFiles();
+        if (files == null) {
+            return null;
+        }
+
+        // First, try to find files that match common upload patterns
+        for (File file : files) {
+            String name = file.getName();
+            // Skip hidden files and backup files
+            if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
+                continue;
+            }
+            // Check if it has a supported extension
+            for (String ext : extensions) {
+                if (name.endsWith(ext)) {
+                    logger.debug("Found candidate file: {}", file.getName());
+                    return file;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Prepares the PLC file for parsing.
      * If file content was uploaded, saves it to the Gateway filesystem.
      *
@@ -278,7 +318,16 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
                 }
             }
 
-            logger.error("No file content or file name provided");
+            // Last resort: Check if a file exists on disk for this device
+            // This handles cases where file was uploaded via web UI but device config wasn't updated
+            File deviceFile = findExistingFileForDevice(storageDir);
+            if (deviceFile != null && deviceFile.exists()) {
+                logger.info("Found existing uploaded file for device: {}", deviceFile.getAbsolutePath());
+                logger.info("To make this permanent, re-save device configuration with this filename");
+                return deviceFile.getAbsolutePath();
+            }
+
+            logger.info("No file content or file name provided - device will wait for upload");
             return null;
 
         } catch (Exception e) {
@@ -444,7 +493,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     private JsonObject createDemoStructure() {
         String json = """
             {
-                "tags": [
+                "global_tags": [
                     {
                         "name": "DemoTag1",
                         "dataType": "DINT",
