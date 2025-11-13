@@ -372,11 +372,12 @@ public class L5XParser implements PLCParser {
             return false;
         }
         String lowerName = fileName.toLowerCase();
-        return lowerName.endsWith(".l5x") || lowerName.endsWith(".l5k");
+        // ONLY handle L5X (XML) files, NOT L5K (text) files
+        return lowerName.endsWith(".l5x");
     }
 
     @Override
     public String getParserType() {
-        return "rockwell";
+        return "l5x";  // Changed from "rockwell" to be more specific
     }
 }
