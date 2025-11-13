@@ -42,6 +42,9 @@ public class L5KParser implements PLCParser {
     private static final Pattern TAG_BLOCK_END_PATTERN = Pattern.compile("^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
     private static final Pattern TAG_DEFINITION_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)(?:\\[(\\d+(?:,\\d+)*)\\])?", Pattern.CASE_INSENSITIVE);
 
+    // Controller-scoped tags (outside TAG blocks) - Critical for real Studio 5000 files
+    private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile("^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
+
     // Program pattern
     private static final Pattern PROGRAM_PATTERN = Pattern.compile("PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern END_PROGRAM_PATTERN = Pattern.compile("END_PROGRAM", Pattern.CASE_INSENSITIVE);
@@ -248,6 +251,46 @@ public class L5KParser implements PLCParser {
                 continue;
             }
 
+            // CRITICAL: Parse controller-scoped tags that appear OUTSIDE TAG blocks
+            // This handles the real Studio 5000 format where controller tags don't use TAG keyword
+            if (!inTagBlock && inControllerScope && currentProgram == null) {
+                Matcher controllerTagMatcher = CONTROLLER_TAG_PATTERN.matcher(line);
+                if (controllerTagMatcher.find()) {
+                    String tagName = controllerTagMatcher.group(1);
+                    String dataType = controllerTagMatcher.group(2);
+
+                    JsonObject tag = new JsonObject();
+                    tag.addProperty("name", tagName);
+                    tag.addProperty("data_type", normalizeDataType(dataType));
+
+                    // Check if this is a UDT instance and expand it
+                    if (udtDefinitions.containsKey(dataType)) {
+                        UDTDefinition udtDef = udtDefinitions.get(dataType);
+                        JsonArray udtMembers = new JsonArray();
+
+                        for (UDTMember member : udtDef.members) {
+                            JsonObject memberJson = new JsonObject();
+                            memberJson.addProperty("name", member.name);
+                            memberJson.addProperty("data_type", member.dataType);
+                            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
+                            udtMembers.add(memberJson);
+                        }
+
+                        tag.add("udt_members", udtMembers);
+                        result.udtInstanceCount++;
+                        logger.debug("Expanded controller UDT instance: {} of type {} with {} members",
+                            tagName, dataType, udtMembers.size());
+                    } else {
+                        // Regular atomic tag (MESSAGE, TIMER, etc.)
+                        tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
+                    }
+
+                    result.globalTags.add(tag);
+                    logger.trace("Added controller tag (outside TAG block): {} of type {}", tagName, dataType);
+                    continue;  // Skip to next line
+                }
+            }
+
             // Parse tag definitions within TAG blocks
             if (inTagBlock) {
                 Matcher tagMatcher = TAG_DEFINITION_PATTERN.matcher(line);
@@ -330,6 +373,7 @@ public class L5KParser implements PLCParser {
             case "TIMER" -> "TIMER";
             case "COUNTER" -> "COUNTER";
             case "CONTROL" -> "CONTROL";
+            case "MESSAGE" -> "MESSAGE";
             default -> cleanType; // Keep original for UDTs
         };
     }
