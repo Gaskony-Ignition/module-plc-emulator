@@ -30,19 +30,19 @@ public class L5KParser implements PLCParser {
     // Regex patterns for parsing L5K format
     private static final Pattern CONTROLLER_PATTERN = Pattern.compile("CONTROLLER\\s+(\\S+)\\s*\\{", Pattern.CASE_INSENSITIVE);
 
-    // Updated TAG patterns to handle real L5K format
-    // Real L5K files have multi-line TAG definitions like:
-    // TAG tagname
-    //     (properties...)
-    //     :datatype
-    // OR simpler format:
-    // TAG tagname : datatype
+    // CRITICAL: Real Studio 5000 L5K files have controller-scoped tags declared as:
+    // 		TagName : DataType (properties...)
+    // NOT with "TAG" keyword! The TAG keyword only appears in PROGRAM sections.
+    private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile("^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Z][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
+
+    // Legacy patterns for TAG keyword format (used inside PROGRAM sections)
     private static final Pattern TAG_START_PATTERN = Pattern.compile("^\\s*TAG\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATATYPE_LINE_PATTERN = Pattern.compile("^\\s*:(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern TAG_SIMPLE_PATTERN = Pattern.compile("TAG\\s+(\\S+)\\s*:\\s*(\\S+)(?:\\[(\\d+)\\])?", Pattern.CASE_INSENSITIVE);
 
     private static final Pattern PROGRAM_PATTERN = Pattern.compile("PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATA_TYPE_PATTERN = Pattern.compile("DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern END_TAG_PATTERN = Pattern.compile("^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
 
     @Override
     public JsonObject parse(String filePath) {
@@ -186,6 +186,20 @@ public class L5KParser implements PLCParser {
             if (programMatcher.find()) {
                 currentProgram = programMatcher.group(1);
                 logger.debug("Entering program section: {}", currentProgram);
+                continue;
+            }
+
+            // CRITICAL: Check for controller-scoped tag format: "TagName : DataType ("
+            // This is the REAL format used in Studio 5000 L5K exports!
+            Matcher controllerTagMatcher = CONTROLLER_TAG_PATTERN.matcher(lines[i]);  // Use original line (not trimmed) to preserve indent
+            if (controllerTagMatcher.find()) {
+                Tag tag = new Tag();
+                tag.name = controllerTagMatcher.group(1);
+                tag.dataType = normalizeDataType(controllerTagMatcher.group(2));
+                tag.program = currentProgram;  // Will be null for controller-scoped tags
+
+                tags.add(tag);
+                logger.trace("Found controller tag: {} of type {}", tag.name, tag.dataType);
                 continue;
             }
 
