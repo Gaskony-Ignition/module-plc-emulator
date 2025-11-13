@@ -458,9 +458,27 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
         }
 
         try {
-            // Get appropriate parser from factory
-            PLCParser parser = ParserFactory.getParserByType(parserType.getKey());
+            PLCParser parser = null;
 
+            // Special handling for "rockwell" type - determine L5K vs L5X by file extension
+            if ("rockwell".equals(parserType.getKey())) {
+                String fileName = file.getName().toLowerCase();
+                if (fileName.endsWith(".l5k")) {
+                    parser = ParserFactory.getParserByType("l5k");
+                    logger.info("Selected L5K parser for Rockwell .l5k file");
+                } else if (fileName.endsWith(".l5x")) {
+                    parser = ParserFactory.getParserByType("l5x");
+                    logger.info("Selected L5X parser for Rockwell .l5x file");
+                } else {
+                    // Try to detect by extension for other Rockwell formats
+                    parser = ParserFactory.getParser(file.getName());
+                }
+            } else {
+                // For non-Rockwell types, use the parser type directly
+                parser = ParserFactory.getParserByType(parserType.getKey());
+            }
+
+            // Fallback to extension-based detection
             if (parser == null) {
                 logger.warn("No parser available for type: {}, trying file extension detection", parserType);
                 parser = ParserFactory.getParser(file.getName());
