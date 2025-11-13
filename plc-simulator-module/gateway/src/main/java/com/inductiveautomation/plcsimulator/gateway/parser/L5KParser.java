@@ -18,10 +18,11 @@ import java.util.regex.Pattern;
  * Parser for Rockwell L5K files (text-based format).
  * L5K files are NOT XML - they use a proprietary text format with sections like:
  * - CONTROLLER section
+ * - DATATYPE definitions (User Defined Types)
  * - TAG sections with multi-line format
  * - PROGRAM sections
  *
- * This is different from L5X which is XML-based.
+ * This parser now correctly handles UDTs and creates hierarchical structures.
  */
 public class L5KParser implements PLCParser {
 
@@ -30,19 +31,20 @@ public class L5KParser implements PLCParser {
     // Regex patterns for parsing L5K format
     private static final Pattern CONTROLLER_PATTERN = Pattern.compile("CONTROLLER\\s+(\\S+)\\s*\\{", Pattern.CASE_INSENSITIVE);
 
-    // CRITICAL: Real Studio 5000 L5K files have controller-scoped tags declared as:
-    // 		TagName : DataType (properties...)
-    // NOT with "TAG" keyword! The TAG keyword only appears in PROGRAM sections.
-    private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile("^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Z][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
+    // DATATYPE patterns for UDT parsing
+    private static final Pattern DATATYPE_START_PATTERN = Pattern.compile("^\\s*DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_END_PATTERN = Pattern.compile("^\\s*END_DATATYPE", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_MEMBER_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_BIT_PATTERN = Pattern.compile("^\\s*BIT\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+", Pattern.CASE_INSENSITIVE);
 
-    // Legacy patterns for TAG keyword format (used inside PROGRAM sections)
-    private static final Pattern TAG_START_PATTERN = Pattern.compile("^\\s*TAG\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DATATYPE_LINE_PATTERN = Pattern.compile("^\\s*:(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TAG_SIMPLE_PATTERN = Pattern.compile("TAG\\s+(\\S+)\\s*:\\s*(\\S+)(?:\\[(\\d+)\\])?", Pattern.CASE_INSENSITIVE);
+    // Tag patterns within TAG...END_TAG blocks
+    private static final Pattern TAG_BLOCK_START_PATTERN = Pattern.compile("^\\s*TAG\\s*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_BLOCK_END_PATTERN = Pattern.compile("^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_DEFINITION_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)(?:\\[(\\d+(?:,\\d+)*)\\])?", Pattern.CASE_INSENSITIVE);
 
+    // Program pattern
     private static final Pattern PROGRAM_PATTERN = Pattern.compile("PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DATA_TYPE_PATTERN = Pattern.compile("DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern END_TAG_PATTERN = Pattern.compile("^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
+    private static final Pattern END_PROGRAM_PATTERN = Pattern.compile("END_PROGRAM", Pattern.CASE_INSENSITIVE);
 
     @Override
     public JsonObject parse(String filePath) {
@@ -76,78 +78,61 @@ public class L5KParser implements PLCParser {
                 logger.info("Found controller: {}", controllerName);
             }
 
-            // Parse tags (both controller and program scoped)
-            List<Tag> allTags = parseTags(lines);
-            logger.info("Parsed {} tags total", allTags.size());
+            // CRITICAL: Parse UDT definitions FIRST - we need these to expand UDT instances
+            Map<String, UDTDefinition> udtDefinitions = parseUDTDefinitions(lines);
+            logger.info("Parsed {} UDT definitions", udtDefinitions.size());
 
-            // Separate controller tags and program tags
-            JsonArray globalTags = new JsonArray();
-            Map<String, JsonArray> programTags = new HashMap<>();
-
-            for (Tag tag : allTags) {
-                JsonObject tagJson = new JsonObject();
-                tagJson.addProperty("name", tag.name);
-                // CRITICAL FIX: Use "data_type" with underscore to match AddressSpaceBuilder expectations
-                tagJson.addProperty("data_type", tag.dataType);  // Changed from "dataType" to "data_type"
-                tagJson.addProperty("value", getDefaultValue(tag.dataType));
-
-                if (tag.arraySize > 0) {
-                    tagJson.addProperty("dimensions", tag.arraySize);
-                    tagJson.addProperty("isArray", true);
+            // Add UDT definitions to result (for debugging/reference)
+            if (!udtDefinitions.isEmpty()) {
+                JsonArray udts = new JsonArray();
+                for (UDTDefinition udt : udtDefinitions.values()) {
+                    JsonObject udtJson = new JsonObject();
+                    udtJson.addProperty("name", udt.name);
+                    JsonArray members = new JsonArray();
+                    for (UDTMember member : udt.members) {
+                        JsonObject memberJson = new JsonObject();
+                        memberJson.addProperty("name", member.name);
+                        memberJson.addProperty("data_type", member.dataType);
+                        members.add(memberJson);
+                    }
+                    udtJson.add("members", members);
+                    udts.add(udtJson);
                 }
-
-                if (tag.description != null) {
-                    tagJson.addProperty("description", tag.description);
-                }
-
-                if (tag.program != null) {
-                    // Program-scoped tag
-                    programTags.computeIfAbsent(tag.program, k -> new JsonArray()).add(tagJson);
-                } else {
-                    // Controller-scoped tag
-                    globalTags.add(tagJson);
-                }
+                result.add("udts", udts);
             }
 
+            // Parse tags (both controller and program scoped) with UDT expansion
+            ParseResult parseResult = parseTagsWithUDTs(lines, udtDefinitions);
+
             // Add global tags
-            if (globalTags.size() > 0) {
-                result.add("global_tags", globalTags);
-                logger.info("Found {} global tags", globalTags.size());
+            if (parseResult.globalTags.size() > 0) {
+                result.add("global_tags", parseResult.globalTags);
+                logger.info("Found {} global tags", parseResult.globalTags.size());
             }
 
             // Add program tags
-            if (!programTags.isEmpty()) {
+            if (!parseResult.programTags.isEmpty()) {
                 JsonArray programs = new JsonArray();
-                for (Map.Entry<String, JsonArray> entry : programTags.entrySet()) {
+                for (Map.Entry<String, JsonArray> entry : parseResult.programTags.entrySet()) {
                     JsonObject program = new JsonObject();
                     program.addProperty("name", entry.getKey());
                     program.add("tags", entry.getValue());
                     programs.add(program);
                 }
                 result.add("programs", programs);
-                logger.info("Found {} programs with tags", programTags.size());
+                logger.info("Found {} programs with tags", parseResult.programTags.size());
             }
 
             // Log summary
-            int totalTags = globalTags.size() + programTags.values().stream()
+            int totalTags = parseResult.globalTags.size() + parseResult.programTags.values().stream()
                 .mapToInt(JsonArray::size)
                 .sum();
-            logger.info("L5K parsing complete: {} total tags found", totalTags);
+            logger.info("L5K parsing complete: {} total tags found, {} were UDT instances",
+                totalTags, parseResult.udtInstanceCount);
 
             // If no tags found, provide detailed diagnostic info
             if (totalTags == 0) {
-                logger.warn("⚠️ No tags found in L5K file - file may have unexpected format");
-                logger.info("Creating demo structure. Please check:");
-                logger.info("1. File contains 'TAG' definitions");
-                logger.info("2. TAG format matches expected patterns");
-                logger.info("3. File is not corrupted or truncated");
-
-                // Log first few lines for debugging
-                logger.debug("First 10 lines of file:");
-                for (int i = 0; i < Math.min(10, lines.length); i++) {
-                    logger.debug("Line {}: {}", i+1, lines[i]);
-                }
-
+                logger.warn("No tags found in L5K file - file may have unexpected format");
                 return createDemoStructure();
             }
 
@@ -157,6 +142,166 @@ public class L5KParser implements PLCParser {
             logger.error("Error parsing L5K content", e);
             return createDemoStructure();
         }
+    }
+
+    /**
+     * Parse all DATATYPE definitions from the file.
+     * These define User Defined Types (UDTs) that tags can reference.
+     */
+    private Map<String, UDTDefinition> parseUDTDefinitions(String[] lines) {
+        Map<String, UDTDefinition> udtDefinitions = new HashMap<>();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            Matcher startMatcher = DATATYPE_START_PATTERN.matcher(line);
+            if (startMatcher.find()) {
+                String udtName = startMatcher.group(1);
+                UDTDefinition udt = new UDTDefinition(udtName);
+
+                logger.debug("Found DATATYPE: {} at line {}", udtName, i+1);
+
+                // Parse members until END_DATATYPE
+                for (int j = i + 1; j < lines.length; j++) {
+                    String memberLine = lines[j];
+
+                    // Check for end of datatype
+                    if (DATATYPE_END_PATTERN.matcher(memberLine).find()) {
+                        udtDefinitions.put(udtName, udt);
+                        logger.debug("Completed UDT {} with {} members", udtName, udt.members.size());
+                        i = j; // Skip to end of this datatype
+                        break;
+                    }
+
+                    // Check for BIT field (special case)
+                    Matcher bitMatcher = DATATYPE_BIT_PATTERN.matcher(memberLine);
+                    if (bitMatcher.find()) {
+                        String bitName = bitMatcher.group(1);
+                        udt.addMember(bitName, "BOOL");
+                        continue;
+                    }
+
+                    // Check for regular member
+                    Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(memberLine);
+                    if (memberMatcher.find()) {
+                        String memberName = memberMatcher.group(1);
+                        String memberType = memberMatcher.group(2);
+
+                        // Skip hidden/internal members (start with ZZZZ)
+                        if (!memberName.startsWith("ZZZZ")) {
+                            udt.addMember(memberName, normalizeDataType(memberType));
+                            logger.trace("Added UDT member: {}.{} of type {}", udtName, memberName, memberType);
+                        }
+                    }
+                }
+            }
+        }
+
+        return udtDefinitions;
+    }
+
+    /**
+     * Parse tags with UDT expansion.
+     */
+    private ParseResult parseTagsWithUDTs(String[] lines, Map<String, UDTDefinition> udtDefinitions) {
+        ParseResult result = new ParseResult();
+        String currentProgram = null;
+        boolean inTagBlock = false;
+        boolean inControllerScope = false;
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            // Check for CONTROLLER section (contains controller-scoped tags)
+            if (CONTROLLER_PATTERN.matcher(line).find()) {
+                inControllerScope = true;
+                currentProgram = null;
+                continue;
+            }
+
+            // Check for PROGRAM section
+            Matcher programMatcher = PROGRAM_PATTERN.matcher(line);
+            if (programMatcher.find()) {
+                currentProgram = programMatcher.group(1);
+                inControllerScope = false;
+                logger.debug("Entering program section: {}", currentProgram);
+                continue;
+            }
+
+            // Check for END_PROGRAM
+            if (END_PROGRAM_PATTERN.matcher(line).find()) {
+                currentProgram = null;
+                continue;
+            }
+
+            // Check for TAG block start
+            if (TAG_BLOCK_START_PATTERN.matcher(line).find()) {
+                inTagBlock = true;
+                logger.debug("Entering TAG block at line {} in {}", i+1,
+                    currentProgram != null ? "program " + currentProgram : "controller scope");
+                continue;
+            }
+
+            // Check for TAG block end
+            if (TAG_BLOCK_END_PATTERN.matcher(line).find()) {
+                inTagBlock = false;
+                continue;
+            }
+
+            // Parse tag definitions within TAG blocks
+            if (inTagBlock) {
+                Matcher tagMatcher = TAG_DEFINITION_PATTERN.matcher(line);
+                if (tagMatcher.find()) {
+                    String tagName = tagMatcher.group(1);
+                    String dataType = tagMatcher.group(2);
+                    String arrayDimensions = tagMatcher.group(3);
+
+                    JsonObject tag = new JsonObject();
+                    tag.addProperty("name", tagName);
+                    tag.addProperty("data_type", normalizeDataType(dataType));
+
+                    // Handle arrays
+                    if (arrayDimensions != null) {
+                        tag.addProperty("dimensions", arrayDimensions);
+                        tag.addProperty("isArray", true);
+                    }
+
+                    // Check if this is a UDT instance and expand it
+                    if (udtDefinitions.containsKey(dataType)) {
+                        UDTDefinition udtDef = udtDefinitions.get(dataType);
+                        JsonArray udtMembers = new JsonArray();
+
+                        for (UDTMember member : udtDef.members) {
+                            JsonObject memberJson = new JsonObject();
+                            memberJson.addProperty("name", member.name);
+                            memberJson.addProperty("data_type", member.dataType);
+                            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
+                            udtMembers.add(memberJson);
+                        }
+
+                        tag.add("udt_members", udtMembers);
+                        result.udtInstanceCount++;
+                        logger.debug("Expanded UDT instance: {} of type {} with {} members",
+                            tagName, dataType, udtMembers.size());
+                    } else {
+                        // Regular atomic tag
+                        tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
+                    }
+
+                    // Add tag to appropriate collection
+                    if (currentProgram != null) {
+                        result.programTags.computeIfAbsent(currentProgram, k -> new JsonArray()).add(tag);
+                    } else {
+                        result.globalTags.add(tag);
+                    }
+
+                    logger.trace("Added tag: {} of type {} to {}", tagName, dataType,
+                        currentProgram != null ? "program " + currentProgram : "controller scope");
+                }
+            }
+        }
+
+        return result;
     }
 
     private String parseControllerName(String[] lines) {
@@ -169,141 +314,12 @@ public class L5KParser implements PLCParser {
         return "UnknownController";
     }
 
-    private List<Tag> parseTags(String[] lines) {
-        List<Tag> tags = new ArrayList<>();
-        String currentProgram = null;
-
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i].trim();
-
-            // Skip empty lines and comments
-            if (line.isEmpty() || line.startsWith("(*") || line.startsWith("//")) {
-                continue;
-            }
-
-            // Check for PROGRAM section
-            Matcher programMatcher = PROGRAM_PATTERN.matcher(line);
-            if (programMatcher.find()) {
-                currentProgram = programMatcher.group(1);
-                logger.debug("Entering program section: {}", currentProgram);
-                continue;
-            }
-
-            // CRITICAL: Check for controller-scoped tag format: "TagName : DataType ("
-            // This is the REAL format used in Studio 5000 L5K exports!
-            Matcher controllerTagMatcher = CONTROLLER_TAG_PATTERN.matcher(lines[i]);  // Use original line (not trimmed) to preserve indent
-            if (controllerTagMatcher.find()) {
-                Tag tag = new Tag();
-                tag.name = controllerTagMatcher.group(1);
-                tag.dataType = normalizeDataType(controllerTagMatcher.group(2));
-                tag.program = currentProgram;  // Will be null for controller-scoped tags
-
-                tags.add(tag);
-                logger.trace("Found controller tag: {} of type {}", tag.name, tag.dataType);
-                continue;
-            }
-
-            // First try simple single-line TAG format (legacy)
-            Matcher simpleTagMatcher = TAG_SIMPLE_PATTERN.matcher(line);
-            if (simpleTagMatcher.find()) {
-                Tag tag = new Tag();
-                tag.name = simpleTagMatcher.group(1);
-                tag.dataType = normalizeDataType(simpleTagMatcher.group(2));
-                tag.program = currentProgram;
-
-                // Check for array size
-                if (simpleTagMatcher.group(3) != null) {
-                    tag.arraySize = Integer.parseInt(simpleTagMatcher.group(3));
-                }
-
-                tags.add(tag);
-                logger.debug("Found simple format tag: {} of type {}", tag.name, tag.dataType);
-                continue;
-            }
-
-            // Check for multi-line TAG definition (real Studio 5000 format)
-            Matcher tagStartMatcher = TAG_START_PATTERN.matcher(line);
-            if (tagStartMatcher.find()) {
-                Tag tag = new Tag();
-                tag.name = tagStartMatcher.group(1);
-                tag.program = currentProgram;
-
-                logger.debug("Found TAG start: {} at line {}", tag.name, i+1);
-
-                // Look for datatype in following lines
-                boolean foundDataType = false;
-                for (int j = i + 1; j < lines.length && j < i + 20; j++) {
-                    String nextLine = lines[j].trim();
-
-                    // Stop if we hit another TAG or section
-                    if (nextLine.startsWith("TAG ") || nextLine.startsWith("PROGRAM ") ||
-                        nextLine.startsWith("CONTROLLER ") || nextLine.startsWith("DATATYPE ")) {
-                        break;
-                    }
-
-                    // Look for :datatype pattern
-                    Matcher datatypeMatcher = DATATYPE_LINE_PATTERN.matcher(nextLine);
-                    if (datatypeMatcher.find()) {
-                        tag.dataType = normalizeDataType(datatypeMatcher.group(1));
-                        foundDataType = true;
-                        logger.debug("Found datatype {} for tag {} at line {}", tag.dataType, tag.name, j+1);
-                        break;
-                    }
-
-                    // Also check for inline format like ":DINT" or ":BOOL[32]"
-                    if (nextLine.startsWith(":")) {
-                        String typeStr = nextLine.substring(1).trim();
-                        // Handle array notation
-                        if (typeStr.contains("[")) {
-                            int bracketIdx = typeStr.indexOf("[");
-                            tag.dataType = normalizeDataType(typeStr.substring(0, bracketIdx));
-                            String arraySizeStr = typeStr.substring(bracketIdx + 1, typeStr.indexOf("]"));
-                            try {
-                                tag.arraySize = Integer.parseInt(arraySizeStr);
-                            } catch (NumberFormatException e) {
-                                logger.warn("Could not parse array size: {}", arraySizeStr);
-                            }
-                        } else {
-                            tag.dataType = normalizeDataType(typeStr.split("\\s+")[0]);
-                        }
-                        foundDataType = true;
-                        logger.debug("Found inline datatype {} for tag {}", tag.dataType, tag.name);
-                        break;
-                    }
-
-                    // Look for Description
-                    if (nextLine.contains("Description :=") || nextLine.contains("(Description :=")) {
-                        int start = nextLine.indexOf("\"");
-                        int end = nextLine.lastIndexOf("\"");
-                        if (start >= 0 && end > start) {
-                            tag.description = nextLine.substring(start + 1, end);
-                        }
-                    }
-                }
-
-                // Only add tag if we found a datatype
-                if (foundDataType) {
-                    tags.add(tag);
-                    logger.trace("Added tag: {} of type {} in {}",
-                        tag.name, tag.dataType,
-                        tag.program != null ? "program " + tag.program : "controller scope");
-                } else {
-                    logger.warn("Could not find datatype for TAG: {}", tag.name);
-                }
-            }
-        }
-
-        logger.info("Tag parsing complete: found {} tags", tags.size());
-        return tags;
-    }
-
     private String normalizeDataType(String dataType) {
         // Normalize Rockwell data types to standard names
-        // Handle both simple types and complex ones (remove extra info)
-        String cleanType = dataType.split("\\(")[0].trim();  // Remove any parenthetical info
+        String cleanType = dataType.split("\\(")[0].trim();
 
         return switch (cleanType.toUpperCase()) {
-            case "BOOL" -> "BOOL";
+            case "BOOL", "BIT" -> "BOOL";
             case "SINT" -> "SINT";
             case "INT" -> "INT";
             case "DINT" -> "DINT";
@@ -311,6 +327,9 @@ public class L5KParser implements PLCParser {
             case "REAL" -> "REAL";
             case "LREAL" -> "LREAL";
             case "STRING" -> "STRING";
+            case "TIMER" -> "TIMER";
+            case "COUNTER" -> "COUNTER";
+            case "CONTROL" -> "CONTROL";
             default -> cleanType; // Keep original for UDTs
         };
     }
@@ -349,7 +368,6 @@ public class L5KParser implements PLCParser {
             return false;
         }
         String lowerName = fileName.toLowerCase();
-        // Only handle .l5k files, NOT .l5x (those are XML)
         return lowerName.endsWith(".l5k");
     }
 
@@ -358,12 +376,35 @@ public class L5KParser implements PLCParser {
         return "l5k";
     }
 
-    // Inner class to hold tag information during parsing
-    private static class Tag {
+    // Helper class for UDT definition
+    private static class UDTDefinition {
+        String name;
+        List<UDTMember> members = new ArrayList<>();
+
+        UDTDefinition(String name) {
+            this.name = name;
+        }
+
+        void addMember(String memberName, String memberType) {
+            members.add(new UDTMember(memberName, memberType));
+        }
+    }
+
+    // Helper class for UDT member
+    private static class UDTMember {
         String name;
         String dataType;
-        String program;
-        String description;
-        int arraySize;
+
+        UDTMember(String name, String dataType) {
+            this.name = name;
+            this.dataType = dataType;
+        }
+    }
+
+    // Helper class to hold parsing results
+    private static class ParseResult {
+        JsonArray globalTags = new JsonArray();
+        Map<String, JsonArray> programTags = new HashMap<>();
+        int udtInstanceCount = 0;
     }
 }
