@@ -1,0 +1,177 @@
+================================================================================
+                    PLC SIMULATOR TAG FLOW - QUICK REFERENCE
+================================================================================
+
+STARTING POINT:
+  EnhancedSimulatorDevice.onStartup() [EnhancedSimulatorDevice.java:110]
+
+8-STEP FLOW:
+  [1] registerDevice() [Line 117]
+  [2] prepareFile() [Line 120] → IF NULL: Return "Ready - Waiting for upload"
+  [3] parseFile() [Line 132] → Uses ParserType! [Line 348-349]
+  [4] createRootNode() [Line 141]
+  [5] buildAddressSpace() [Line 144] → CREATES ALL TAGS
+  [6] initializeSimulation() [Line 147] (optional)
+  [7] setupFileWatcher() [Line 152] (optional)
+  [8] Status = "Running" [Line 156]
+
+KEY CLASSES & METHODS:
+  EnhancedSimulatorDevice.java
+    - onStartup() [110] - Main entry point
+    - parseFile() [346] - Calls parser service or fallback
+    - tryParserService() [374] - HTTP to parser service on localhost:5000
+    - parseFileBuiltIn() [450] - Fallback Java parsers
+
+  AddressSpaceBuilder.java
+    - buildAddressSpace() [69] - Orchestrates tag creation
+    - addTag() [157] - Process each tag (UDT/Array/Atomic)
+    - addAtomicTag() [239] - Creates final variable nodes
+    - nodeAdder.accept(node) [280] - ADDS NODE TO OPC-UA
+
+  EnhancedSimulatorConfig.java
+    - ParserType enum [20] - ROCKWELL, JSON, SIEMENS, SCHNEIDER, BECKHOFF
+    - ParserSettings [128] - Parser configuration record
+
+PARSER TYPE MAPPING:
+  "rockwell" → /parse/l5k endpoint
+  "json" → /parse/json endpoint
+  "siemens" → /parse/siemens endpoint
+  "schneider" → /parse/schneider endpoint
+  "beckhoff" → /parse/beckhoff endpoint
+
+CRITICAL JUNCTURES - IF THESE FAIL, TAGS WON'T APPEAR:
+  1. prepareFile() returns NULL [Line 120-121]
+  2. parseFile() returns NULL [Line 134]
+  3. createRootNode() fails silently [Line 141]
+  4. buildAddressSpace() never called [Line 144]
+  5. nodeAdder.accept() not reached [Line 280]
+
+DATA TYPE MAPPING (mapDataType method, Line 301-310):
+  DINT → Int32
+  REAL → Float
+  BOOL → Boolean
+  STRING → String
+  INT → Int16
+  BYTE → SByte
+
+REQUIRED JSON FIELDS FOR EACH TAG:
+  "name" - String (tag identifier)
+  "data_type" - String (DINT, BOOL, REAL, STRING, etc.)
+  "initial_value" - Number/Boolean/String (optional, defaults to 0/false/"")
+
+OPTIONAL JSON FIELDS:
+  "udt_members" - Array (for UDT instances)
+  "isArray" - Boolean (for array tags)
+  "dimensions" - String (array size, e.g., "10" for 1D)
+  "description" - String (tag description)
+
+STATUS MESSAGES:
+  "Initializing" → Just created
+  "Starting" → onStartup() running
+  "Ready - Waiting for file upload" → No file provided [Line 123]
+  "Running" → SUCCESS, tags visible
+  "Reloading" → Hot reload in progress
+  "Error: Failed to parse file" → Parser failed [Line 135-136]
+  "Error: ..." → Other errors
+
+FILE UPLOAD FLOW:
+  POST /main/data/plcsimulator/upload?device={deviceName}
+  → FileUploadRoutes.handleFileUpload() [Line 101]
+  → updateDeviceConfig() [Line 342]
+  → reloadDevice() [Line 387]
+  → Device status changes to "Running"
+
+MONITOR/DEBUG CHECKLIST:
+  ☐ Device exists in Config → OPC-UA → Device Connections
+  ☐ Device enabled (checkbox checked)
+  ☐ Parser Type selected (not empty)
+  ☐ File uploaded OR path in config
+  ☐ File exists on disk
+  ☐ Device status = "Running" (check via /main/data/plcsimulator/device/{name}/status)
+  ☐ Check logs for "Building address space"
+  ☐ Check logs for "Created variable: {tagName}"
+  ☐ Check logs for "WARNING: Zero tags created" (if no tags)
+  ☐ OPC-UA browser shows tags under [DeviceName]
+
+PARSER SERVICE:
+  Runs on: localhost:5000 (Docker: 172.17.0.1:5000)
+  Started by: SimulatorModuleHook.startup() [Line 57-58]
+  Health check: GET /health
+  If unavailable: Falls back to built-in parsers (L5XParser, JsonPLCParser, CsvParser)
+
+COMMON ISSUES & FIXES:
+  "Zero tags created" → File empty or parser didn't extract tags
+  "Failed to parse file" → Parser type wrong or file format invalid
+  "Ready - Waiting for file upload" → No file provided, use upload interface
+  "Device not visible" → Check if device created and enabled
+  "Tags not in OPC-UA" → Check logs, verify Node manager added them
+
+REFLECTION USAGE (File Upload Routes):
+  updateDeviceFilePath() [FileUploadRoutes.java:480]
+    → Sets currentFilePath field via reflection
+  reloadDevice() [FileUploadRoutes.java:387]
+    → Calls handleFileChange() via reflection
+
+SIMULATION ENGINE:
+  OpcUaSimulationEngine.java
+  - Enabled by: config.simulation().enabled() [Line 147]
+  - Updates DataItems at regular interval
+  - Default pattern: SINE wave
+  - Interval: config.simulation().updateInterval()
+
+HOT RELOAD:
+  FileWatcher.java
+  - Enabled by: config.parser().hotReload() [Line 152]
+  - Monitors: currentFilePath for changes
+  - On change: calls handleFileChange() [Line 638]
+  - Triggers full device reload
+
+FILE LOCATIONS (ABSOLUTE PATHS):
+  /modules/ignition-plc-simulator/plc-simulator-module/gateway/src/main/java/com/inductiveautomation/plcsimulator/gateway/
+    ├─ device/EnhancedSimulatorDevice.java
+    ├─ device/EnhancedSimulatorConfig.java
+    ├─ device/AddressSpaceBuilder.java
+    ├─ device/EnhancedSimulatorExtensionPoint.java
+    ├─ parser/ParserFactory.java
+    ├─ parser/L5XParser.java
+    ├─ parser/JsonPLCParser.java
+    ├─ parser/CsvParser.java
+    ├─ web/FileUploadRoutes.java
+    ├─ ParserService.java
+    ├─ OpcUaSimulationEngine.java
+    ├─ FileWatcher.java
+    └─ SimulatorModuleHook.java
+
+ENDPOINT MAPPING:
+  Device Config Form: /res/plcsimulator/
+  File Upload API: /main/data/plcsimulator/upload
+  Device List API: /main/data/plcsimulator/devices
+  Device Status API: /main/data/plcsimulator/device/{name}/status
+  Health Check: /main/data/plcsimulator/health
+
+NODE STRUCTURE IN OPC-UA:
+  [DeviceName]/
+    ├── Controller:Global/
+    │   ├── Tag1 (atomic)
+    │   ├── Tag2 (atomic)
+    │   └── UDTInstance/ (folder if UDT)
+    │       ├── Member1
+    │       └── Member2
+    └── Programs/
+        └── ProgramName/
+            ├── LocalTag1
+            └── LocalTag2
+
+QUICK DEBUG STEPS:
+  1. Check device status: /main/data/plcsimulator/device/{deviceName}/status
+  2. Look at Gateway logs for device startup errors
+  3. Search logs for "Building address space"
+  4. Search logs for "WARNING: Zero tags created"
+  5. Verify Parser Type in device config (not empty)
+  6. Verify file exists on disk (check logs for path)
+  7. Check parser service health: http://localhost:5000/health
+  8. Try re-uploading file via UI
+  9. Check OPC-UA browser for tags under [DeviceName]
+  10. Review AddressSpaceBuilder logs for tag creation details
+
+================================================================================
