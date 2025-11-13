@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
  * Parser for Rockwell L5K files (text-based format).
  * L5K files are NOT XML - they use a proprietary text format with sections like:
  * - CONTROLLER section
- * - TAG sections with format: TAG Name : DataType [attributes]
+ * - TAG sections with multi-line format
  * - PROGRAM sections
  *
  * This is different from L5X which is XML-based.
@@ -29,7 +29,18 @@ public class L5KParser implements PLCParser {
 
     // Regex patterns for parsing L5K format
     private static final Pattern CONTROLLER_PATTERN = Pattern.compile("CONTROLLER\\s+(\\S+)\\s*\\{", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TAG_PATTERN = Pattern.compile("TAG\\s+(\\S+)\\s*:\\s*(\\S+)(?:\\[(\\d+)\\])?", Pattern.CASE_INSENSITIVE);
+
+    // Updated TAG patterns to handle real L5K format
+    // Real L5K files have multi-line TAG definitions like:
+    // TAG tagname
+    //     (properties...)
+    //     :datatype
+    // OR simpler format:
+    // TAG tagname : datatype
+    private static final Pattern TAG_START_PATTERN = Pattern.compile("^\\s*TAG\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_LINE_PATTERN = Pattern.compile("^\\s*:(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_SIMPLE_PATTERN = Pattern.compile("TAG\\s+(\\S+)\\s*:\\s*(\\S+)(?:\\[(\\d+)\\])?", Pattern.CASE_INSENSITIVE);
+
     private static final Pattern PROGRAM_PATTERN = Pattern.compile("PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATA_TYPE_PATTERN = Pattern.compile("DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
 
@@ -48,6 +59,7 @@ public class L5KParser implements PLCParser {
     public JsonObject parseContent(String fileContent, String fileName) {
         try {
             logger.info("Parsing L5K file: {}", fileName);
+            logger.info("File content length: {} characters", fileContent.length());
 
             JsonObject result = new JsonObject();
             result.addProperty("vendor", "rockwell");
@@ -55,15 +67,18 @@ public class L5KParser implements PLCParser {
 
             // Split content into lines for processing
             String[] lines = fileContent.split("\\r?\\n");
+            logger.info("File has {} lines", lines.length);
 
             // Parse controller name
             String controllerName = parseControllerName(lines);
             if (controllerName != null) {
                 result.addProperty("controller", controllerName);
+                logger.info("Found controller: {}", controllerName);
             }
 
             // Parse tags (both controller and program scoped)
             List<Tag> allTags = parseTags(lines);
+            logger.info("Parsed {} tags total", allTags.size());
 
             // Separate controller tags and program tags
             JsonArray globalTags = new JsonArray();
@@ -72,7 +87,8 @@ public class L5KParser implements PLCParser {
             for (Tag tag : allTags) {
                 JsonObject tagJson = new JsonObject();
                 tagJson.addProperty("name", tag.name);
-                tagJson.addProperty("dataType", tag.dataType);
+                // CRITICAL FIX: Use "data_type" with underscore to match AddressSpaceBuilder expectations
+                tagJson.addProperty("data_type", tag.dataType);  // Changed from "dataType" to "data_type"
                 tagJson.addProperty("value", getDefaultValue(tag.dataType));
 
                 if (tag.arraySize > 0) {
@@ -118,9 +134,20 @@ public class L5KParser implements PLCParser {
                 .sum();
             logger.info("L5K parsing complete: {} total tags found", totalTags);
 
-            // If no tags found, create demo structure
+            // If no tags found, provide detailed diagnostic info
             if (totalTags == 0) {
-                logger.warn("No tags found in L5K file - creating demo structure");
+                logger.warn("⚠️ No tags found in L5K file - file may have unexpected format");
+                logger.info("Creating demo structure. Please check:");
+                logger.info("1. File contains 'TAG' definitions");
+                logger.info("2. TAG format matches expected patterns");
+                logger.info("3. File is not corrupted or truncated");
+
+                // Log first few lines for debugging
+                logger.debug("First 10 lines of file:");
+                for (int i = 0; i < Math.min(10, lines.length); i++) {
+                    logger.debug("Line {}: {}", i+1, lines[i]);
+                }
+
                 return createDemoStructure();
             }
 
@@ -145,7 +172,6 @@ public class L5KParser implements PLCParser {
     private List<Tag> parseTags(String[] lines) {
         List<Tag> tags = new ArrayList<>();
         String currentProgram = null;
-        boolean inTagSection = false;
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
@@ -163,22 +189,75 @@ public class L5KParser implements PLCParser {
                 continue;
             }
 
-            // Check for TAG definition
-            Matcher tagMatcher = TAG_PATTERN.matcher(line);
-            if (tagMatcher.find()) {
+            // First try simple single-line TAG format (legacy)
+            Matcher simpleTagMatcher = TAG_SIMPLE_PATTERN.matcher(line);
+            if (simpleTagMatcher.find()) {
                 Tag tag = new Tag();
-                tag.name = tagMatcher.group(1);
-                tag.dataType = normalizeDataType(tagMatcher.group(2));
+                tag.name = simpleTagMatcher.group(1);
+                tag.dataType = normalizeDataType(simpleTagMatcher.group(2));
                 tag.program = currentProgram;
 
                 // Check for array size
-                if (tagMatcher.group(3) != null) {
-                    tag.arraySize = Integer.parseInt(tagMatcher.group(3));
+                if (simpleTagMatcher.group(3) != null) {
+                    tag.arraySize = Integer.parseInt(simpleTagMatcher.group(3));
                 }
 
-                // Look for description in following lines
-                if (i + 1 < lines.length) {
-                    String nextLine = lines[i + 1].trim();
+                tags.add(tag);
+                logger.debug("Found simple format tag: {} of type {}", tag.name, tag.dataType);
+                continue;
+            }
+
+            // Check for multi-line TAG definition (real Studio 5000 format)
+            Matcher tagStartMatcher = TAG_START_PATTERN.matcher(line);
+            if (tagStartMatcher.find()) {
+                Tag tag = new Tag();
+                tag.name = tagStartMatcher.group(1);
+                tag.program = currentProgram;
+
+                logger.debug("Found TAG start: {} at line {}", tag.name, i+1);
+
+                // Look for datatype in following lines
+                boolean foundDataType = false;
+                for (int j = i + 1; j < lines.length && j < i + 20; j++) {
+                    String nextLine = lines[j].trim();
+
+                    // Stop if we hit another TAG or section
+                    if (nextLine.startsWith("TAG ") || nextLine.startsWith("PROGRAM ") ||
+                        nextLine.startsWith("CONTROLLER ") || nextLine.startsWith("DATATYPE ")) {
+                        break;
+                    }
+
+                    // Look for :datatype pattern
+                    Matcher datatypeMatcher = DATATYPE_LINE_PATTERN.matcher(nextLine);
+                    if (datatypeMatcher.find()) {
+                        tag.dataType = normalizeDataType(datatypeMatcher.group(1));
+                        foundDataType = true;
+                        logger.debug("Found datatype {} for tag {} at line {}", tag.dataType, tag.name, j+1);
+                        break;
+                    }
+
+                    // Also check for inline format like ":DINT" or ":BOOL[32]"
+                    if (nextLine.startsWith(":")) {
+                        String typeStr = nextLine.substring(1).trim();
+                        // Handle array notation
+                        if (typeStr.contains("[")) {
+                            int bracketIdx = typeStr.indexOf("[");
+                            tag.dataType = normalizeDataType(typeStr.substring(0, bracketIdx));
+                            String arraySizeStr = typeStr.substring(bracketIdx + 1, typeStr.indexOf("]"));
+                            try {
+                                tag.arraySize = Integer.parseInt(arraySizeStr);
+                            } catch (NumberFormatException e) {
+                                logger.warn("Could not parse array size: {}", arraySizeStr);
+                            }
+                        } else {
+                            tag.dataType = normalizeDataType(typeStr.split("\\s+")[0]);
+                        }
+                        foundDataType = true;
+                        logger.debug("Found inline datatype {} for tag {}", tag.dataType, tag.name);
+                        break;
+                    }
+
+                    // Look for Description
                     if (nextLine.contains("Description :=") || nextLine.contains("(Description :=")) {
                         int start = nextLine.indexOf("\"");
                         int end = nextLine.lastIndexOf("\"");
@@ -188,19 +267,28 @@ public class L5KParser implements PLCParser {
                     }
                 }
 
-                tags.add(tag);
-                logger.trace("Found tag: {} of type {} in {}",
-                    tag.name, tag.dataType,
-                    tag.program != null ? "program " + tag.program : "controller scope");
+                // Only add tag if we found a datatype
+                if (foundDataType) {
+                    tags.add(tag);
+                    logger.trace("Added tag: {} of type {} in {}",
+                        tag.name, tag.dataType,
+                        tag.program != null ? "program " + tag.program : "controller scope");
+                } else {
+                    logger.warn("Could not find datatype for TAG: {}", tag.name);
+                }
             }
         }
 
+        logger.info("Tag parsing complete: found {} tags", tags.size());
         return tags;
     }
 
     private String normalizeDataType(String dataType) {
         // Normalize Rockwell data types to standard names
-        return switch (dataType.toUpperCase()) {
+        // Handle both simple types and complex ones (remove extra info)
+        String cleanType = dataType.split("\\(")[0].trim();  // Remove any parenthetical info
+
+        return switch (cleanType.toUpperCase()) {
             case "BOOL" -> "BOOL";
             case "SINT" -> "SINT";
             case "INT" -> "INT";
@@ -209,7 +297,7 @@ public class L5KParser implements PLCParser {
             case "REAL" -> "REAL";
             case "LREAL" -> "LREAL";
             case "STRING" -> "STRING";
-            default -> dataType; // Keep original for UDTs
+            default -> cleanType; // Keep original for UDTs
         };
     }
 
@@ -231,7 +319,7 @@ public class L5KParser implements PLCParser {
                 "global_tags": [
                     {
                         "name": "L5K_ParseError",
-                        "dataType": "DINT",
+                        "data_type": "DINT",
                         "value": 1,
                         "description": "L5K file could not be parsed - check format"
                     }
