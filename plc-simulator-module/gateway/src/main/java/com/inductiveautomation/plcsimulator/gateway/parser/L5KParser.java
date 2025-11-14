@@ -14,6 +14,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.inductiveautomation.plcsimulator.gateway.parser.DataTypeUtils.*;
+
 /**
  * Parser for Rockwell L5K files (text-based format).
  * L5K files are NOT XML - they use a proprietary text format with sections like:
@@ -360,23 +362,9 @@ public class L5KParser implements PLCParser {
                     tag.addProperty("name", tagName);
                     tag.addProperty("data_type", normalizeDataType(dataType));
 
-                    // Check if this is a UDT instance and expand it
-                    if (udtDefinitions.containsKey(dataType)) {
-                        UDTDefinition udtDef = udtDefinitions.get(dataType);
-                        JsonArray udtMembers = new JsonArray();
-
-                        for (UDTMember member : udtDef.members) {
-                            JsonObject memberJson = new JsonObject();
-                            memberJson.addProperty("name", member.name);
-                            memberJson.addProperty("data_type", member.dataType);
-                            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
-                            udtMembers.add(memberJson);
-                        }
-
-                        tag.add("udt_members", udtMembers);
+                    // Check if this is a UDT/AOI instance and expand it
+                    if (expandUdtInstance(tag, dataType, udtDefinitions)) {
                         result.udtInstanceCount++;
-                        logger.debug("Expanded controller UDT instance: {} of type {} with {} members",
-                            tagName, dataType, udtMembers.size());
                     } else {
                         // Regular atomic tag (MESSAGE, TIMER, etc.)
                         tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
@@ -406,23 +394,9 @@ public class L5KParser implements PLCParser {
                         tag.addProperty("isArray", true);
                     }
 
-                    // Check if this is a UDT instance and expand it
-                    if (udtDefinitions.containsKey(dataType)) {
-                        UDTDefinition udtDef = udtDefinitions.get(dataType);
-                        JsonArray udtMembers = new JsonArray();
-
-                        for (UDTMember member : udtDef.members) {
-                            JsonObject memberJson = new JsonObject();
-                            memberJson.addProperty("name", member.name);
-                            memberJson.addProperty("data_type", member.dataType);
-                            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
-                            udtMembers.add(memberJson);
-                        }
-
-                        tag.add("udt_members", udtMembers);
+                    // Check if this is a UDT/AOI instance and expand it
+                    if (expandUdtInstance(tag, dataType, udtDefinitions)) {
                         result.udtInstanceCount++;
-                        logger.debug("Expanded UDT instance: {} of type {} with {} members",
-                            tagName, dataType, udtMembers.size());
                     } else {
                         // Regular atomic tag
                         tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
@@ -444,6 +418,37 @@ public class L5KParser implements PLCParser {
         return result;
     }
 
+    /**
+     * Expands a UDT/AOI instance by adding its members to the tag.
+     *
+     * @param tag The tag JSON object to expand
+     * @param dataType The UDT/AOI type name
+     * @param udtDefinitions Map of all UDT/AOI definitions
+     * @return true if expansion occurred, false if not a UDT/AOI
+     */
+    private boolean expandUdtInstance(JsonObject tag, String dataType, Map<String, UDTDefinition> udtDefinitions) {
+        if (!udtDefinitions.containsKey(dataType)) {
+            return false;
+        }
+
+        UDTDefinition udtDef = udtDefinitions.get(dataType);
+        JsonArray udtMembers = new JsonArray();
+
+        for (UDTMember member : udtDef.members) {
+            JsonObject memberJson = new JsonObject();
+            memberJson.addProperty("name", member.name);
+            memberJson.addProperty("data_type", member.dataType);
+            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
+            udtMembers.add(memberJson);
+        }
+
+        tag.add("udt_members", udtMembers);
+        logger.debug("Expanded UDT/AOI instance: {} of type {} with {} members",
+            tag.get("name").getAsString(), dataType, udtMembers.size());
+
+        return true;
+    }
+
     private String parseControllerName(String[] lines) {
         for (String line : lines) {
             Matcher matcher = CONTROLLER_PATTERN.matcher(line);
@@ -454,35 +459,6 @@ public class L5KParser implements PLCParser {
         return "UnknownController";
     }
 
-    private String normalizeDataType(String dataType) {
-        // Normalize Rockwell data types to standard names
-        String cleanType = dataType.split("\\(")[0].trim();
-
-        return switch (cleanType.toUpperCase()) {
-            case "BOOL", "BIT" -> "BOOL";
-            case "SINT" -> "SINT";
-            case "INT" -> "INT";
-            case "DINT" -> "DINT";
-            case "LINT" -> "LINT";
-            case "REAL" -> "REAL";
-            case "LREAL" -> "LREAL";
-            case "STRING" -> "STRING";
-            case "TIMER" -> "TIMER";
-            case "COUNTER" -> "COUNTER";
-            case "CONTROL" -> "CONTROL";
-            case "MESSAGE" -> "MESSAGE";
-            default -> cleanType; // Keep original for UDTs
-        };
-    }
-
-    private String getDefaultValue(String dataType) {
-        return switch (dataType) {
-            case "BOOL" -> "false";
-            case "REAL", "LREAL" -> "0.0";
-            case "STRING" -> "";
-            default -> "0";
-        };
-    }
 
     private JsonObject createDemoStructure() {
         String json = """

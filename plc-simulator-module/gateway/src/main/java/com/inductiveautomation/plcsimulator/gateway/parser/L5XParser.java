@@ -18,6 +18,8 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.inductiveautomation.plcsimulator.gateway.parser.DataTypeUtils.*;
+
 /**
  * Parser for Rockwell L5X/L5K files (Studio 5000 / RSLogix 5000).
  *
@@ -239,18 +241,6 @@ public class L5XParser implements PLCParser {
         }
     }
 
-    /**
-     * Get default initial value for a data type.
-     */
-    private String getDefaultValue(String dataType) {
-        return switch (dataType.toUpperCase()) {
-            case "BOOL", "BOOLEAN" -> "0";
-            case "SINT", "INT", "DINT", "LINT" -> "0";
-            case "REAL", "LREAL" -> "0.0";
-            case "STRING" -> "";
-            default -> "0";
-        };
-    }
 
     /**
      * Parse a program element.

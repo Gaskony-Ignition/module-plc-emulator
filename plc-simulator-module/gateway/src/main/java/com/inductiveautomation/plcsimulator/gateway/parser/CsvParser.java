@@ -10,6 +10,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.inductiveautomation.plcsimulator.gateway.parser.DataTypeUtils.*;
+
 /**
  * Parser for CSV PLC tag lists.
  *
@@ -176,26 +178,6 @@ public class CsvParser implements PLCParser {
         return value;
     }
 
-    /**
-     * Get default value for data type.
-     */
-    private String getDefaultValue(String type) {
-        type = type.toUpperCase();
-
-        if (type.equals("BOOL") || type.equals("BOOLEAN")) {
-            return "false";
-        }
-
-        if (type.equals("DINT") || type.equals("INT") || type.equals("SINT")) {
-            return "0";
-        }
-
-        if (type.equals("REAL") || type.equals("FLOAT")) {
-            return "0.0";
-        }
-
-        return "";
-    }
 
     @Override
     public boolean canHandle(String fileName) {
