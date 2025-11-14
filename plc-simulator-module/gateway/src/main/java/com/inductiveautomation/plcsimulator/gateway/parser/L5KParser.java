@@ -29,13 +29,22 @@ public class L5KParser implements PLCParser {
     private static final Logger logger = LoggerFactory.getLogger(L5KParser.class);
 
     // Regex patterns for parsing L5K format
-    private static final Pattern CONTROLLER_PATTERN = Pattern.compile("CONTROLLER\\s+(\\S+)\\s*\\{", Pattern.CASE_INSENSITIVE);
+    // Fixed: Accept both ( and { for CONTROLLER section (real Studio 5000 uses parentheses)
+    private static final Pattern CONTROLLER_PATTERN = Pattern.compile("^\\s*CONTROLLER\\s+(\\S+)\\s*[\\({]", Pattern.CASE_INSENSITIVE);
 
     // DATATYPE patterns for UDT parsing
     private static final Pattern DATATYPE_START_PATTERN = Pattern.compile("^\\s*DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATATYPE_END_PATTERN = Pattern.compile("^\\s*END_DATATYPE", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATATYPE_MEMBER_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
     private static final Pattern DATATYPE_BIT_PATTERN = Pattern.compile("^\\s*BIT\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+", Pattern.CASE_INSENSITIVE);
+
+    // ADD_ON_INSTRUCTION patterns for AOI parsing (critical for full tag expansion)
+    private static final Pattern AOI_START_PATTERN = Pattern.compile("^\\s*ADD_ON_INSTRUCTION_DEFINITION\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_END_PATTERN = Pattern.compile("^\\s*END_ADD_ON_INSTRUCTION_DEFINITION", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_PARAMETERS_START = Pattern.compile("^\\s*PARAMETERS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_PARAMETERS_END = Pattern.compile("^\\s*END_PARAMETERS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_LOCAL_TAGS_START = Pattern.compile("^\\s*LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_LOCAL_TAGS_END = Pattern.compile("^\\s*END_LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
 
     // Tag patterns within TAG...END_TAG blocks
     private static final Pattern TAG_BLOCK_START_PATTERN = Pattern.compile("^\\s*TAG\\s*$", Pattern.CASE_INSENSITIVE);
@@ -45,8 +54,8 @@ public class L5KParser implements PLCParser {
     // Controller-scoped tags (outside TAG blocks) - Critical for real Studio 5000 files
     private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile("^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
 
-    // Program pattern
-    private static final Pattern PROGRAM_PATTERN = Pattern.compile("PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    // Program pattern - Fixed: Require at start of line to avoid matching "PROGRAM" in comments
+    private static final Pattern PROGRAM_PATTERN = Pattern.compile("^\\s*PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern END_PROGRAM_PATTERN = Pattern.compile("END_PROGRAM", Pattern.CASE_INSENSITIVE);
 
     @Override
@@ -81,11 +90,20 @@ public class L5KParser implements PLCParser {
                 logger.info("Found controller: {}", controllerName);
             }
 
-            // CRITICAL: Parse UDT definitions FIRST - we need these to expand UDT instances
+            // CRITICAL: Parse UDT and AOI definitions FIRST - we need these to expand instances
             Map<String, UDTDefinition> udtDefinitions = parseUDTDefinitions(lines);
             logger.info("Parsed {} UDT definitions", udtDefinitions.size());
 
-            // Add UDT definitions to result (for debugging/reference)
+            // Parse AOI (Add-On Instruction) definitions - treat like UDTs for expansion
+            Map<String, UDTDefinition> aoiDefinitions = parseAOIDefinitions(lines);
+            logger.info("Parsed {} AOI definitions", aoiDefinitions.size());
+
+            // Merge AOI definitions with UDT definitions (both expand the same way)
+            Map<String, UDTDefinition> allDefinitions = new HashMap<>(udtDefinitions);
+            allDefinitions.putAll(aoiDefinitions);
+            logger.info("Total definitions (UDTs + AOIs): {}", allDefinitions.size());
+
+            // Add UDT/AOI definitions to result (for debugging/reference)
             if (!udtDefinitions.isEmpty()) {
                 JsonArray udts = new JsonArray();
                 for (UDTDefinition udt : udtDefinitions.values()) {
@@ -104,8 +122,8 @@ public class L5KParser implements PLCParser {
                 result.add("udts", udts);
             }
 
-            // Parse tags (both controller and program scoped) with UDT expansion
-            ParseResult parseResult = parseTagsWithUDTs(lines, udtDefinitions);
+            // Parse tags (both controller and program scoped) with UDT/AOI expansion
+            ParseResult parseResult = parseTagsWithUDTs(lines, allDefinitions);
 
             // Add global tags
             if (parseResult.globalTags.size() > 0) {
@@ -130,7 +148,7 @@ public class L5KParser implements PLCParser {
             int totalTags = parseResult.globalTags.size() + parseResult.programTags.values().stream()
                 .mapToInt(JsonArray::size)
                 .sum();
-            logger.info("L5K parsing complete: {} total tags found, {} were UDT instances",
+            logger.info("L5K parsing complete: {} total tag declarations found, {} were UDT/AOI instances that will expand into folders",
                 totalTags, parseResult.udtInstanceCount);
 
             // If no tags found, provide detailed diagnostic info
@@ -204,7 +222,86 @@ public class L5KParser implements PLCParser {
     }
 
     /**
-     * Parse tags with UDT expansion.
+     * Parse all ADD_ON_INSTRUCTION definitions from the file.
+     * AOIs (Add-On Instructions) are custom function blocks with PARAMETERS and LOCAL_TAGS.
+     * These should be treated like UDTs for tag expansion purposes.
+     */
+    private Map<String, UDTDefinition> parseAOIDefinitions(String[] lines) {
+        Map<String, UDTDefinition> aoiDefinitions = new HashMap<>();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+
+            Matcher startMatcher = AOI_START_PATTERN.matcher(line);
+            if (startMatcher.find()) {
+                String aoiName = startMatcher.group(1);
+                UDTDefinition aoi = new UDTDefinition(aoiName);
+
+                logger.debug("Found ADD_ON_INSTRUCTION: {} at line {}", aoiName, i+1);
+
+                boolean inParameters = false;
+                boolean inLocalTags = false;
+
+                // Parse PARAMETERS and LOCAL_TAGS sections until END_ADD_ON_INSTRUCTION_DEFINITION
+                for (int j = i + 1; j < lines.length; j++) {
+                    String aoiLine = lines[j];
+
+                    // Check for end of AOI
+                    if (AOI_END_PATTERN.matcher(aoiLine).find()) {
+                        aoiDefinitions.put(aoiName, aoi);
+                        logger.debug("Completed AOI {} with {} members", aoiName, aoi.members.size());
+                        i = j; // Skip to end of this AOI
+                        break;
+                    }
+
+                    // Track PARAMETERS section
+                    if (AOI_PARAMETERS_START.matcher(aoiLine).find()) {
+                        inParameters = true;
+                        inLocalTags = false;
+                        continue;
+                    }
+                    if (AOI_PARAMETERS_END.matcher(aoiLine).find()) {
+                        inParameters = false;
+                        continue;
+                    }
+
+                    // Track LOCAL_TAGS section
+                    if (AOI_LOCAL_TAGS_START.matcher(aoiLine).find()) {
+                        inLocalTags = true;
+                        inParameters = false;
+                        continue;
+                    }
+                    if (AOI_LOCAL_TAGS_END.matcher(aoiLine).find()) {
+                        inLocalTags = false;
+                        continue;
+                    }
+
+                    // Parse members in PARAMETERS or LOCAL_TAGS sections
+                    if (inParameters || inLocalTags) {
+                        Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(aoiLine);
+                        if (memberMatcher.find()) {
+                            String memberName = memberMatcher.group(1);
+                            String memberType = memberMatcher.group(2);
+
+                            // Skip system parameters (EnableIn, EnableOut) and hidden members
+                            if (!memberName.equals("EnableIn") && !memberName.equals("EnableOut")
+                                && !memberName.startsWith("ZZZZ")) {
+                                aoi.addMember(memberName, normalizeDataType(memberType));
+                                logger.trace("Added AOI member: {}.{} of type {} (from {})",
+                                    aoiName, memberName, memberType, inParameters ? "PARAMETERS" : "LOCAL_TAGS");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return aoiDefinitions;
+    }
+
+    /**
+     * Parse tags with UDT/AOI expansion.
+     * AOIs are treated just like UDTs for expansion purposes.
      */
     private ParseResult parseTagsWithUDTs(String[] lines, Map<String, UDTDefinition> udtDefinitions) {
         ParseResult result = new ParseResult();
