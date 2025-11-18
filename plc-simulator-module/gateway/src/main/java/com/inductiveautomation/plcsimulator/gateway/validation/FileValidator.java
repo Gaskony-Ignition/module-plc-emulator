@@ -19,9 +19,10 @@ public class FileValidator {
     private static final long DEFAULT_MAX_SIZE_MB = 50;
     private static final long MAX_SIZE_BYTES = DEFAULT_MAX_SIZE_MB * 1024 * 1024;
 
-    // Supported extensions
+    // Supported extensions - only .l5k files are currently tested and supported
+    // Future extensions reserved for development: .l5x, .json, .csv, .txt, .xml
     private static final List<String> SUPPORTED_EXTENSIONS = Arrays.asList(
-        ".l5x", ".l5k", ".json", ".csv", ".txt", ".xml"
+        ".l5k", ".L5K"
     );
 
     /**

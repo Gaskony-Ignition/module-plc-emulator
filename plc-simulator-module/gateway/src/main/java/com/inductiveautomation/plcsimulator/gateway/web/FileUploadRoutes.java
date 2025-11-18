@@ -84,6 +84,18 @@ public class FileUploadRoutes {
         }
 
         try {
+            logger.info("Mounting /device/{name}/delete route...");
+            routes.newRoute("/device/{name}/delete")
+                .handler(this::handleDeleteFile)
+                .method(HttpMethod.DELETE)
+                .accessControl(this::checkAuthenticated)
+                .mount();
+            logger.info("✓ /device/{name}/delete route mounted (DELETE, requires authentication)");
+        } catch (Exception e) {
+            logger.error("Failed to mount /device/{name}/delete route", e);
+        }
+
+        try {
             logger.info("Mounting /health route...");
             routes.newRoute("/health")
                 .handler(this::handleHealthCheck)
@@ -308,12 +320,42 @@ public class FileUploadRoutes {
             EnhancedSimulatorDevice device = deviceOpt.get();
             EnhancedSimulatorConfig simConfig = device.getConfiguration();
 
+            // Check if file exists on disk
+            String fileName = simConfig.parser().fileName();
+            boolean hasFile = false;
+            long fileSize = 0;
+            long lastModified = 0;
+            String filePath = null;
+
+            if (fileName != null && !fileName.isEmpty()) {
+                File dataDir = context.getSystemManager().getDataDir();
+                File storageDir = new File(dataDir, "plc-simulator");
+
+                // Try device-specific file first
+                File deviceFile = new File(storageDir, deviceName + "_" + fileName);
+                if (!deviceFile.exists()) {
+                    // Fall back to non-prefixed file
+                    deviceFile = new File(storageDir, fileName);
+                }
+
+                if (deviceFile.exists()) {
+                    hasFile = true;
+                    fileSize = deviceFile.length();
+                    lastModified = deviceFile.lastModified();
+                    filePath = deviceFile.getAbsolutePath();
+                }
+            }
+
             response.setStatus(HttpServletResponse.SC_OK);
             result.put("success", true);
             result.put("deviceName", deviceName);
             result.put("status", device.getStatus());
-            result.put("fileName", simConfig.parser().fileName());
-            result.put("parserType", simConfig.parser().parserType().getKey());
+            result.put("fileName", fileName != null ? fileName : "");
+            result.put("hasFile", hasFile);
+            result.put("fileSize", fileSize);
+            result.put("lastModified", lastModified);
+            result.put("filePath", filePath);
+            result.put("parserType", simConfig.parser().parserType().getDisplayName());
             result.put("enabled", simConfig.general().enabled());
             result.put("simulationEnabled", simConfig.simulation().enabled());
 
@@ -321,6 +363,86 @@ public class FileUploadRoutes {
 
         } catch (Exception e) {
             logger.error("Error getting device status", e);
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            result.put("success", false);
+            result.put("error", e.getMessage());
+            return result;
+        }
+    }
+
+    /**
+     * Handle delete file requests.
+     */
+    private JSONObject handleDeleteFile(RequestContext requestContext, HttpServletResponse response) throws JSONException {
+        JSONObject result = new JSONObject();
+
+        try {
+            // Extract device name from request path
+            String path = requestContext.getRequest().getRequestURI();
+            String deviceName = extractDeviceNameFromPath(path);
+
+            if (deviceName == null || deviceName.trim().isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                result.put("success", false);
+                result.put("error", "Device name required");
+                return result;
+            }
+
+            Optional<EnhancedSimulatorDevice> deviceOpt = findDeviceByName(deviceName);
+
+            if (deviceOpt.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                result.put("success", false);
+                result.put("error", "Device not found: " + deviceName);
+                return result;
+            }
+
+            EnhancedSimulatorDevice device = deviceOpt.get();
+            EnhancedSimulatorConfig simConfig = device.getConfiguration();
+            String fileName = simConfig.parser().fileName();
+
+            if (fileName == null || fileName.isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                result.put("success", false);
+                result.put("error", "No file configured for device: " + deviceName);
+                return result;
+            }
+
+            // Find and delete the file
+            File dataDir = context.getSystemManager().getDataDir();
+            File storageDir = new File(dataDir, "plc-simulator");
+
+            // Try device-specific file first
+            File deviceFile = new File(storageDir, deviceName + "_" + fileName);
+            if (!deviceFile.exists()) {
+                // Fall back to non-prefixed file
+                deviceFile = new File(storageDir, fileName);
+            }
+
+            if (deviceFile.exists()) {
+                boolean deleted = deviceFile.delete();
+                if (deleted) {
+                    logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
+
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    result.put("success", true);
+                    result.put("message", "File deleted successfully");
+                    result.put("fileName", fileName);
+                } else {
+                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    result.put("success", false);
+                    result.put("error", "Failed to delete file");
+                }
+            } else {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                result.put("success", false);
+                result.put("error", "File not found on disk: " + fileName);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            logger.error("Error deleting file", e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             result.put("success", false);
             result.put("error", e.getMessage());
@@ -361,7 +483,11 @@ public class FileUploadRoutes {
 
             // Sanitize filename to prevent directory traversal attacks
             String sanitizedFileName = sanitizeFileName(filename);
-            File targetFile = new File(storageDir, sanitizedFileName);
+
+            // Save with device-specific name to prevent conflicts between devices
+            // Format: {DeviceName}_{originalFilename}
+            String deviceSpecificName = device.getName() + "_" + sanitizedFileName;
+            File targetFile = new File(storageDir, deviceSpecificName);
 
             // Write file content to disk
             Files.writeString(

@@ -88,12 +88,8 @@ public class EnhancedSimulatorExtensionPoint extends DeviceExtensionPoint<Enhanc
      */
     @Override
     protected void validate(EnhancedSimulatorConfig config, Builder errors) {
-        // Validate device name
-        if (config.general().deviceName() == null || config.general().deviceName().trim().isEmpty()) {
-            errors.check(false, "Device name is required");
-        }
-
-        // Note: File content and file name are now optional - device can be created without them
+        // Note: Device name comes from the Device Connection name, not from config
+        // File content and file name are now optional - device can be created without them
         // Device will start in "Ready - Waiting for file upload" status if no file provided
 
         // Validate parser type
