@@ -458,7 +458,7 @@
     <div class="container">
         <div class="header">
             <h1>🏭 PLC File Upload</h1>
-            <div class="subtitle">Enhanced PLC Simulator v2.6.0 - Upload your PLC program file</div>
+            <div class="subtitle">Enhanced PLC Simulator v3.0.0 - Upload your PLC program file</div>
         </div>
 
         <div class="card device-selector-card">
@@ -582,7 +582,7 @@
             const container = document.getElementById('fileStatusContainer');
 
             try {
-                const url = `/data/plcsimulator/device/${encodeURIComponent(deviceName)}/status`;
+                const url = `/main/data/plcsimulator/device/${encodeURIComponent(deviceName)}/status`;
                 console.log('Fetching device status from:', url);
 
                 const response = await fetch(url, {
@@ -646,7 +646,7 @@
             }
 
             try {
-                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(deviceName)}/delete`, {
+                const response = await fetch(`/main/data/plcsimulator/device/${encodeURIComponent(deviceName)}/delete`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
@@ -670,8 +670,8 @@
             const select = document.getElementById('deviceSelect');
 
             try {
-                console.log('Fetching devices from: /data/plcsimulator/devices');
-                const response = await fetch('/data/plcsimulator/devices', {
+                console.log('Fetching devices from: /main/data/plcsimulator/devices');
+                const response = await fetch('/main/data/plcsimulator/devices', {
                     credentials: 'include'  // Include session cookies for authentication
                 });
 
@@ -884,7 +884,7 @@
                 uploadBtn.textContent = '⏳ Uploading...';
 
                 const fileName = document.getElementById('fileName').textContent;
-                const uploadUrl = `/data/plcsimulator/upload?device=${encodeURIComponent(selectedDevice)}`;
+                const uploadUrl = `/main/data/plcsimulator/upload?device=${encodeURIComponent(selectedDevice)}`;
 
                 console.log('🚀 Uploading to:', uploadUrl);
                 console.log('📦 File:', fileName, 'Size:', currentFileContent.length, 'characters');
