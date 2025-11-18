@@ -16,13 +16,16 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * Supported PLC file parser types.
+     * NOTE: Only Rockwell L5K parser is currently tested and enabled.
+     * Other parsers are reserved for future development.
      */
     public enum ParserType {
-        ROCKWELL("rockwell", "Rockwell L5K (Allen-Bradley)"),
-        JSON("json", "JSON Format"),
-        SIEMENS("siemens", "Siemens TIA Portal"),
-        SCHNEIDER("schneider", "Schneider Electric"),
-        BECKHOFF("beckhoff", "Beckhoff TwinCAT");
+        ROCKWELL("rockwell", "Rockwell L5K (Allen-Bradley)");
+        // Future parser types - not yet implemented/tested:
+        // JSON("json", "JSON Format"),
+        // SIEMENS("siemens", "Siemens TIA Portal"),
+        // SCHNEIDER("schneider", "Schneider Electric"),
+        // BECKHOFF("beckhoff", "Beckhoff TwinCAT");
 
         private final String key;
         private final String displayName;
@@ -91,13 +94,6 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      */
     public record General(
         @FormCategory("GENERAL")
-        @Label("Device Name")
-        @FormField(FormFieldType.TEXT)
-        @Description("Name of the simulated PLC device")
-        @Required
-        String deviceName,
-
-        @FormCategory("GENERAL")
         @Label("Enabled")
         @FormField(FormFieldType.CHECKBOX)
         @Description("Enable or disable this device")
@@ -110,37 +106,38 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      *
      * HOW TO UPLOAD FILES:
      * 1. Go to Gateway Home → Click "PLC Simulator" in the left menu
-     * 2. Upload your L5K/L5X/JSON/CSV file
-     * 3. Click "Copy to Clipboard"
-     * 4. Return here and paste into the "File Content" field below
-     * 5. Enter the filename and save
+     * 2. Upload your Rockwell L5K file
+     * 3. The file is automatically saved and loaded
+     *
+     * NOTE: Only Rockwell L5K (.l5k) files are currently supported.
+     * Other formats are reserved for future development.
      */
     public record ParserSettings(
         @FormCategory("PARSER")
         @Label("📁 Manage PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("A clickable button will appear above when the page loads. Click 'Open Program Manager' to upload PLC files. The field below shows the full URL including your gateway address (e.g., http://gateway:8088/res/plcsimulator/simple-upload.html). You can click the field to select and copy the URL, or use the 'Copy' button.")
+        @Description("A clickable button will appear above when the page loads. Click 'Open Program Manager' to upload Rockwell L5K files. The field below shows the full URL including your gateway address (e.g., http://gateway:8088/res/plcsimulator/simple-upload.html). You can click the field to select and copy the URL, or use the 'Copy' button.")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
 
         @FormCategory("PARSER")
         @Label("File Name")
         @FormField(FormFieldType.TEXT)
-        @Description("Name of your PLC file (e.g., 'program.l5k' or 'tags.json'). To upload: Go to Gateway Home → PLC Simulator menu.")
+        @Description("Name of your Rockwell L5K file (e.g., 'program.l5k'). This is automatically set when you upload via the Program Manager.")
         @DefaultValue("")
         String fileName,
 
         @FormCategory("PARSER")
         @Label("File Content")
         @FormField(FormFieldType.TEXTAREA)
-        @Description("Paste your PLC file content here. Upload files via Gateway Home → PLC Simulator menu, then copy/paste content here.")
+        @Description("File content is automatically loaded from disk. You typically don't need to edit this field.")
         @DefaultValue("")
         String fileContent,
 
         @FormCategory("PARSER")
         @Label("Parser Type")
         @FormField(FormFieldType.SELECT)
-        @Description("Select the PLC vendor/format")
+        @Description("Select PLC file format. Currently: Rockwell L5K only. Planned future support: Siemens TIA Portal, Schneider Electric, Beckhoff TwinCAT, and JSON formats.")
         @DefaultValue("ROCKWELL")
         @Required
         ParserType parserType,

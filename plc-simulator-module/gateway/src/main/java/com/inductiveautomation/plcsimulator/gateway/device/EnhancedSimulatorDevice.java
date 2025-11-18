@@ -244,7 +244,28 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             return null;
         }
 
-        // First, try to find files that match common upload patterns
+        String deviceName = context.getName();
+
+        // First priority: Look for device-specific files (e.g., "MyDevice_program.l5k")
+        for (File file : files) {
+            String name = file.getName();
+            // Skip hidden files and backup files
+            if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
+                continue;
+            }
+            // Check if file starts with device name
+            if (name.startsWith(deviceName + "_")) {
+                for (String ext : extensions) {
+                    if (name.endsWith(ext)) {
+                        logger.info("Found device-specific file: {}", file.getName());
+                        return file;
+                    }
+                }
+            }
+        }
+
+        // Second priority: Fall back to any file with supported extension
+        // (for backward compatibility with files uploaded before this change)
         for (File file : files) {
             String name = file.getName();
             // Skip hidden files and backup files
@@ -255,6 +276,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             for (String ext : extensions) {
                 if (name.endsWith(ext)) {
                     logger.debug("Found candidate file: {}", file.getName());
+                    logger.warn("File '{}' does not have device-specific prefix. Consider re-uploading.", name);
                     return file;
                 }
             }
@@ -541,7 +563,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
      * Creates the root folder node for this device.
      */
     private void createRootNode() {
-        String deviceName = config.general().deviceName();
+        String deviceName = context.getName();
 
         rootNode = new UaFolderNode(
             getNodeContext(),
@@ -575,7 +597,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
         AddressSpaceBuilder builder = new AddressSpaceBuilder(
             getNodeManager()::addNode,
-            config.general().deviceName(),
+            context.getName(),
             logger
         );
 

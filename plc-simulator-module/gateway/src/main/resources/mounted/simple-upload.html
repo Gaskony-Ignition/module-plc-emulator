@@ -128,6 +128,53 @@
             margin-bottom: 0;
         }
 
+        .file-status {
+            background: #1e40af;
+            border: 1px solid #3b82f6;
+            padding: 10px 12px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .file-status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .file-status-label {
+            color: #93c5fd;
+            font-weight: 600;
+        }
+
+        .file-status-value {
+            color: #e0e7ff;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn-delete {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-delete:hover {
+            background: #b91c1c;
+        }
+
+        .no-file-message {
+            color: #94a3b8;
+            font-style: italic;
+            font-size: 12px;
+        }
+
         .upload-zone {
             border: 2px dashed #475569;
             border-radius: 8px;
@@ -411,7 +458,7 @@
     <div class="container">
         <div class="header">
             <h1>🏭 PLC File Upload</h1>
-            <div class="subtitle">Enhanced PLC Simulator v2.2.6 - Upload your PLC program file</div>
+            <div class="subtitle">Enhanced PLC Simulator v2.6.0 - Upload your PLC program file</div>
         </div>
 
         <div class="card device-selector-card">
@@ -435,6 +482,7 @@
                 <div class="info-content">
                     <strong id="selectedDeviceName"></strong>
                     <p id="selectedDeviceStatus"></p>
+                    <div id="fileStatusContainer"></div>
                 </div>
             </div>
         </div>
@@ -452,11 +500,12 @@
                 <p style="color: #94a3b8; margin: 6px 0; font-size: 13px;">or</p>
                 <button class="btn" onclick="document.getElementById('fileInput').click()">Browse Files</button>
                 <p style="color: #64748b; font-size: 12px; margin-top: 8px;">
-                    Supported: L5K, L5X, JSON, CSV, XML
+                    Currently supported: Rockwell L5K files (.l5k)<br>
+                    <span style="color: #475569; font-size: 11px;">Future: Siemens, Schneider, Beckhoff, JSON</span>
                 </p>
             </div>
 
-            <input type="file" id="fileInput" class="file-input" accept=".l5k,.l5x,.json,.csv,.xml,.txt,.L5K,.L5X,.JSON,.CSV,.XML,.TXT" aria-label="Select PLC file to upload">
+            <input type="file" id="fileInput" class="file-input" accept=".l5k,.L5K" aria-label="Select Rockwell L5K file to upload">
         </div>
 
         <div id="result" class="card">
@@ -529,6 +578,94 @@
         }
 
         // Load device list from API
+        async function loadDeviceStatus(deviceName) {
+            const container = document.getElementById('fileStatusContainer');
+
+            try {
+                const url = `/data/plcsimulator/device/${encodeURIComponent(deviceName)}/status`;
+                console.log('Fetching device status from:', url);
+
+                const response = await fetch(url, {
+                    credentials: 'include'
+                });
+
+                console.log('Device status response:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Device status data:', data);
+                    displayFileStatus(data);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Device status error:', response.status, errorText);
+                    container.innerHTML = `<p class="no-file-message">⚠️ Unable to fetch device status (HTTP ${response.status})<br><small style="color: #64748b;">Check browser console (F12) for details</small></p>`;
+                }
+            } catch (error) {
+                console.error('Error loading device status:', error);
+                container.innerHTML = `<p class="no-file-message">⚠️ Error loading status: ${error.message}<br><small style="color: #64748b;">Check browser console (F12) for details</small></p>`;
+            }
+        }
+
+        function displayFileStatus(statusData) {
+            const container = document.getElementById('fileStatusContainer');
+
+            if (statusData.hasFile && statusData.fileName) {
+                const fileSize = (statusData.fileSize / 1024 / 1024).toFixed(2);
+                const uploadDate = new Date(statusData.lastModified).toLocaleString();
+
+                container.innerHTML = `
+                    <div class="file-status">
+                        <div class="file-status-header">
+                            <span class="file-status-label">📄 Current File:</span>
+                            <button class="btn-delete" onclick="deleteFile('${statusData.deviceName}')" title="Delete file">
+                                🗑️ Delete
+                            </button>
+                        </div>
+                        <div style="margin-bottom: 4px;">
+                            <span class="file-status-label">Name:</span>
+                            <span class="file-status-value">${statusData.fileName}</span>
+                        </div>
+                        <div style="margin-bottom: 4px;">
+                            <span class="file-status-label">Size:</span>
+                            <span class="file-status-value">${fileSize} MB</span>
+                        </div>
+                        <div>
+                            <span class="file-status-label">Uploaded:</span>
+                            <span class="file-status-value">${uploadDate}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<p class="no-file-message">⚠️ No file uploaded yet - upload one below</p>';
+            }
+        }
+
+        async function deleteFile(deviceName) {
+            if (!confirm(`Are you sure you want to delete the file for device "${deviceName}"?\n\nThis cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(deviceName)}/delete`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    alert(`✅ File deleted successfully: ${result.fileName}`);
+                    // Refresh device status
+                    await loadDeviceStatus(deviceName);
+                } else {
+                    alert(`❌ Error deleting file: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                alert('❌ Error deleting file. Check console for details.');
+            }
+        }
+
         async function loadDeviceList() {
             const select = document.getElementById('deviceSelect');
 
@@ -601,7 +738,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const deviceParam = urlParams.get('device');
 
-            deviceSelect.addEventListener('change', function() {
+            deviceSelect.addEventListener('change', async function() {
                 selectedDevice = this.value;
                 const deviceInfo = document.getElementById('deviceInfo');
                 const uploadZone = document.getElementById('uploadZone');
@@ -611,6 +748,9 @@
                     document.getElementById('selectedDeviceStatus').textContent =
                         'Files uploaded will be directed to this device';
                     deviceInfo.style.display = 'flex';
+
+                    // Fetch and display device status
+                    await loadDeviceStatus(selectedDevice);
 
                     // Enable upload zone
                     uploadZone.classList.remove('disabled');
@@ -774,6 +914,9 @@
                     uploadBtn.style.background = '#10b981';
 
                     announceStatus(`File uploaded successfully to ${selectedDevice}`);
+
+                    // Refresh device status to show new file
+                    await loadDeviceStatus(selectedDevice);
 
                     setTimeout(() => {
                         uploadBtn.textContent = originalText;
