@@ -320,28 +320,60 @@ public class FileUploadRoutes {
             EnhancedSimulatorConfig simConfig = device.getConfiguration();
 
             // Check if file exists on disk
+            // IMPORTANT: Use the device's internal currentFilePath instead of config fileName
+            // because the fileName config field may not be populated after file upload
             String fileName = simConfig.parser().fileName();
             boolean hasFile = false;
             long fileSize = 0;
             long lastModified = 0;
             String filePath = null;
 
-            if (fileName != null && !fileName.isEmpty()) {
-                File dataDir = context.getSystemManager().getDataDir();
-                File storageDir = new File(dataDir, "plc-simulator");
+            try {
+                // Access the device's currentFilePath field via reflection
+                Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
+                filePathField.setAccessible(true);
+                String currentFilePath = (String) filePathField.get(device);
 
-                // Try device-specific file first
-                File deviceFile = new File(storageDir, deviceName + "_" + fileName);
-                if (!deviceFile.exists()) {
-                    // Fall back to non-prefixed file
-                    deviceFile = new File(storageDir, fileName);
+                if (currentFilePath != null && !currentFilePath.isEmpty()) {
+                    File currentFile = new File(currentFilePath);
+                    if (currentFile.exists()) {
+                        hasFile = true;
+                        fileSize = currentFile.length();
+                        lastModified = currentFile.lastModified();
+                        filePath = currentFile.getAbsolutePath();
+
+                        // Extract actual filename from path if config fileName is not set
+                        if (fileName == null || fileName.isEmpty()) {
+                            fileName = currentFile.getName();
+                            // Remove device-specific prefix if present (format: DeviceName_filename)
+                            String prefix = deviceName + "_";
+                            if (fileName.startsWith(prefix)) {
+                                fileName = fileName.substring(prefix.length());
+                            }
+                        }
+                    }
                 }
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                logger.warn("Could not access currentFilePath field, falling back to config fileName", e);
 
-                if (deviceFile.exists()) {
-                    hasFile = true;
-                    fileSize = deviceFile.length();
-                    lastModified = deviceFile.lastModified();
-                    filePath = deviceFile.getAbsolutePath();
+                // Fall back to old logic using config fileName
+                if (fileName != null && !fileName.isEmpty()) {
+                    File dataDir = context.getSystemManager().getDataDir();
+                    File storageDir = new File(dataDir, "plc-simulator");
+
+                    // Try device-specific file first
+                    File deviceFile = new File(storageDir, deviceName + "_" + fileName);
+                    if (!deviceFile.exists()) {
+                        // Fall back to non-prefixed file
+                        deviceFile = new File(storageDir, fileName);
+                    }
+
+                    if (deviceFile.exists()) {
+                        hasFile = true;
+                        fileSize = deviceFile.length();
+                        lastModified = deviceFile.lastModified();
+                        filePath = deviceFile.getAbsolutePath();
+                    }
                 }
             }
 
