@@ -127,6 +127,18 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
             if (routes != null) {
                 logger.info("RouteGroup class: {}", routes.getClass().getName());
                 logger.info("RouteGroup toString: {}", routes.toString());
+
+                // Try to extract the base path using reflection
+                try {
+                    java.lang.reflect.Method getBasePath = routes.getClass().getMethod("getBasePath");
+                    getBasePath.setAccessible(true);
+                    Object basePath = getBasePath.invoke(routes);
+                    logger.info("RouteGroup base path (via reflection): {}", basePath);
+                } catch (NoSuchMethodException e) {
+                    logger.info("RouteGroup does not have getBasePath() method");
+                } catch (Exception e) {
+                    logger.warn("Could not extract base path from RouteGroup", e);
+                }
             }
 
             if (context == null) {
@@ -143,6 +155,11 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
             uploadRoutes.mountRoutes();
 
             logger.info("File upload routes mounted successfully");
+            logger.info("Routes should be accessible at /data/plcsimulator/* (based on getMountPathAlias)");
+            logger.info("If routes return 404, check:");
+            logger.info("  1. Authentication - routes require authenticated session");
+            logger.info("  2. Base path - verify RouteGroup base path above");
+            logger.info("  3. Test health endpoint: curl http://localhost:8088/data/plcsimulator/health");
             logger.info("=== END ROUTE MOUNTING DEBUG ===");
         } catch (Exception e) {
             logger.error("CRITICAL: Failed to mount file upload routes", e);
@@ -169,6 +186,9 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
      * - /res/plcsimulator/edit-program.html - File upload UI (vanilla JS)
      * - /res/plcsimulator/app - React application (advanced UI)
      * - /res/plcsimulator/plc-file-upload.js - Form enhancement script
+     *
+     * NOTE: This alias is also used by Ignition to determine the data route base path.
+     * Data routes will be available at /data/plcsimulator/*
      */
     @Override
     public Optional<String> getMountPathAlias() {

@@ -458,7 +458,7 @@
     <div class="container">
         <div class="header">
             <h1>🏭 PLC File Upload</h1>
-            <div class="subtitle">Enhanced PLC Simulator v3.0.0 - Upload your PLC program file</div>
+            <div class="subtitle">Enhanced PLC Simulator v3.0.3 - Upload your PLC program file</div>
         </div>
 
         <div class="card device-selector-card">
@@ -474,6 +474,9 @@
                 </select>
                 <button class="btn btn-refresh" onclick="loadDeviceList()" title="Refresh device list" aria-label="Refresh device list">
                     🔄
+                </button>
+                <button class="btn btn-secondary" onclick="testHealthEndpoint()" title="Test API connectivity" aria-label="Test API connectivity" style="min-width: auto;">
+                    🩺
                 </button>
             </div>
 
@@ -577,19 +580,49 @@
             setTimeout(() => announcement.textContent = '', 3000);
         }
 
+        // Test health endpoint to verify API connectivity and routing
+        async function testHealthEndpoint() {
+            const healthUrl = '/data/plcsimulator/health';
+            console.log('Testing health endpoint:', healthUrl);
+
+            try {
+                const response = await fetch(healthUrl, {
+                    credentials: 'include'
+                });
+
+                console.log('Health check response:', response.status, response.statusText);
+                console.log('Health check URL:', response.url);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Health check data:', data);
+                    alert(`✅ API Connectivity Test Successful!\n\nStatus: ${data.status}\nService: ${data.service}\n\nRoutes are properly mounted at:\n/data/plcsimulator/`);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Health check failed:', response.status, errorText);
+                    alert(`❌ API Connectivity Test Failed!\n\nHTTP ${response.status}: ${response.statusText}\n\nThis suggests the routes are NOT mounted at /data/plcsimulator/\n\nPossible causes:\n1. Module not loaded properly\n2. Routes mounted at different path\n3. Authentication issue\n\nCheck gateway logs for "ROUTE MOUNTING DEBUG" section to see the actual base path.`);
+                }
+            } catch (error) {
+                console.error('Health check error:', error);
+                alert(`❌ Network Error!\n\nError: ${error.message}\n\nThis suggests:\n1. Gateway is not running\n2. Network connectivity issue\n3. CORS or firewall blocking request`);
+            }
+        }
+
         // Load device list from API
         async function loadDeviceStatus(deviceName) {
             const container = document.getElementById('fileStatusContainer');
 
             try {
-                const url = `/main/data/plcsimulator/device/${encodeURIComponent(deviceName)}/status`;
+                const url = `/data/plcsimulator/device/${encodeURIComponent(deviceName)}/status`;
                 console.log('Fetching device status from:', url);
+                console.log('Full URL:', window.location.origin + url);
 
                 const response = await fetch(url, {
                     credentials: 'include'
                 });
 
-                console.log('Device status response:', response.status);
+                console.log('Device status response:', response.status, response.statusText);
+                console.log('Response URL:', response.url);
 
                 if (response.ok) {
                     const data = await response.json();
@@ -598,7 +631,20 @@
                 } else {
                     const errorText = await response.text();
                     console.error('Device status error:', response.status, errorText);
-                    container.innerHTML = `<p class="no-file-message">⚠️ Unable to fetch device status (HTTP ${response.status})<br><small style="color: #64748b;">Check browser console (F12) for details</small></p>`;
+                    console.error('Failed URL:', response.url);
+
+                    let errorHtml = `<p class="no-file-message">⚠️ Unable to fetch device status (HTTP ${response.status})<br>`;
+
+                    if (response.status === 404) {
+                        errorHtml += `<small style="color: #fbbf24;">Route not found. This may indicate a path mismatch.</small><br>`;
+                        errorHtml += `<small style="color: #64748b;">Check gateway logs for "ROUTE MOUNTING DEBUG" section</small><br>`;
+                        errorHtml += `<small style="color: #64748b;">Expected path: /data/plcsimulator/device/{name}/status</small><br>`;
+                    } else if (response.status === 401 || response.status === 403) {
+                        errorHtml += `<small style="color: #fbbf24;">Authentication required. Please log in to the Gateway.</small><br>`;
+                    }
+
+                    errorHtml += `<small style="color: #64748b;">Open browser console (F12) for more details</small></p>`;
+                    container.innerHTML = errorHtml;
                 }
             } catch (error) {
                 console.error('Error loading device status:', error);
@@ -646,7 +692,7 @@
             }
 
             try {
-                const response = await fetch(`/main/data/plcsimulator/device/${encodeURIComponent(deviceName)}/delete`, {
+                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(deviceName)}/delete`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
@@ -670,8 +716,8 @@
             const select = document.getElementById('deviceSelect');
 
             try {
-                console.log('Fetching devices from: /main/data/plcsimulator/devices');
-                const response = await fetch('/main/data/plcsimulator/devices', {
+                console.log('Fetching devices from: /data/plcsimulator/devices');
+                const response = await fetch('/data/plcsimulator/devices', {
                     credentials: 'include'  // Include session cookies for authentication
                 });
 
@@ -884,7 +930,7 @@
                 uploadBtn.textContent = '⏳ Uploading...';
 
                 const fileName = document.getElementById('fileName').textContent;
-                const uploadUrl = `/main/data/plcsimulator/upload?device=${encodeURIComponent(selectedDevice)}`;
+                const uploadUrl = `/data/plcsimulator/upload?device=${encodeURIComponent(selectedDevice)}`;
 
                 console.log('🚀 Uploading to:', uploadUrl);
                 console.log('📦 File:', fileName, 'Size:', currentFileContent.length, 'characters');
