@@ -46,7 +46,7 @@ public class FileUploadRoutes {
 
     /**
      * Mount the file upload routes.
-     * Routes will be available at /main/data/plcsimulator/*
+     * Routes will be available at /data/plcsimulator/*
      */
     public void mountRoutes() {
         try {
@@ -73,26 +73,26 @@ public class FileUploadRoutes {
         }
 
         try {
-            logger.info("Mounting /device/{name}/status route...");
-            routes.newRoute("/device/{name}/status")
+            logger.info("Mounting /device/:name/status route...");
+            routes.newRoute("/device/:name/status")
                 .handler(this::handleDeviceStatus)
                 .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /device/{name}/status route mounted (requires authentication)");
+            logger.info("✓ /device/:name/status route mounted (requires authentication)");
         } catch (Exception e) {
-            logger.error("Failed to mount /device/{name}/status route", e);
+            logger.error("Failed to mount /device/:name/status route", e);
         }
 
         try {
-            logger.info("Mounting /device/{name}/delete route...");
-            routes.newRoute("/device/{name}/delete")
+            logger.info("Mounting /device/:name/delete route...");
+            routes.newRoute("/device/:name/delete")
                 .handler(this::handleDeleteFile)
                 .method(HttpMethod.DELETE)
                 .accessControl(this::checkAuthenticated)
                 .mount();
-            logger.info("✓ /device/{name}/delete route mounted (DELETE, requires authentication)");
+            logger.info("✓ /device/:name/delete route mounted (DELETE, requires authentication)");
         } catch (Exception e) {
-            logger.error("Failed to mount /device/{name}/delete route", e);
+            logger.error("Failed to mount /device/:name/delete route", e);
         }
 
         try {
@@ -106,7 +106,7 @@ public class FileUploadRoutes {
             logger.error("Failed to mount /health route", e);
         }
 
-        logger.info("File upload routes mounting complete at /main/data/plcsimulator/");
+        logger.info("File upload routes mounting complete at /data/plcsimulator/");
     }
 
     /**
@@ -296,10 +296,9 @@ public class FileUploadRoutes {
         JSONObject result = new JSONObject();
 
         try {
-            // Extract device name from request path
-            // Path format: /main/data/plcsimulator/device/{name}/status
-            String path = requestContext.getRequest().getRequestURI();
-            String deviceName = extractDeviceNameFromPath(path);
+            // Get device name from route path parameter
+            // Route: /device/:name/status
+            String deviceName = requestContext.getParameter("name");
 
             if (deviceName == null || deviceName.trim().isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -377,9 +376,9 @@ public class FileUploadRoutes {
         JSONObject result = new JSONObject();
 
         try {
-            // Extract device name from request path
-            String path = requestContext.getRequest().getRequestURI();
-            String deviceName = extractDeviceNameFromPath(path);
+            // Get device name from route path parameter
+            // Route: /device/:name/delete
+            String deviceName = requestContext.getParameter("name");
 
             if (deviceName == null || deviceName.trim().isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -547,26 +546,6 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error during device reload: {}", device.getName(), e);
         }
-    }
-
-    /**
-     * Extract device name from request path.
-     * Path format: /main/data/plcsimulator/device/{name}/status
-     */
-    private String extractDeviceNameFromPath(String path) {
-        if (path == null) {
-            return null;
-        }
-
-        String[] parts = path.split("/");
-        // Find "device" in the path and return the next segment
-        for (int i = 0; i < parts.length - 1; i++) {
-            if ("device".equals(parts[i])) {
-                return parts[i + 1];
-            }
-        }
-
-        return null;
     }
 
     /**
