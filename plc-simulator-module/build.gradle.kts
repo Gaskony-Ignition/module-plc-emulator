@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.4.0"
 }
 
-version = "2.3.0"
+version = "3.0.0"
 group = "com.gaskony"
 
 ignitionModule {
@@ -13,7 +13,7 @@ ignitionModule {
     id.set("com.inductiveautomation.opcua.drivers.plcsimulator")
     moduleVersion.set(project.version.toString())
     license.set("license.html")
-    moduleDescription.set("Multi-vendor PLC device simulator with clickable upload button in device config. Click '📤 Upload PLC File' button in device settings to open upload page. Supports L5K, JSON, CSV formats with hierarchical OPC-UA tags.")
+    moduleDescription.set("PLC device simulator with easy file upload. Currently supports Rockwell L5K files with full UDT/AOI expansion and hierarchical OPC-UA tags. Planned multi-vendor support: Siemens TIA Portal, Schneider Electric, Beckhoff TwinCAT, JSON formats.")
     requiredIgnitionVersion.set("8.3.0")
     freeModule.set(true)
 

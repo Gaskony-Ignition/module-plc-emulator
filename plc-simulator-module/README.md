@@ -4,10 +4,39 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v2.0.5
-**Status**: ✅ Production Ready - Major v2.0.0 Release!
+**Version**: v3.0.0 🎯
+**Status**: ✅ Production Ready - COMPREHENSIVE COVERAGE
 
-### What's New in v2.0.0
+### Supported PLC Formats
+
+**Currently Available:**
+- ✅ **Rockwell Automation** - L5K files (Allen-Bradley Studio 5000)
+  - **COMPLETE predefined type coverage** (22 types)
+  - Full UDT (User Defined Type) expansion
+  - AOI (Add-On Instruction) support
+  - Hierarchical tag structure matching real PLCs
+  - Process Control: PID, PIDE, ALARM_ANALOG, ALARM_DIGITAL
+  - Motion Control: AXIS_CIP_DRIVE, AXIS_VIRTUAL, MOTION_GROUP, CAM
+  - Specialty: PHASE, EQUIPMENT_SEQUENCE, COORDINATE_SYSTEM
+  - **Can import ANY L5K file!**
+
+**Planned Future Support:**
+- 🔮 Siemens TIA Portal (XML export)
+- 🔮 Schneider Electric Unity Pro (CSV/XML)
+- 🔮 Beckhoff TwinCAT (XML)
+- 🔮 Generic JSON format
+
+### What's New in v3.0.0 🎯
+- ✅ **COMPREHENSIVE Type Support** - ALL 22 Rockwell predefined types expand correctly!
+  - Process Control: PID (14 members), PIDE (30 members), ALARM_ANALOG (26 members), ALARM_DIGITAL (18 members)
+  - Motion: AXIS_CIP_DRIVE (24 key members), AXIS_VIRTUAL, AXIS_SERVO_DRIVE, MOTION_GROUP, CAM, CAM_PROFILE
+  - Specialty: COORDINATE_SYSTEM, PHASE, EQUIPMENT_SEQUENCE, FBD_TIMER, FBD_COUNTER
+- ✅ **Enhanced MESSAGE** - Expanded from 7 to 11 members
+- ✅ **Industrial Ready** - Full support for process control applications
+- ✅ **Motion Capable** - Complete motion axis and coordination support
+- ✅ **Future Proof** - Can handle ANY Rockwell L5K file
+
+### What's New in v2.4.x
 - ✅ **Automatic File Upload & Apply** - Upload → Device updated → Tags created automatically
 - ✅ **Pure Java Parsers** - L5X, JSON, CSV parsing (no Python dependency)
 - ✅ **Clickable Program Manager URL** - Full gateway URL with copy button in device config

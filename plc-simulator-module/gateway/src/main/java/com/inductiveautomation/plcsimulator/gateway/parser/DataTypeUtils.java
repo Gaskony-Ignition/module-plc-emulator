@@ -35,6 +35,7 @@ public class DataTypeUtils {
         String cleanType = dataType.split("\\(")[0].trim();
 
         return switch (cleanType.toUpperCase()) {
+            // Basic data types
             case "BOOL", "BIT" -> "BOOL";
             case "SINT", "BYTE", "INT1" -> "SINT";
             case "INT", "INT2" -> "INT";
@@ -43,10 +44,34 @@ public class DataTypeUtils {
             case "REAL", "FLOAT4", "FLOAT" -> "REAL";
             case "LREAL" -> "LREAL";
             case "STRING" -> "STRING";
+
+            // Basic structured types
             case "TIMER" -> "TIMER";
             case "COUNTER" -> "COUNTER";
             case "CONTROL" -> "CONTROL";
             case "MESSAGE" -> "MESSAGE";
+
+            // Process control types (v3.0.0)
+            case "PID" -> "PID";
+            case "PIDE" -> "PIDE";
+            case "ALARM_ANALOG", "ALMA" -> "ALARM_ANALOG";
+            case "ALARM_DIGITAL", "ALMD" -> "ALARM_DIGITAL";
+
+            // Motion control types (v3.0.0)
+            case "AXIS_CIP_DRIVE" -> "AXIS_CIP_DRIVE";
+            case "AXIS_VIRTUAL" -> "AXIS_VIRTUAL";
+            case "AXIS_SERVO_DRIVE" -> "AXIS_SERVO_DRIVE";
+            case "MOTION_GROUP" -> "MOTION_GROUP";
+            case "CAM" -> "CAM";
+            case "CAM_PROFILE" -> "CAM_PROFILE";
+
+            // Specialty types (v3.0.0)
+            case "COORDINATE_SYSTEM" -> "COORDINATE_SYSTEM";
+            case "PHASE" -> "PHASE";
+            case "EQUIPMENT_SEQUENCE" -> "EQUIPMENT_SEQUENCE";
+            case "FBD_TIMER" -> "FBD_TIMER";
+            case "FBD_COUNTER" -> "FBD_COUNTER";
+
             default -> cleanType;  // Return as-is for UDTs/AOIs
         };
     }
