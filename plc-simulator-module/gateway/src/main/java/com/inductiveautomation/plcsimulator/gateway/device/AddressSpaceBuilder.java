@@ -195,10 +195,10 @@ public class AddressSpaceBuilder {
                     logger.debug("Created alias for UDT folder '{}' at device root", tagName);
                 }
 
-                // Add UDT member variables
+                // Add UDT member variables with dot notation
                 for (JsonElement memberElement : members) {
                     JsonObject member = memberElement.getAsJsonObject();
-                    addAtomicTag(member, udtFolder, context, pathPrefix + "/" + tagName, null);
+                    addAtomicTag(member, udtFolder, context, pathPrefix, tagName, null);
                 }
 
                 logger.debug("Created UDT folder: {} with {} members", tagName, members.size());
@@ -226,7 +226,7 @@ public class AddressSpaceBuilder {
                             arrayElement.add("initial_value", tag.get("initial_value"));
                         }
 
-                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix, rootNode);
+                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix, null, rootNode);
                     }
 
                     logger.debug("Created array: {} with {} elements", tagName, arraySize);
@@ -239,12 +239,13 @@ public class AddressSpaceBuilder {
         }
 
         // Atomic tag - create single variable
-        addAtomicTag(tag, parentFolder, context, pathPrefix, rootNode);
+        addAtomicTag(tag, parentFolder, context, pathPrefix, null, rootNode);
     }
 
     /**
      * Adds an atomic (non-UDT) tag as a variable node.
      *
+     * @param udtParentName Parent UDT name for dot notation (null for non-UDT tags)
      * @param rootNode Root node for creating aliases (pass null for nested tags to skip aliasing)
      */
     private void addAtomicTag(
@@ -252,6 +253,7 @@ public class AddressSpaceBuilder {
         UaFolderNode parentFolder,
         NodeContext context,
         String pathPrefix,
+        String udtParentName,
         UaFolderNode rootNode) {
 
         // Defensive null checks - parser might not provide all fields
@@ -273,10 +275,26 @@ public class AddressSpaceBuilder {
         // Get initial value if present
         Object initialValue = getInitialValue(tag, dataType);
 
+        // Build NodeId and BrowseName with conditional dot notation for UDT members
+        String nodeIdPath;
+        String browseName;
+
+        if (udtParentName != null) {
+            // UDT member: use DOT notation to match real Rockwell PLC behavior
+            // This creates paths like: Motor1.ENABLE instead of Motor1/ENABLE
+            nodeIdPath = pathPrefix + "/" + udtParentName + "." + tagName;
+            browseName = udtParentName + "." + tagName;
+            logger.trace("Creating UDT member with dot notation: NodeId={}, BrowseName={}", nodeIdPath, browseName);
+        } else {
+            // Regular tag or array element: use standard slash notation
+            nodeIdPath = pathPrefix + "/" + tagName;
+            browseName = tagName;
+        }
+
         // Create variable node
         UaVariableNode variableNode = UaVariableNode.build(context.nodeContext, b ->
-            b.setNodeId(context.nodeId(pathPrefix + "/" + tagName))
-                .setBrowseName(context.qualifiedName(tagName))
+            b.setNodeId(context.nodeId(nodeIdPath))
+                .setBrowseName(context.qualifiedName(browseName))
                 .setDisplayName(new LocalizedText(tagName))
                 .setDataType(opcType.getNodeId())
                 .setTypeDefinition(NodeIds.BaseDataVariableType)
@@ -292,8 +310,9 @@ public class AddressSpaceBuilder {
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
 
-        // Create alias at device root for top-level Controller:Global tags (matches real PLC behavior)
-        if (rootNode != null && pathPrefix.equals("Controller:Global")) {
+        // Create alias at device root for top-level Controller:Global tags ONLY
+        // Don't alias UDT members - they should only appear under their parent folder
+        if (rootNode != null && pathPrefix.equals("Controller:Global") && udtParentName == null) {
             rootNode.addOrganizes(variableNode);
             logger.debug("Created alias for tag '{}' at device root", tagName);
         }
