@@ -13,6 +13,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [4.0.0] - 2025-11-19
+
+### MAJOR FIX - UDT Short Path Access
+**Breaking Change**: This version fundamentally changes how UDT instances are structured in the OPC-UA address space to match real Rockwell PLC behavior.
+
+#### Fixed - CRITICAL
+- **Short Path Access Now Works** - UDT members can now be accessed without `Controller:Global/` prefix
+  - ✅ `[Device]Motor1.ENABLE` - **NOW WORKS** (was broken in all previous versions)
+  - ✅ `[Device]Controller:Global/Motor1.ENABLE` - Still works (backward compatible)
+  - ✅ Matches real Rockwell ControlLogix/CompactLogix OPC-UA server behavior
+
+#### Changed - STRUCTURAL
+- **Flattened UDT Structure** - UDT instances no longer create folder nodes
+  - **OLD (v3.x and earlier)**: UDT Motor1 created a folder containing members
+    - Structure: `Controller:Global/Motor1(folder)/Motor1.ENABLE(variable)`
+    - Required path: `[Device]Controller:Global/Motor1/Motor1.ENABLE` (awkward!)
+  - **NEW (v4.0.0)**: UDT members are flat tags with dots in BrowseName
+    - Structure: `Controller:Global/Motor1.ENABLE(variable)` (no Motor1 folder!)
+    - Simple path: `[Device]Motor1.ENABLE` (just like real PLCs!)
+
+- **Universal Aliasing** - ALL Controller:Global tags now aliased to device root
+  - Previously: Only top-level atomic tags were aliased (UDT members excluded)
+  - Now: UDT members, atomic tags, and array elements ALL aliased
+  - Benefit: Enables short path access for ALL tags
+
+#### Technical Details
+- Updated `AddressSpaceBuilder.java` to flatten UDT member structure
+- Removed UDT folder node creation (line 183-196)
+- UDT members now created directly under parent folder with dot notation in BrowseName
+- Changed aliasing logic to include UDT members (line 303-312)
+- Updated class-level documentation to reflect new structure
+
+#### Impact - BREAKING CHANGES
+- **OPC-UA Browse Structure Changed**: Applications that browse the address space may see different hierarchy
+  - UDT instance "Motor1" no longer appears as a browsable folder
+  - Motor1.ENABLE, Motor1.SPEED, etc. appear as individual tags with dots in names
+- **Tag Paths Simplified**: Shorter paths now work (this is a GOOD breaking change!)
+- **Migration**: No action required - tags remain readable/writable, just different browse structure
+- **Benefit**: Simulator now EXACTLY matches real Rockwell PLC OPC-UA structure
+
+#### Why This Change?
+Previous versions created a hybrid structure that didn't match real PLCs:
+- Dot notation in BrowseName (`Motor1.ENABLE`) but hierarchical folder structure
+- This confused OPC-UA clients which expected flat structure with dots
+- Real Rockwell PLCs use FLAT structure with dot notation in tag names
+- This change brings the simulator into full compliance with real PLC behavior
+
+---
+
 ## [3.0.0] - 2025-11-18
 
 ### Added - COMPREHENSIVE PREDEFINED TYPE SUPPORT 🎯
