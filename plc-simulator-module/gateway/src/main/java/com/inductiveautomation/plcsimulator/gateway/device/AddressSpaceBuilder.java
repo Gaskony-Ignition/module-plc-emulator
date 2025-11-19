@@ -26,12 +26,15 @@ import java.util.function.Consumer;
  * Creates structure like:
  * [DeviceName]/
  *   ├── Controller:Global/
- *   │   ├── Motor1/           (UDT instance as folder)
- *   │   │   ├── Speed
- *   │   │   └── Running
+ *   │   ├── Motor1.Speed       (UDT member - flattened with dot notation)
+ *   │   ├── Motor1.Running     (UDT member - flattened with dot notation)
  *   │   └── Tank1_Level        (atomic tag)
- *   └── Program:MainProgram/
- *       └── Counter
+ *   ├── Motor1.Speed           (alias to enable short path [Device]Motor1.Speed)
+ *   ├── Motor1.Running         (alias to enable short path [Device]Motor1.Running)
+ *   ├── Tank1_Level            (alias to enable short path [Device]Tank1_Level)
+ *   └── Programs/
+ *       └── MainProgram/
+ *           └── Counter
  */
 public class AddressSpaceBuilder {
 
@@ -150,7 +153,7 @@ public class AddressSpaceBuilder {
 
     /**
      * Adds a tag to the address space.
-     * If tag is a UDT instance, creates a folder with member variables.
+     * If tag is a UDT instance, creates flattened member variables with dot notation (e.g., Motor1.ENABLE).
      * If tag is an array, creates individual array element nodes.
      * If tag is atomic, creates a single variable node.
      *
@@ -180,28 +183,18 @@ public class AddressSpaceBuilder {
         if (tag.has("udt_members")) {
             JsonArray members = tag.getAsJsonArray("udt_members");
             if (members.size() > 0) {
-                // Create folder for UDT instance
-                UaFolderNode udtFolder = createFolder(
-                    context,
-                    pathPrefix + "/" + tagName,
-                    tagName
-                );
-                nodeAdder.accept(udtFolder);
-                parentFolder.addOrganizes(udtFolder);
+                // FLATTENED STRUCTURE: Create UDT members as individual tags with dot notation
+                // This matches real Rockwell PLC behavior where UDT members appear as flat tags
+                // Example: Motor1 UDT with ENABLE member → creates tag "Motor1.ENABLE"
+                // This allows both [Device]Motor1.ENABLE and [Device]Controller:Global/Motor1.ENABLE to work
 
-                // Create alias at device root for Controller:Global tags (matches real PLC behavior)
-                if (rootNode != null && pathPrefix.equals("Controller:Global")) {
-                    rootNode.addOrganizes(udtFolder);
-                    logger.debug("Created alias for UDT folder '{}' at device root", tagName);
-                }
-
-                // Add UDT member variables with dot notation
                 for (JsonElement memberElement : members) {
                     JsonObject member = memberElement.getAsJsonObject();
-                    addAtomicTag(member, udtFolder, context, pathPrefix, tagName, null);
+                    // Create flat tag with dot notation in name
+                    addAtomicTag(member, parentFolder, context, pathPrefix, tagName, rootNode);
                 }
 
-                logger.debug("Created UDT folder: {} with {} members", tagName, members.size());
+                logger.debug("Created UDT instance '{}' with {} flattened members", tagName, members.size());
                 return;
             }
         }
@@ -310,11 +303,12 @@ public class AddressSpaceBuilder {
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
 
-        // Create alias at device root for top-level Controller:Global tags ONLY
-        // Don't alias UDT members - they should only appear under their parent folder
-        if (rootNode != null && pathPrefix.equals("Controller:Global") && udtParentName == null) {
+        // Create alias at device root for ALL Controller:Global tags (including UDT members)
+        // This enables short path access: [Device]Motor1.ENABLE works alongside [Device]Controller:Global/Motor1.ENABLE
+        if (rootNode != null && pathPrefix.equals("Controller:Global")) {
             rootNode.addOrganizes(variableNode);
-            logger.debug("Created alias for tag '{}' at device root", tagName);
+            String displayName = udtParentName != null ? browseName : tagName;
+            logger.debug("Created alias for tag '{}' at device root", displayName);
         }
 
         logger.debug("Created variable: {} ({})", tagName, dataType);
