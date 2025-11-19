@@ -196,7 +196,7 @@ public class AddressSpaceBuilder {
                 // - Browse hierarchy: Motor1 (Object) → Speed, Running (Variables)
                 // - NodeId format: Uses DOTS → "Controller:Global.Motor1.Speed"
                 // - BrowseName: Simple names → "Speed" (not "Motor1.Speed")
-                // - Short path: [Device]Motor1.Speed (via aliasing)
+                // - Short path: [Device]Motor1.Speed (via duplicate nodes)
                 // - Long path: [Device]Controller:Global.Motor1.Speed (via dot resolution)
 
                 // Create Object node for UDT instance (using DOT notation in NodeId)
@@ -212,16 +212,60 @@ public class AddressSpaceBuilder {
                 nodeAdder.accept(udtObject);
                 parentFolder.addComponent(udtObject);  // Use HasComponent reference
 
-                // Create alias at device root for short path access (only for Controller:Global tags)
+                // For Controller:Global tags, create DUPLICATE nodes with short NodeIds
+                // This is how real Rockwell PLCs work - not aliases, but duplicate nodes
+                UaObjectNode shortPathObject = null;
                 if (rootNode != null && pathPrefix.equals("Controller:Global")) {
-                    rootNode.addOrganizes(udtObject);  // Alias the entire UDT instance
-                    logger.debug("Created alias for UDT instance '{}' at device root", tagName);
+                    // Create a DUPLICATE Object node with SHORT NodeId at device root
+                    shortPathObject = UaObjectNode.build(context.nodeContext, b ->
+                        b.setNodeId(context.nodeId(tagName))  // SHORT NodeId: just "Motor1"
+                            .setBrowseName(context.qualifiedName(tagName))
+                            .setDisplayName(new LocalizedText(tagName))
+                            .setTypeDefinition(NodeIds.BaseObjectType)
+                            .build()
+                    );
+
+                    nodeAdder.accept(shortPathObject);
+                    rootNode.addComponent(shortPathObject);  // Add to device root
+                    logger.debug("Created duplicate UDT instance '{}' with short NodeId at device root", tagName);
                 }
 
                 // Add UDT member variables as children of the Object node
                 for (JsonElement memberElement : members) {
                     JsonObject member = memberElement.getAsJsonObject();
-                    addUdtMember(member, udtObject, context, udtNodeId, tagName);
+
+                    // Create the member in the main UDT object
+                    DataValue sharedDataValue = addUdtMember(member, udtObject, context, udtNodeId, tagName);
+
+                    // Also add member to the short path object if it exists, sharing the same DataValue
+                    if (shortPathObject != null && sharedDataValue != null) {
+                        // Create duplicate member with short NodeId path
+                        String memberName = member.get("name").getAsString();
+                        String memberDataType = member.get("data_type").getAsString();
+                        OpcUaDataType opcType = mapDataType(memberDataType);
+
+                        // Short NodeId: just "Motor1.ENABLE" instead of "Controller:Global.Motor1.ENABLE"
+                        String shortMemberNodeId = tagName + "." + memberName;
+
+                        UaVariableNode shortMemberVariable = UaVariableNode.build(context.nodeContext, b ->
+                            b.setNodeId(context.nodeId(shortMemberNodeId))
+                                .setBrowseName(context.qualifiedName(memberName))
+                                .setDisplayName(new LocalizedText(memberName))
+                                .setDataType(opcType.getNodeId())
+                                .setTypeDefinition(NodeIds.BaseDataVariableType)
+                                .setAccessLevel(AccessLevel.READ_WRITE)
+                                .setUserAccessLevel(AccessLevel.READ_WRITE)
+                                .build()
+                        );
+
+                        // CRITICAL: Share the same DataValue object
+                        shortMemberVariable.setValue(sharedDataValue);
+
+                        nodeAdder.accept(shortMemberVariable);
+                        shortPathObject.addComponent(shortMemberVariable);
+
+                        logger.trace("Created duplicate UDT member with short NodeId: {}", shortMemberNodeId);
+                    }
                 }
 
                 logger.debug("Created UDT instance '{}' with {} hierarchical members", tagName, members.size());
@@ -268,14 +312,16 @@ public class AddressSpaceBuilder {
     /**
      * Adds a UDT member variable as a child of a UDT Object node.
      * Uses DOT notation in NodeId and simple BrowseName to match real Rockwell PLC behavior.
+     * Returns the DataValue object for sharing between duplicate nodes.
      *
      * @param member Member tag data
      * @param udtObject Parent UDT Object node
      * @param context Device context
      * @param udtNodeId NodeId of parent UDT (e.g., "Controller:Global.Motor1")
      * @param udtName Name of parent UDT (e.g., "Motor1") for logging
+     * @return The DataValue object created for this member (for sharing with duplicate nodes)
      */
-    private void addUdtMember(
+    private DataValue addUdtMember(
         JsonObject member,
         UaObjectNode udtObject,
         NodeContext context,
@@ -285,12 +331,12 @@ public class AddressSpaceBuilder {
         // Defensive null checks
         if (member.get("name") == null) {
             logger.warn("Skipping UDT member without 'name' field in UDT '{}'", udtName);
-            return;
+            return null;
         }
         if (member.get("data_type") == null) {
             logger.warn("Skipping UDT member '{}' without 'data_type' field in UDT '{}'",
                 member.get("name").getAsString(), udtName);
-            return;
+            return null;
         }
 
         String memberName = member.get("name").getAsString();
@@ -317,8 +363,9 @@ public class AddressSpaceBuilder {
                 .build()
         );
 
-        // Set initial value
-        memberVariable.setValue(new DataValue(new Variant(initialValue)));
+        // Create DataValue and set initial value
+        DataValue dataValue = new DataValue(new Variant(initialValue));
+        memberVariable.setValue(dataValue);
 
         // Add to node manager
         nodeAdder.accept(memberVariable);
@@ -328,6 +375,8 @@ public class AddressSpaceBuilder {
 
         logger.trace("Created UDT member: {}.{} (NodeId={}, Type={})",
             udtName, memberName, memberNodeId, dataType);
+
+        return dataValue;  // Return for sharing with duplicate nodes
     }
 
     /**
@@ -377,17 +426,34 @@ public class AddressSpaceBuilder {
         );
 
         // Set initial value
-        variableNode.setValue(new DataValue(new Variant(initialValue)));
+        DataValue dataValue = new DataValue(new Variant(initialValue));
+        variableNode.setValue(dataValue);
 
         // Add to node manager and parent folder
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
 
-        // Create alias at device root for Controller:Global tags to enable short path access
-        // Example: [Device]Tank1_Level resolves via this alias
+        // For Controller:Global atomic tags, create DUPLICATE node with short NodeId
+        // This matches real Rockwell PLC behavior - not an alias, but a duplicate node
         if (rootNode != null && pathPrefix.equals("Controller:Global")) {
-            rootNode.addOrganizes(variableNode);
-            logger.debug("Created alias for atomic tag '{}' at device root", tagName);
+            // Create duplicate variable with SHORT NodeId (just tagName, no prefix)
+            UaVariableNode shortPathVariable = UaVariableNode.build(context.nodeContext, b ->
+                b.setNodeId(context.nodeId(tagName))  // SHORT NodeId: just "TagName"
+                    .setBrowseName(context.qualifiedName(tagName))
+                    .setDisplayName(new LocalizedText(tagName))
+                    .setDataType(opcType.getNodeId())
+                    .setTypeDefinition(NodeIds.BaseDataVariableType)
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .build()
+            );
+
+            // Share the same DataValue object so both nodes update together
+            shortPathVariable.setValue(dataValue);
+
+            nodeAdder.accept(shortPathVariable);
+            rootNode.addOrganizes(shortPathVariable);
+            logger.debug("Created duplicate atomic tag '{}' with short NodeId at device root", tagName);
         }
 
         logger.debug("Created atomic variable: {} ({})", tagName, dataType);
