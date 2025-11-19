@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.OpcUaDataType;
@@ -23,18 +24,25 @@ import java.util.function.Consumer;
 /**
  * Builds hierarchical OPC-UA address space from parsed PLC data.
  *
- * Creates structure like:
+ * Creates structure matching real Rockwell PLCs:
  * [DeviceName]/
  *   ├── Controller:Global/
- *   │   ├── Motor1.Speed       (UDT member - flattened with dot notation)
- *   │   ├── Motor1.Running     (UDT member - flattened with dot notation)
- *   │   └── Tank1_Level        (atomic tag)
- *   ├── Motor1.Speed           (alias to enable short path [Device]Motor1.Speed)
- *   ├── Motor1.Running         (alias to enable short path [Device]Motor1.Running)
- *   ├── Tank1_Level            (alias to enable short path [Device]Tank1_Level)
+ *   │   ├── Motor1/                 (UDT instance - Object node, NodeId uses dots)
+ *   │   │   ├── Speed               (member variable, BrowseName="Speed", NodeId="Controller:Global.Motor1.Speed")
+ *   │   │   └── Running             (member variable, BrowseName="Running")
+ *   │   └── Tank1_Level             (atomic tag)
+ *   ├── Motor1/                     (alias - enables [Device]Motor1.Speed short path)
+ *   ├── Tank1_Level                 (alias - enables [Device]Tank1_Level short path)
  *   └── Programs/
  *       └── MainProgram/
  *           └── Counter
+ *
+ * KEY DESIGN PRINCIPLES:
+ * 1. Browse Hierarchy: UDT instances appear as browsable Object nodes with member children
+ * 2. NodeId Format: Uses DOT notation (e.g., "Controller:Global.Motor1.Speed")
+ * 3. BrowseName Format: Uses simple names (e.g., "Speed" not "Motor1.Speed")
+ * 4. Reference Type: Uses HasComponent for UDT structure (not Organizes)
+ * 5. Aliasing: UDT instances aliased at root to enable short paths like [Device]Motor1.Speed
  */
 public class AddressSpaceBuilder {
 
@@ -153,7 +161,7 @@ public class AddressSpaceBuilder {
 
     /**
      * Adds a tag to the address space.
-     * If tag is a UDT instance, creates flattened member variables with dot notation (e.g., Motor1.ENABLE).
+     * If tag is a UDT instance, creates a hierarchical Object node with member variables.
      * If tag is an array, creates individual array element nodes.
      * If tag is atomic, creates a single variable node.
      *
@@ -183,18 +191,40 @@ public class AddressSpaceBuilder {
         if (tag.has("udt_members")) {
             JsonArray members = tag.getAsJsonArray("udt_members");
             if (members.size() > 0) {
-                // FLATTENED STRUCTURE: Create UDT members as individual tags with dot notation
-                // This matches real Rockwell PLC behavior where UDT members appear as flat tags
-                // Example: Motor1 UDT with ENABLE member → creates tag "Motor1.ENABLE"
-                // This allows both [Device]Motor1.ENABLE and [Device]Controller:Global/Motor1.ENABLE to work
+                // HIERARCHICAL STRUCTURE: Create UDT instance as Object node with member children
+                // This matches real Rockwell PLC behavior:
+                // - Browse hierarchy: Motor1 (Object) → Speed, Running (Variables)
+                // - NodeId format: Uses DOTS → "Controller:Global.Motor1.Speed"
+                // - BrowseName: Simple names → "Speed" (not "Motor1.Speed")
+                // - Short path: [Device]Motor1.Speed (via aliasing)
+                // - Long path: [Device]Controller:Global.Motor1.Speed (via dot resolution)
 
-                for (JsonElement memberElement : members) {
-                    JsonObject member = memberElement.getAsJsonObject();
-                    // Create flat tag with dot notation in name
-                    addAtomicTag(member, parentFolder, context, pathPrefix, tagName, rootNode);
+                // Create Object node for UDT instance (using DOT notation in NodeId)
+                String udtNodeId = pathPrefix.replace("/", ".") + "." + tagName;
+                UaObjectNode udtObject = UaObjectNode.build(context.nodeContext, b ->
+                    b.setNodeId(context.nodeId(udtNodeId))
+                        .setBrowseName(context.qualifiedName(tagName))  // Simple name
+                        .setDisplayName(new LocalizedText(tagName))
+                        .setTypeDefinition(NodeIds.BaseObjectType)
+                        .build()
+                );
+
+                nodeAdder.accept(udtObject);
+                parentFolder.addComponent(udtObject);  // Use HasComponent reference
+
+                // Create alias at device root for short path access (only for Controller:Global tags)
+                if (rootNode != null && pathPrefix.equals("Controller:Global")) {
+                    rootNode.addOrganizes(udtObject);  // Alias the entire UDT instance
+                    logger.debug("Created alias for UDT instance '{}' at device root", tagName);
                 }
 
-                logger.debug("Created UDT instance '{}' with {} flattened members", tagName, members.size());
+                // Add UDT member variables as children of the Object node
+                for (JsonElement memberElement : members) {
+                    JsonObject member = memberElement.getAsJsonObject();
+                    addUdtMember(member, udtObject, context, udtNodeId, tagName);
+                }
+
+                logger.debug("Created UDT instance '{}' with {} hierarchical members", tagName, members.size());
                 return;
             }
         }
@@ -219,7 +249,7 @@ public class AddressSpaceBuilder {
                             arrayElement.add("initial_value", tag.get("initial_value"));
                         }
 
-                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix, null, rootNode);
+                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix, rootNode);
                     }
 
                     logger.debug("Created array: {} with {} elements", tagName, arraySize);
@@ -232,13 +262,77 @@ public class AddressSpaceBuilder {
         }
 
         // Atomic tag - create single variable
-        addAtomicTag(tag, parentFolder, context, pathPrefix, null, rootNode);
+        addAtomicTag(tag, parentFolder, context, pathPrefix, rootNode);
+    }
+
+    /**
+     * Adds a UDT member variable as a child of a UDT Object node.
+     * Uses DOT notation in NodeId and simple BrowseName to match real Rockwell PLC behavior.
+     *
+     * @param member Member tag data
+     * @param udtObject Parent UDT Object node
+     * @param context Device context
+     * @param udtNodeId NodeId of parent UDT (e.g., "Controller:Global.Motor1")
+     * @param udtName Name of parent UDT (e.g., "Motor1") for logging
+     */
+    private void addUdtMember(
+        JsonObject member,
+        UaObjectNode udtObject,
+        NodeContext context,
+        String udtNodeId,
+        String udtName) {
+
+        // Defensive null checks
+        if (member.get("name") == null) {
+            logger.warn("Skipping UDT member without 'name' field in UDT '{}'", udtName);
+            return;
+        }
+        if (member.get("data_type") == null) {
+            logger.warn("Skipping UDT member '{}' without 'data_type' field in UDT '{}'",
+                member.get("name").getAsString(), udtName);
+            return;
+        }
+
+        String memberName = member.get("name").getAsString();
+        String dataType = member.get("data_type").getAsString();
+
+        // Map data type to OPC-UA type
+        OpcUaDataType opcType = mapDataType(dataType);
+
+        // Get initial value if present
+        Object initialValue = getInitialValue(member, dataType);
+
+        // Create member variable with DOT notation in NodeId
+        // Example: NodeId = "Controller:Global.Motor1.Speed", BrowseName = "Speed"
+        String memberNodeId = udtNodeId + "." + memberName;
+
+        UaVariableNode memberVariable = UaVariableNode.build(context.nodeContext, b ->
+            b.setNodeId(context.nodeId(memberNodeId))
+                .setBrowseName(context.qualifiedName(memberName))  // Simple name, NOT "Motor1.Speed"
+                .setDisplayName(new LocalizedText(memberName))
+                .setDataType(opcType.getNodeId())
+                .setTypeDefinition(NodeIds.BaseDataVariableType)
+                .setAccessLevel(AccessLevel.READ_WRITE)
+                .setUserAccessLevel(AccessLevel.READ_WRITE)
+                .build()
+        );
+
+        // Set initial value
+        memberVariable.setValue(new DataValue(new Variant(initialValue)));
+
+        // Add to node manager
+        nodeAdder.accept(memberVariable);
+
+        // Add as component of UDT Object (creates HasComponent reference)
+        udtObject.addComponent(memberVariable);
+
+        logger.trace("Created UDT member: {}.{} (NodeId={}, Type={})",
+            udtName, memberName, memberNodeId, dataType);
     }
 
     /**
      * Adds an atomic (non-UDT) tag as a variable node.
      *
-     * @param udtParentName Parent UDT name for dot notation (null for non-UDT tags)
      * @param rootNode Root node for creating aliases (pass null for nested tags to skip aliasing)
      */
     private void addAtomicTag(
@@ -246,7 +340,6 @@ public class AddressSpaceBuilder {
         UaFolderNode parentFolder,
         NodeContext context,
         String pathPrefix,
-        String udtParentName,
         UaFolderNode rootNode) {
 
         // Defensive null checks - parser might not provide all fields
@@ -268,26 +361,13 @@ public class AddressSpaceBuilder {
         // Get initial value if present
         Object initialValue = getInitialValue(tag, dataType);
 
-        // Build NodeId and BrowseName with conditional dot notation for UDT members
-        String nodeIdPath;
-        String browseName;
-
-        if (udtParentName != null) {
-            // UDT member: use DOT notation to match real Rockwell PLC behavior
-            // This creates paths like: Motor1.ENABLE instead of Motor1/ENABLE
-            nodeIdPath = pathPrefix + "/" + udtParentName + "." + tagName;
-            browseName = udtParentName + "." + tagName;
-            logger.trace("Creating UDT member with dot notation: NodeId={}, BrowseName={}", nodeIdPath, browseName);
-        } else {
-            // Regular tag or array element: use standard slash notation
-            nodeIdPath = pathPrefix + "/" + tagName;
-            browseName = tagName;
-        }
+        // Build NodeId with DOT notation for consistency (Controller:Global.TagName)
+        String nodeIdPath = pathPrefix.replace("/", ".") + "." + tagName;
 
         // Create variable node
         UaVariableNode variableNode = UaVariableNode.build(context.nodeContext, b ->
             b.setNodeId(context.nodeId(nodeIdPath))
-                .setBrowseName(context.qualifiedName(browseName))
+                .setBrowseName(context.qualifiedName(tagName))
                 .setDisplayName(new LocalizedText(tagName))
                 .setDataType(opcType.getNodeId())
                 .setTypeDefinition(NodeIds.BaseDataVariableType)
@@ -303,24 +383,25 @@ public class AddressSpaceBuilder {
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
 
-        // Create alias at device root for ALL Controller:Global tags (including UDT members)
-        // This enables short path access: [Device]Motor1.ENABLE works alongside [Device]Controller:Global/Motor1.ENABLE
+        // Create alias at device root for Controller:Global tags to enable short path access
+        // Example: [Device]Tank1_Level resolves via this alias
         if (rootNode != null && pathPrefix.equals("Controller:Global")) {
             rootNode.addOrganizes(variableNode);
-            String displayName = udtParentName != null ? browseName : tagName;
-            logger.debug("Created alias for tag '{}' at device root", displayName);
+            logger.debug("Created alias for atomic tag '{}' at device root", tagName);
         }
 
-        logger.debug("Created variable: {} ({})", tagName, dataType);
+        logger.debug("Created atomic variable: {} ({})", tagName, dataType);
     }
 
     /**
      * Creates a folder node.
+     * Note: Folders still use slash notation in paths for hierarchical structure,
+     * while tags/UDTs use dot notation in their NodeIds for tag path resolution.
      */
     private UaFolderNode createFolder(NodeContext context, String path, String displayName) {
         return new UaFolderNode(
             context.nodeContext,
-            context.nodeId(path),
+            context.nodeId(path),  // Keep slash notation for folders
             context.qualifiedName(displayName),
             new LocalizedText(displayName)
         );

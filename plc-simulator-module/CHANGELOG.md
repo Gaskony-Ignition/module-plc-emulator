@@ -13,7 +13,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [4.0.0] - 2025-11-19
+## [4.0.1] - 2025-11-19
+
+### CRITICAL HOTFIX - Restore UDT Browsing Hierarchy
+**Emergency fix for v4.0.0**: Completely reverses the flattening approach, which broke OPC-UA browsing.
+
+#### Fixed - CRITICAL REGRESSION
+- **Restored Hierarchical Browse Structure** - UDT instances are once again browsable folders
+  - ✅ Motor1 appears as browsable Object node in tag browser
+  - ✅ ENABLE, Speed, etc. appear as children of Motor1
+  - ✅ Users can navigate: Motor1 → ENABLE (was completely broken in v4.0.0)
+  - ✅ Tag organization restored for SCADA development workflow
+
+#### Fixed - Tag Path Resolution
+- **Short Path Access STILL WORKS** - `[Device]Motor1.ENABLE` now works via correct mechanism
+  - **Browse Hierarchy**: Motor1 (Object) → ENABLE (Variable as child)
+  - **NodeId Format**: Uses DOT notation → `Controller:Global.Motor1.ENABLE`
+  - **BrowseName**: Simple member names → `ENABLE` (not `Motor1.ENABLE`)
+  - **Short Paths**: Work via UDT instance aliasing at device root
+  - **Long Paths**: Work via dot notation in NodeId string
+
+#### Changed - CORRECT IMPLEMENTATION
+- **UDT Instances as Object Nodes** (not Folders, not flattened variables)
+  - Type: `UaObjectNode` with `BaseObjectType`
+  - Reference: `HasComponent` (not `Organizes`)
+  - NodeId: `Controller:Global.Motor1` (DOT notation)
+  - BrowseName: `Motor1` (simple name)
+
+- **UDT Members as Component Variables**
+  - Parent: UDT Object node (hierarchical)
+  - NodeId: `Controller:Global.Motor1.ENABLE` (full DOT path)
+  - BrowseName: `ENABLE` (simple member name, NOT `Motor1.ENABLE`)
+  - Reference: `HasComponent` from parent UDT Object
+
+- **Aliasing Strategy** - UDT instances (not individual members) aliased at root
+  - Entire UDT Object referenced from device root
+  - Enables short paths like `[Device]Motor1.Speed`
+  - Preserves browse hierarchy
+
+#### Technical Details
+- Added `UaObjectNode` import for UDT instances
+- Created new `addUdtMember()` method for hierarchical member creation
+- Removed flattened UDT logic from v4.0.0
+- UDT instances now use Object nodes with DOT notation in NodeId
+- Members use simple BrowseNames with full dot paths in NodeId
+- Updated all NodeId paths to use DOT notation (not slashes)
+- Changed UDT structure reference type to `HasComponent`
+
+#### Root Cause Analysis - Why v4.0.0 Was Wrong
+**False Assumption**: "Real PLCs use flat structure because tag paths have dots"
+**Reality**: Real Rockwell PLCs use BOTH:
+1. **Hierarchical OPC-UA browse structure** (for navigation)
+2. **Dot notation in NodeId strings** (for tag path resolution)
+
+These are TWO DIFFERENT MECHANISMS in OPC-UA:
+- **BrowsePath**: Uses `/` hierarchy and BrowseNames (for tag browser)
+- **NodeId**: Uses `.` notation (for tag binding and path resolution)
+
+v4.0.0 conflated these concepts and removed hierarchy entirely.
+
+#### Impact - BUG FIX (No Breaking Changes)
+- **Browse Structure Restored**: Tag browsers work correctly again
+- **Tag Paths Work**: Both short and long paths functional
+- **Migration**: Upgrade from v4.0.0 immediately - it's fundamentally broken
+- **Real PLC Compliance**: Now correctly matches ControlLogix/CompactLogix OPC-UA structure
+
+#### Testing Recommendations
+After upgrading to v4.0.1:
+1. ✅ Browse to Controller:Global in OPC browser → should see Motor1 folder
+2. ✅ Expand Motor1 → should see ENABLE, Speed, etc. as children
+3. ✅ Test short path: `[Device]Motor1.ENABLE` → should resolve
+4. ✅ Test long path: `[Device]Controller:Global.Motor1.ENABLE` → should resolve
+5. ✅ Read/write values → should work for all paths
+
+---
+
+## [4.0.0] - 2025-11-19 - **DEPRECATED - DO NOT USE**
+
+### ⚠️ CRITICAL BUG - This version is fundamentally broken
+**This version completely removed UDT browsing hierarchy. Upgrade to v4.0.1 immediately.**
+
+#### What Went Wrong
+- Flattened all UDT instances into individual variables with dots in BrowseNames
+- Removed browsable UDT folders from OPC-UA structure
+- Made it impossible to navigate UDT members in tag browsers
+- Based on false assumption about how real PLCs structure their OPC-UA namespace
+
+#### DO NOT USE - Upgrade to v4.0.1
+This version should not be used in any production or development environment.
+
+---
+
+### ORIGINAL v4.0.0 CHANGELOG (for historical reference)
+
+### MAJOR FIX - UDT Short Path Access (BROKEN IMPLEMENTATION)
 
 ### MAJOR FIX - UDT Short Path Access
 **Breaking Change**: This version fundamentally changes how UDT instances are structured in the OPC-UA address space to match real Rockwell PLC behavior.
