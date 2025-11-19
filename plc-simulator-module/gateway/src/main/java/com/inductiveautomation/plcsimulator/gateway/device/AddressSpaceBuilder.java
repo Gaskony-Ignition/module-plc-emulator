@@ -88,7 +88,7 @@ public class AddressSpaceBuilder {
                 // Add global tags
                 for (JsonElement tagElement : globalTags) {
                     JsonObject tag = tagElement.getAsJsonObject();
-                    addTag(tag, controllerFolder, context, "Controller:Global");
+                    addTag(tag, controllerFolder, context, "Controller:Global", rootNode);
                 }
 
                 logger.info("Created Controller:Global with {} tags", globalTags.size());
@@ -127,7 +127,7 @@ public class AddressSpaceBuilder {
                         JsonArray programTags = program.getAsJsonArray("tags");
                         for (JsonElement tagElement : programTags) {
                             JsonObject tag = tagElement.getAsJsonObject();
-                            addTag(tag, programFolder, context, "Programs/" + programName);
+                            addTag(tag, programFolder, context, "Programs/" + programName, null);
                         }
 
                         logger.info("Created Programs/{} with {} tags", programName, programTags.size());
@@ -153,12 +153,15 @@ public class AddressSpaceBuilder {
      * If tag is a UDT instance, creates a folder with member variables.
      * If tag is an array, creates individual array element nodes.
      * If tag is atomic, creates a single variable node.
+     *
+     * @param rootNode Root node for creating aliases (pass null for program tags to skip aliasing)
      */
     private void addTag(
         JsonObject tag,
         UaFolderNode parentFolder,
         NodeContext context,
-        String pathPrefix) {
+        String pathPrefix,
+        UaFolderNode rootNode) {
 
         // Defensive null checks - parser might not provide all fields
         if (tag.get("name") == null) {
@@ -186,10 +189,16 @@ public class AddressSpaceBuilder {
                 nodeAdder.accept(udtFolder);
                 parentFolder.addOrganizes(udtFolder);
 
+                // Create alias at device root for Controller:Global tags (matches real PLC behavior)
+                if (rootNode != null && pathPrefix.equals("Controller:Global")) {
+                    rootNode.addOrganizes(udtFolder);
+                    logger.debug("Created alias for UDT folder '{}' at device root", tagName);
+                }
+
                 // Add UDT member variables
                 for (JsonElement memberElement : members) {
                     JsonObject member = memberElement.getAsJsonObject();
-                    addAtomicTag(member, udtFolder, context, pathPrefix + "/" + tagName);
+                    addAtomicTag(member, udtFolder, context, pathPrefix + "/" + tagName, null);
                 }
 
                 logger.debug("Created UDT folder: {} with {} members", tagName, members.size());
@@ -217,7 +226,7 @@ public class AddressSpaceBuilder {
                             arrayElement.add("initial_value", tag.get("initial_value"));
                         }
 
-                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix);
+                        addAtomicTag(arrayElement, parentFolder, context, pathPrefix, rootNode);
                     }
 
                     logger.debug("Created array: {} with {} elements", tagName, arraySize);
@@ -230,17 +239,20 @@ public class AddressSpaceBuilder {
         }
 
         // Atomic tag - create single variable
-        addAtomicTag(tag, parentFolder, context, pathPrefix);
+        addAtomicTag(tag, parentFolder, context, pathPrefix, rootNode);
     }
 
     /**
      * Adds an atomic (non-UDT) tag as a variable node.
+     *
+     * @param rootNode Root node for creating aliases (pass null for nested tags to skip aliasing)
      */
     private void addAtomicTag(
         JsonObject tag,
         UaFolderNode parentFolder,
         NodeContext context,
-        String pathPrefix) {
+        String pathPrefix,
+        UaFolderNode rootNode) {
 
         // Defensive null checks - parser might not provide all fields
         if (tag.get("name") == null) {
@@ -279,6 +291,12 @@ public class AddressSpaceBuilder {
         // Add to node manager and parent folder
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
+
+        // Create alias at device root for top-level Controller:Global tags (matches real PLC behavior)
+        if (rootNode != null && pathPrefix.equals("Controller:Global")) {
+            rootNode.addOrganizes(variableNode);
+            logger.debug("Created alias for tag '{}' at device root", tagName);
+        }
 
         logger.debug("Created variable: {} ({})", tagName, dataType);
     }
