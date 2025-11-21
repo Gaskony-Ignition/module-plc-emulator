@@ -108,18 +108,11 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
      */
     public record ParserSettings(
         @FormCategory("PARSER")
-        @Label("📁 Upload PLC Program")
+        @Label("📤 Upload PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("TEST: Upload your file by clicking this button:")
+        @Description("COPY THIS URL AND OPEN IN NEW TAB: http://[your-gateway-address]:8088/res/plcsimulator/simple-upload.html (Replace [your-gateway-address] with your Gateway IP/hostname. Example: http://192.168.1.100:8088/res/plcsimulator/simple-upload.html)")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
-
-        @FormCategory("PARSER")
-        @Label("🧪 Test Button")
-        @FormField(FormFieldType.TEXT)
-        @Description("<button onclick=\"window.open('https://www.google.com', '_blank')\" style=\"padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;\">Click Me to Open Google</button>")
-        @DefaultValue("test")
-        String testButton,
 
         // Internal fields - stored but not displayed in form
         String fileName,
