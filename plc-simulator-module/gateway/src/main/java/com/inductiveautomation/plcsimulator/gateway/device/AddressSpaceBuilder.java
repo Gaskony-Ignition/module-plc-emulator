@@ -9,6 +9,7 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
+import org.eclipse.milo.opcua.stack.core.AttributeId;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.OpcUaDataType;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -496,6 +497,7 @@ public class AddressSpaceBuilder {
             AttributeFilters.setValue(
                 (ctx, value) -> {
                     variableNode.setValue(value);
+                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
                 }
             )
         );
@@ -511,6 +513,7 @@ public class AddressSpaceBuilder {
                 (ctx, value) -> {
                     node1.setValue(value);
                     node2.setValue(value);
+                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
                 }
             )
         );
@@ -520,6 +523,7 @@ public class AddressSpaceBuilder {
                 (ctx, value) -> {
                     node1.setValue(value);
                     node2.setValue(value);
+                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
                 }
             )
         );
