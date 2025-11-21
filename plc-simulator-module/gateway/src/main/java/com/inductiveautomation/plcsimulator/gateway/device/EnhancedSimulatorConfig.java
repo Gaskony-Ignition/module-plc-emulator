@@ -110,9 +110,16 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormCategory("PARSER")
         @Label("📁 Upload PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("Upload your Rockwell L5K file: <a href='/res/plcsimulator/simple-upload.html' target='_blank' style='color: #0066cc; text-decoration: underline;'>Click here to open the upload page</a>. The file is automatically saved and loaded into this device. After uploading, save this device configuration to persist the filename.")
+        @Description("TEST: Upload your file by clicking this button:")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
+
+        @FormCategory("PARSER")
+        @Label("🧪 Test Button")
+        @FormField(FormFieldType.TEXT)
+        @Description("<button onclick=\"window.open('https://www.google.com', '_blank')\" style=\"padding: 10px 20px; background: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;\">Click Me to Open Google</button>")
+        @DefaultValue("test")
+        String testButton,
 
         // Internal fields - stored but not displayed in form
         String fileName,
