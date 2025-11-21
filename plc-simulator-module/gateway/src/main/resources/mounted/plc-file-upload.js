@@ -33,7 +33,11 @@
     function initFileUpload() {
         console.log('=== initFileUpload() called ===');
 
-        // First, inject the prominent upload page button
+        // First, inject clickable link for "Upload PLC Program" field
+        console.log('Attempting to inject Upload PLC Program clickable link...');
+        injectUploadProgramLink();
+
+        // Then, inject the prominent upload page button
         console.log('Attempting to inject Upload Page button...');
         injectUploadPageButton();
 
@@ -63,6 +67,209 @@
         console.log('Creating upload UI...');
         createUploadUI(textarea);
         console.log('PLC Simulator: File upload UI injected successfully');
+    }
+
+    /**
+     * Inject clickable link for "Upload PLC Program" field.
+     * This converts the plain text field into a clickable button that opens the upload page.
+     */
+    function injectUploadProgramLink() {
+        console.log('=== injectUploadProgramLink() called ===');
+
+        // Find the "Upload PLC Program" field by looking for the label with emoji
+        const labels = document.querySelectorAll('label');
+        console.log('Found', labels.length, 'labels on page');
+
+        let uploadProgramField = null;
+        let uploadProgramContainer = null;
+
+        for (const label of labels) {
+            const labelText = label.textContent.trim();
+            console.log('Checking label:', labelText.substring(0, 50));
+
+            // Match "Upload PLC Program" or the emoji
+            if (labelText.includes('Upload PLC Program') || labelText.includes('📁 Upload PLC Program')) {
+                console.log('FOUND matching label:', labelText);
+                uploadProgramContainer = label.closest('.form-group, .field-container, div');
+                console.log('Container found:', !!uploadProgramContainer);
+
+                if (uploadProgramContainer) {
+                    uploadProgramField = uploadProgramContainer.querySelector('input[type="text"]');
+                    console.log('Input field found:', !!uploadProgramField);
+                    if (uploadProgramField) {
+                        console.log('Input field value:', uploadProgramField.value);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!uploadProgramField || !uploadProgramContainer) {
+            console.log('PLC Simulator: Upload PLC Program field not found - link injection skipped');
+            return;
+        }
+
+        console.log('Found uploadProgramField, checking if already injected...');
+
+        // Check if link already injected
+        if (uploadProgramContainer.querySelector('.plc-upload-program-link')) {
+            console.log('Upload program link already injected, skipping');
+            return;
+        }
+
+        console.log('No existing link found, proceeding with injection...');
+
+        // Get the upload page URL from the field or use default
+        const baseUrl = window.location.origin;
+        const uploadPageUrl = uploadProgramField.value || '/res/plcsimulator/simple-upload.html';
+        const fullUploadUrl = uploadPageUrl.startsWith('http') ? uploadPageUrl : `${baseUrl}${uploadPageUrl}`;
+
+        console.log('Upload page URL:', fullUploadUrl);
+
+        // Create clickable button container
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'plc-upload-program-link';
+        buttonContainer.style.cssText = 'margin-bottom: 16px; padding: 16px; background: linear-gradient(135deg, #e7f3ff 0%, #f0f9ff 100%); border: 2px solid #0066cc; border-radius: 8px; box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);';
+
+        // Create the clickable button
+        const uploadButton = document.createElement('a');
+        uploadButton.href = fullUploadUrl;
+        uploadButton.target = '_blank';
+        uploadButton.style.cssText = `
+            display: inline-block;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+            border: none;
+            cursor: pointer;
+        `;
+        uploadButton.innerHTML = '📤 Open File Upload Page ↗';
+
+        // Enhanced hover effects
+        uploadButton.addEventListener('mouseover', function() {
+            this.style.background = 'linear-gradient(135deg, #0052a3 0%, #003d7a 100%)';
+            this.style.boxShadow = '0 6px 16px rgba(0, 102, 204, 0.4)';
+            this.style.transform = 'translateY(-2px)';
+        });
+        uploadButton.addEventListener('mouseout', function() {
+            this.style.background = 'linear-gradient(135deg, #0066cc 0%, #0052a3 100%)';
+            this.style.boxShadow = '0 4px 12px rgba(0, 102, 204, 0.3)';
+            this.style.transform = 'translateY(0)';
+        });
+
+        // Help text with instructions
+        const helpText = document.createElement('div');
+        helpText.style.cssText = 'margin-top: 12px; font-size: 14px; color: #334155; line-height: 1.6;';
+        helpText.innerHTML = `
+            <strong style="color: #0066cc;">Click the button above to:</strong>
+            <ul style="margin: 8px 0 0 20px; color: #475569;">
+                <li>Upload your Rockwell L5K file using drag-and-drop interface</li>
+                <li>File is automatically saved and loaded into this device</li>
+                <li>Return here and save the device configuration to persist changes</li>
+            </ul>
+        `;
+
+        // Add URL reference with copy functionality
+        const urlSection = document.createElement('div');
+        urlSection.style.cssText = 'margin-top: 12px; padding: 10px; background: white; border-radius: 6px; border: 1px solid #cbd5e1;';
+
+        const urlLabel = document.createElement('div');
+        urlLabel.style.cssText = 'font-size: 12px; color: #64748b; margin-bottom: 6px; font-weight: 500;';
+        urlLabel.textContent = 'Direct URL:';
+
+        const urlDisplay = document.createElement('div');
+        urlDisplay.style.cssText = 'display: flex; align-items: center; gap: 8px;';
+
+        const urlCode = document.createElement('code');
+        urlCode.style.cssText = 'flex: 1; background: #1e293b; color: #60a5fa; padding: 8px 12px; border-radius: 4px; font-size: 12px; font-family: "Courier New", monospace; overflow-x: auto; white-space: nowrap;';
+        urlCode.textContent = fullUploadUrl;
+
+        const copyButton = document.createElement('button');
+        copyButton.type = 'button';
+        copyButton.textContent = '📋 Copy';
+        copyButton.style.cssText = 'padding: 6px 14px; background: #475569; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; white-space: nowrap;';
+
+        copyButton.addEventListener('mouseover', function() {
+            this.style.background = '#64748b';
+        });
+        copyButton.addEventListener('mouseout', function() {
+            if (this.textContent === '📋 Copy') {
+                this.style.background = '#475569';
+            }
+        });
+
+        copyButton.onclick = function(e) {
+            e.preventDefault();
+            navigator.clipboard.writeText(fullUploadUrl).then(() => {
+                this.textContent = '✅ Copied!';
+                this.style.background = '#10b981';
+                setTimeout(() => {
+                    this.textContent = '📋 Copy';
+                    this.style.background = '#475569';
+                }, 2000);
+            }).catch(err => {
+                console.error('Copy failed:', err);
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = fullUploadUrl;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    this.textContent = '✅ Copied!';
+                    this.style.background = '#10b981';
+                    setTimeout(() => {
+                        this.textContent = '📋 Copy';
+                        this.style.background = '#475569';
+                    }, 2000);
+                } catch (e) {
+                    console.error('Fallback copy failed:', e);
+                }
+                document.body.removeChild(textarea);
+            });
+        };
+
+        urlDisplay.appendChild(urlCode);
+        urlDisplay.appendChild(copyButton);
+        urlSection.appendChild(urlLabel);
+        urlSection.appendChild(urlDisplay);
+
+        // Assemble the button container
+        buttonContainer.appendChild(uploadButton);
+        buttonContainer.appendChild(helpText);
+        buttonContainer.appendChild(urlSection);
+
+        console.log('Button container created, inserting into DOM...');
+
+        // Insert the button above the input field
+        try {
+            uploadProgramContainer.insertBefore(buttonContainer, uploadProgramField);
+            console.log('Button container inserted successfully');
+        } catch (e) {
+            console.error('Failed to insert button container:', e);
+            return;
+        }
+
+        // Hide the original input field since we now have a nice button
+        uploadProgramField.style.display = 'none';
+        console.log('Original input field hidden');
+
+        // Also hide the description text if it exists
+        const description = uploadProgramContainer.querySelector('.field-description, .help-text, p, small');
+        if (description && description.textContent.includes('Upload your Rockwell L5K file')) {
+            description.style.display = 'none';
+            console.log('Description text hidden');
+        }
+
+        console.log('=== PLC Simulator: Upload PLC Program link injected successfully! ===');
     }
 
     function injectProgramManagerLink() {
