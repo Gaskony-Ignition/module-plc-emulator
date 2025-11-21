@@ -30,12 +30,25 @@
         initFileUpload();
     }
 
+    let uploadLinkRetries = 0;
+    const MAX_UPLOAD_LINK_RETRIES = 10;
+
     function initFileUpload() {
         console.log('=== initFileUpload() called ===');
 
         // First, inject clickable link for "Upload PLC Program" field
         console.log('Attempting to inject Upload PLC Program clickable link...');
-        injectUploadProgramLink();
+        const linkInjected = injectUploadProgramLink();
+
+        // Retry if failed and haven't exceeded retries
+        if (!linkInjected && uploadLinkRetries < MAX_UPLOAD_LINK_RETRIES) {
+            uploadLinkRetries++;
+            console.log(`Upload link injection failed, retry ${uploadLinkRetries}/${MAX_UPLOAD_LINK_RETRIES} in 500ms...`);
+            setTimeout(() => {
+                window.plcSimulatorUploadInjected = false; // Reset flag to allow retry
+                injectUploadProgramLink();
+            }, 500);
+        }
 
         // Then, inject the prominent upload page button
         console.log('Attempting to inject Upload Page button...');
@@ -85,20 +98,46 @@
 
         for (const label of labels) {
             const labelText = label.textContent.trim();
-            console.log('Checking label:', labelText.substring(0, 50));
+            console.log('Checking label:', labelText.substring(0, 60));
 
-            // Match "Upload PLC Program" or the emoji
-            if (labelText.includes('Upload PLC Program') || labelText.includes('📁 Upload PLC Program')) {
+            // Match "Upload PLC Program" or the emoji (more flexible matching)
+            if (labelText.includes('Upload PLC Program') ||
+                labelText.includes('Upload PLC') ||
+                labelText.includes('📁')) {
                 console.log('FOUND matching label:', labelText);
-                uploadProgramContainer = label.closest('.form-group, .field-container, div');
+
+                // Try multiple container search strategies
+                uploadProgramContainer = label.closest('.form-group') ||
+                                        label.closest('.field-container') ||
+                                        label.closest('div[class*="form"]') ||
+                                        label.closest('div[class*="field"]') ||
+                                        label.parentElement;
                 console.log('Container found:', !!uploadProgramContainer);
 
                 if (uploadProgramContainer) {
-                    uploadProgramField = uploadProgramContainer.querySelector('input[type="text"]');
+                    // Try multiple input search strategies
+                    uploadProgramField = uploadProgramContainer.querySelector('input[type="text"]') ||
+                                        uploadProgramContainer.querySelector('input:not([type])') ||
+                                        uploadProgramContainer.querySelector('input');
                     console.log('Input field found:', !!uploadProgramField);
                     if (uploadProgramField) {
                         console.log('Input field value:', uploadProgramField.value);
+                        console.log('Input field type:', uploadProgramField.type);
                         break;
+                    } else {
+                        console.log('No input found in container, trying next sibling...');
+                        // Check next sibling
+                        let sibling = label.nextElementSibling;
+                        while (sibling && !uploadProgramField) {
+                            if (sibling.tagName === 'INPUT') {
+                                uploadProgramField = sibling;
+                                uploadProgramContainer = sibling.parentElement;
+                                console.log('Found input as next sibling');
+                                break;
+                            }
+                            sibling = sibling.nextElementSibling;
+                        }
+                        if (uploadProgramField) break;
                     }
                 }
             }
@@ -106,7 +145,7 @@
 
         if (!uploadProgramField || !uploadProgramContainer) {
             console.log('PLC Simulator: Upload PLC Program field not found - link injection skipped');
-            return;
+            return false;
         }
 
         console.log('Found uploadProgramField, checking if already injected...');
@@ -114,7 +153,7 @@
         // Check if link already injected
         if (uploadProgramContainer.querySelector('.plc-upload-program-link')) {
             console.log('Upload program link already injected, skipping');
-            return;
+            return true;
         }
 
         console.log('No existing link found, proceeding with injection...');
@@ -255,7 +294,7 @@
             console.log('Button container inserted successfully');
         } catch (e) {
             console.error('Failed to insert button container:', e);
-            return;
+            return false;
         }
 
         // Hide the original input field since we now have a nice button
@@ -270,6 +309,7 @@
         }
 
         console.log('=== PLC Simulator: Upload PLC Program link injected successfully! ===');
+        return true;
     }
 
     function injectProgramManagerLink() {
