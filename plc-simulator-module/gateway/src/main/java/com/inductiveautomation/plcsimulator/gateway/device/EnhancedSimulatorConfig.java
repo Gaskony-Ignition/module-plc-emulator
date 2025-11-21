@@ -110,7 +110,7 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormCategory("PARSER")
         @Label("📁 Upload PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("Click to open the PLC file upload page. Upload your Rockwell L5K file there. The file is automatically saved and loaded into this device. After uploading, save this device configuration to persist the filename.")
+        @Description("Upload your Rockwell L5K file: <a href='/res/plcsimulator/simple-upload.html' target='_blank' style='color: #0066cc; text-decoration: underline;'>Click here to open the upload page</a>. The file is automatically saved and loaded into this device. After uploading, save this device configuration to persist the filename.")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
 
@@ -143,13 +143,14 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * Simulation settings.
+     * NOTE: Simulation features are still in development and not fully tested.
      */
     public record SimulationSettings(
         @FormCategory("SIMULATION")
         @Label("Enable Simulation")
         @FormField(FormFieldType.CHECKBOX)
-        @Description("Enable dynamic value simulation for tags")
-        @DefaultValue("true")
+        @Description("⚠️ EXPERIMENTAL: Enable dynamic value simulation for tags. This feature is still in development and not fully tested. Disable this to allow manual tag value changes.")
+        @DefaultValue("false")
         boolean enabled,
 
         @FormCategory("SIMULATION")
