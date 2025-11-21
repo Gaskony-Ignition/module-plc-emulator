@@ -55,6 +55,9 @@ public class AddressSpaceBuilder {
     // Helper to generate unique node IDs
     private final Map<String, Integer> nodeIdCounter = new HashMap<>();
 
+    // ThreadLocal to prevent infinite recursion in synchronized writes
+    private static final ThreadLocal<NodeId> currentlyWritingNode = new ThreadLocal<>();
+
     /**
      * Creates a new address space builder.
      *
@@ -506,14 +509,25 @@ public class AddressSpaceBuilder {
     /**
      * Enable synchronized writes for a pair of duplicate nodes (long path + short path).
      * When either node is written to, both nodes are updated to keep them in sync.
+     * Uses ThreadLocal to prevent infinite recursion.
      */
     private void enableSynchronizedWrites(UaVariableNode node1, UaVariableNode node2) {
         node1.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    node1.setValue(value);
-                    node2.setValue(value);
-                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
+                    // Prevent recursion: only update the other node if we're not already in a write operation
+                    NodeId currentlyWriting = currentlyWritingNode.get();
+                    if (currentlyWriting == null) {
+                        currentlyWritingNode.set(node1.getNodeId());
+                        try {
+                            // Update the synchronized node
+                            node2.setValue(value);
+                        } finally {
+                            currentlyWritingNode.remove();
+                        }
+                    }
+                    // Complete this node's write
+                    ctx.setAttribute(AttributeId.Value, value);
                 }
             )
         );
@@ -521,9 +535,19 @@ public class AddressSpaceBuilder {
         node2.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    node1.setValue(value);
-                    node2.setValue(value);
-                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
+                    // Prevent recursion: only update the other node if we're not already in a write operation
+                    NodeId currentlyWriting = currentlyWritingNode.get();
+                    if (currentlyWriting == null) {
+                        currentlyWritingNode.set(node2.getNodeId());
+                        try {
+                            // Update the synchronized node
+                            node1.setValue(value);
+                        } finally {
+                            currentlyWritingNode.remove();
+                        }
+                    }
+                    // Complete this node's write
+                    ctx.setAttribute(AttributeId.Value, value);
                 }
             )
         );
