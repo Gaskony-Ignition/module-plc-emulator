@@ -8,6 +8,7 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaObjectNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.filters.AttributeFilters;
 import org.eclipse.milo.opcua.stack.core.NodeIds;
 import org.eclipse.milo.opcua.stack.core.OpcUaDataType;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -235,14 +236,15 @@ public class AddressSpaceBuilder {
                     JsonObject member = memberElement.getAsJsonObject();
 
                     // Create the member in the main UDT object
-                    DataValue sharedDataValue = addUdtMember(member, udtObject, context, udtNodeId, tagName);
+                    UaVariableNode longPathMember = addUdtMember(member, udtObject, context, udtNodeId, tagName);
 
-                    // Also add member to the short path object if it exists, sharing the same DataValue
-                    if (shortPathObject != null && sharedDataValue != null) {
+                    // Also add member to the short path object if it exists, with synchronized writes
+                    if (shortPathObject != null && longPathMember != null) {
                         // Create duplicate member with short NodeId path
                         String memberName = member.get("name").getAsString();
                         String memberDataType = member.get("data_type").getAsString();
                         OpcUaDataType opcType = mapDataType(memberDataType);
+                        Object initialValue = getInitialValue(member, memberDataType);
 
                         // Short NodeId: just "Motor1.ENABLE" instead of "Controller:Global.Motor1.ENABLE"
                         String shortMemberNodeId = tagName + "." + memberName;
@@ -258,13 +260,16 @@ public class AddressSpaceBuilder {
                                 .build()
                         );
 
-                        // CRITICAL: Share the same DataValue object
-                        shortMemberVariable.setValue(sharedDataValue);
+                        // Set same initial value
+                        shortMemberVariable.setValue(new DataValue(new Variant(initialValue)));
+
+                        // Enable synchronized writes between both nodes
+                        enableSynchronizedWrites(longPathMember, shortMemberVariable);
 
                         nodeAdder.accept(shortMemberVariable);
                         shortPathObject.addComponent(shortMemberVariable);
 
-                        logger.trace("Created duplicate UDT member with short NodeId: {}", shortMemberNodeId);
+                        logger.trace("Created duplicate UDT member with synchronized writes: {}", shortMemberNodeId);
                     }
                 }
 
@@ -312,16 +317,16 @@ public class AddressSpaceBuilder {
     /**
      * Adds a UDT member variable as a child of a UDT Object node.
      * Uses DOT notation in NodeId and simple BrowseName to match real Rockwell PLC behavior.
-     * Returns the DataValue object for sharing between duplicate nodes.
+     * Returns the created variable node so it can be synchronized with duplicate nodes.
      *
      * @param member Member tag data
      * @param udtObject Parent UDT Object node
      * @param context Device context
      * @param udtNodeId NodeId of parent UDT (e.g., "Controller:Global.Motor1")
      * @param udtName Name of parent UDT (e.g., "Motor1") for logging
-     * @return The DataValue object created for this member (for sharing with duplicate nodes)
+     * @return The UaVariableNode created for this member (for synchronizing with duplicate nodes)
      */
-    private DataValue addUdtMember(
+    private UaVariableNode addUdtMember(
         JsonObject member,
         UaObjectNode udtObject,
         NodeContext context,
@@ -367,6 +372,9 @@ public class AddressSpaceBuilder {
         DataValue dataValue = new DataValue(new Variant(initialValue));
         memberVariable.setValue(dataValue);
 
+        // Note: Write handling is configured later via enableSynchronizedWrites()
+        // to coordinate updates with duplicate short-path nodes
+
         // Add to node manager
         nodeAdder.accept(memberVariable);
 
@@ -376,7 +384,7 @@ public class AddressSpaceBuilder {
         logger.trace("Created UDT member: {}.{} (NodeId={}, Type={})",
             udtName, memberName, memberNodeId, dataType);
 
-        return dataValue;  // Return for sharing with duplicate nodes
+        return memberVariable;  // Return for synchronizing with duplicate nodes
     }
 
     /**
@@ -448,12 +456,18 @@ public class AddressSpaceBuilder {
                     .build()
             );
 
-            // Share the same DataValue object so both nodes update together
-            shortPathVariable.setValue(dataValue);
+            // Set same initial value
+            shortPathVariable.setValue(new DataValue(new Variant(initialValue)));
+
+            // Enable synchronized writes between both nodes
+            enableSynchronizedWrites(variableNode, shortPathVariable);
 
             nodeAdder.accept(shortPathVariable);
             rootNode.addOrganizes(shortPathVariable);
-            logger.debug("Created duplicate atomic tag '{}' with short NodeId at device root", tagName);
+            logger.debug("Created duplicate atomic tag '{}' with synchronized writes at device root", tagName);
+        } else {
+            // For non-duplicated tags (e.g., program tags), enable regular writes
+            enableWrites(variableNode);
         }
 
         logger.debug("Created atomic variable: {} ({})", tagName, dataType);
@@ -470,6 +484,44 @@ public class AddressSpaceBuilder {
             context.nodeId(path),  // Keep slash notation for folders
             context.qualifiedName(displayName),
             new LocalizedText(displayName)
+        );
+    }
+
+    /**
+     * Enable write operations for a variable node.
+     * Adds a filter to handle incoming OPC-UA write requests.
+     */
+    private void enableWrites(UaVariableNode variableNode) {
+        variableNode.getFilterChain().addLast(
+            AttributeFilters.setValue(
+                (ctx, value) -> {
+                    variableNode.setValue(value);
+                }
+            )
+        );
+    }
+
+    /**
+     * Enable synchronized writes for a pair of duplicate nodes (long path + short path).
+     * When either node is written to, both nodes are updated to keep them in sync.
+     */
+    private void enableSynchronizedWrites(UaVariableNode node1, UaVariableNode node2) {
+        node1.getFilterChain().addLast(
+            AttributeFilters.setValue(
+                (ctx, value) -> {
+                    node1.setValue(value);
+                    node2.setValue(value);
+                }
+            )
+        );
+
+        node2.getFilterChain().addLast(
+            AttributeFilters.setValue(
+                (ctx, value) -> {
+                    node1.setValue(value);
+                    node2.setValue(value);
+                }
+            )
         );
     }
 

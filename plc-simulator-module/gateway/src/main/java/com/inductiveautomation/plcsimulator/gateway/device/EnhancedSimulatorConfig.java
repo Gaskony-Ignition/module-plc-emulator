@@ -91,12 +91,11 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * General device settings.
+     * Note: The main device enabled/disabled state is handled by Ignition's device driver framework.
+     * This field is used for internal state tracking only.
      */
     public record General(
-        @FormCategory("GENERAL")
-        @Label("Enabled")
-        @FormField(FormFieldType.CHECKBOX)
-        @Description("Enable or disable this device")
+        // Internal field - not displayed in form UI (Ignition provides this automatically)
         @DefaultValue("true")
         boolean enabled
     ) {}
@@ -104,34 +103,19 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
     /**
      * Parser and file settings.
      *
-     * HOW TO UPLOAD FILES:
-     * 1. Go to Gateway Home → Click "PLC Simulator" in the left menu
-     * 2. Upload your Rockwell L5K file
-     * 3. The file is automatically saved and loaded
-     *
-     * NOTE: Only Rockwell L5K (.l5k) files are currently supported.
-     * Other formats are reserved for future development.
+     * Upload PLC files using the file upload interface accessed via the link below.
+     * Files are automatically saved to the Gateway and loaded by the device.
      */
     public record ParserSettings(
         @FormCategory("PARSER")
-        @Label("📁 Manage PLC Program")
+        @Label("📁 Upload PLC Program")
         @FormField(FormFieldType.TEXT)
-        @Description("A clickable button will appear above when the page loads. Click 'Open Program Manager' to upload Rockwell L5K files. The field below shows the full URL including your gateway address (e.g., http://gateway:8088/res/plcsimulator/simple-upload.html). You can click the field to select and copy the URL, or use the 'Copy' button.")
+        @Description("Click to open the PLC file upload page. Upload your Rockwell L5K file there. The file is automatically saved and loaded into this device. After uploading, save this device configuration to persist the filename.")
         @DefaultValue("/res/plcsimulator/simple-upload.html")
         String programManagerUrl,
 
-        @FormCategory("PARSER")
-        @Label("File Name")
-        @FormField(FormFieldType.TEXT)
-        @Description("Name of your Rockwell L5K file (e.g., 'program.l5k'). This is automatically set when you upload via the Program Manager.")
-        @DefaultValue("")
+        // Internal fields - stored but not displayed in form
         String fileName,
-
-        @FormCategory("PARSER")
-        @Label("File Content")
-        @FormField(FormFieldType.TEXTAREA)
-        @Description("File content is automatically loaded from disk. You typically don't need to edit this field.")
-        @DefaultValue("")
         String fileContent,
 
         @FormCategory("PARSER")
