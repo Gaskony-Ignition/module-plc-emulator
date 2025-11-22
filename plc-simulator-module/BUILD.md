@@ -6,8 +6,6 @@ This document describes how to build and package the PLC Simulator module for di
 ## Prerequisites
 - Java 17 JDK
 - Gradle 7.x or higher (wrapper included)
-- Python 3.x (for parser development)
-- PyInstaller (for rebuilding parser executable)
 
 ## Building the Module
 
@@ -29,9 +27,8 @@ build/PLCSimulator-1.0.0.unsigned.modl
 The build process:
 1. Compiles Java source code (Gateway, Designer, Common scopes)
 2. Packages compiled classes into JARs
-3. Embeds the Python parser executable (12MB)
-4. Assembles everything into a .modl file
-5. Signs the module with self-signed certificate (skipModlSigning=false)
+3. Assembles everything into a .modl file
+4. Signs the module with self-signed certificate (skipModlSigning=false)
 
 ### Build Output
 - **Signed module**: `build/PLCSimulator-1.0.0.modl` (~12MB) - **Use this for installation**
@@ -93,46 +90,27 @@ Alternatively, submit to Inductive Automation for official signing:
 2. Submit to Inductive Automation for Exchange distribution
 3. They will re-sign with their official certificate
 
-## Rebuilding the Python Parser
-
-The embedded parser executable is pre-built and included in `gateway/src/main/resources/bin/plc-parser-service`.
-
-To rebuild the parser executable:
-
-```bash
-cd python-parser
-
-# Install dependencies
-pip install -r requirements.txt
-pip install pyinstaller
-
-# Build executable
-pyinstaller --onefile \
-    --name plc-parser-service \
-    --add-data "../plc-simulator-refactored:plc_simulator" \
-    parser_service.py
-
-# Copy to resources
-cp dist/plc-parser-service \
-    ../gateway/src/main/resources/bin/
-```
-
-**Note**: The executable must be rebuilt for each target platform (Linux, Windows, macOS).
-
 ## Module Structure
 
 ```
-PLCSimulator-1.0.0.unsigned.modl (ZIP archive)
+EnhancedPLCSimulator-5.4.9.modl (ZIP archive)
 ├── module.xml                    # Module metadata
 ├── gateway.jar                   # Gateway scope code
 │   ├── com/inductiveautomation/plcsimulator/gateway/
-│   │   ├── GatewayHook.class
-│   │   ├── PLCTagManager.class
-│   │   ├── SimulationEngine.class
-│   │   ├── ParserService.class
-│   │   └── ...
-│   └── bin/
-│       └── plc-parser-service    # Embedded Python parser (12MB)
+│   │   ├── SimulatorModuleHook.class
+│   │   ├── EnhancedSimulatorDevice.class
+│   │   ├── parser/
+│   │   │   ├── L5KParser.class
+│   │   │   ├── L5XParser.class (with XXE protection)
+│   │   │   ├── JsonPLCParser.class
+│   │   │   ├── CsvParser.class
+│   │   │   └── ParserFactory.class
+│   │   └── web/
+│   │       └── FileUploadRoutes.class
+│   └── mounted/                  # Web UI resources
+│       ├── index.html
+│       ├── edit-program.html
+│       └── plc-file-upload.js
 ├── designer.jar                  # Designer scope code
 └── common.jar                    # Common scope code
 ```
@@ -168,16 +146,16 @@ java -version  # Should show version 17
 export JAVA_HOME=/path/to/java17
 ```
 
-### Module Won't Load - "Parser service failed to start"
-Check that the parser executable has execute permissions:
+### Module Won't Load - Check Logs
+Check Gateway logs for specific errors:
 ```bash
-chmod +x gateway/src/main/resources/bin/plc-parser-service
+tail -f /usr/local/ignition/logs/wrapper.log
 ```
 
-### Module Size Too Large
-The 12MB size is primarily due to the embedded Python parser. This is intentional for self-contained operation. If size is critical:
-- Consider using an external parser service
-- Remove unused dependencies from parser requirements
+Common issues:
+- Java version mismatch (requires Java 17)
+- Missing dependencies
+- Invalid module signature
 
 ### Signing Issues
 If using self-signed certificates and Ignition rejects the module:

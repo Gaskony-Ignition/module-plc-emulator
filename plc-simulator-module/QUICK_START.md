@@ -169,10 +169,12 @@ After uploading a file:
 ## Need Help?
 
 **Documentation:**
-- `FILE_UPLOAD_GUIDE.md` - Detailed file upload documentation
-- `EDIT_PROGRAM_GUIDE.md` - Edit Program workflow
 - `README.md` - Module overview
+- `docs/ARCHITECTURE.md` - Technical architecture
+- `docs/SECURITY.md` - Security best practices
+- `docs/TAG_CREATION_FLOW.md` - How tags are created from files
 - `KNOWN_ISSUES.md` - Known limitations
+- `CHANGELOG.md` - Version history
 
 **Forum:**
 - Inductive Automation Forum - Exchange section
@@ -184,7 +186,7 @@ After uploading a file:
 
 ## Version
 
-**Module Version:** 2.0.5
-**Release Date:** 2025-11-11
+**Module Version:** 5.4.9
+**Release Date:** 2025-11-22
 **Ignition Compatibility:** 8.3.0+
-**Major Release:** v2.0.0 - Production ready with Java parsers and automatic file upload
+**Major Release:** v5.4.9 - Security hardened with comprehensive test coverage

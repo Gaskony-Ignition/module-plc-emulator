@@ -4,8 +4,8 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v3.0.0 🎯
-**Status**: ✅ Production Ready - COMPREHENSIVE COVERAGE
+**Version**: v5.4.9 🔒
+**Status**: ✅ Production Ready - Security Hardened & Fully Tested
 
 ### Supported PLC Formats
 
@@ -26,7 +26,22 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 - 🔮 Beckhoff TwinCAT (XML)
 - 🔮 Generic JSON format
 
-### What's New in v3.0.0 🎯
+### What's New in v5.4.9 🔒 (Latest - Security & Quality Update)
+- ✅ **CRITICAL SECURITY FIXES** - All vulnerabilities resolved
+  - ✅ XXE (XML External Entity) attack prevention - L5XParser hardened with 6 security features
+  - ✅ Authentication bypass fixed - Proper SecurityContext validation (no more 1-second fallback!)
+  - ✅ Path traversal protection - Filename and device name sanitization with canonical path validation
+  - ✅ Hardcoded credentials removed - Environment variable support for module signing
+  - ✅ File size DoS prevention - Content-Length validation and streaming read enforcement
+- ✅ **COMPREHENSIVE TEST COVERAGE** - 40 tests (100% passing)
+  - 12 L5XParser tests including XXE prevention
+  - 10 FileValidator tests for file validation
+  - 18 FileUploadRoutesSecurityTest for security validation
+- ✅ **CI/CD AUTOMATION** - GitHub Actions pipeline with automated testing and security scanning
+- ✅ **DEPENDENCIES UPDATED** - Gson 2.11.0, Modl plugin 0.5.0
+- ✅ **DOCUMENTATION ENHANCED** - ARCHITECTURE.md, SECURITY.md, comprehensive testing docs
+
+### What's New in v3.0.0 (Historic - Comprehensive Type Support)
 - ✅ **COMPREHENSIVE Type Support** - ALL 22 Rockwell predefined types expand correctly!
   - Process Control: PID (14 members), PIDE (30 members), ALARM_ANALOG (26 members), ALARM_DIGITAL (18 members)
   - Motion: AXIS_CIP_DRIVE (24 key members), AXIS_VIRTUAL, AXIS_SERVO_DRIVE, MOTION_GROUP, CAM, CAM_PROFILE
@@ -117,12 +132,15 @@ See [EDIT_PROGRAM_GUIDE.md](EDIT_PROGRAM_GUIDE.md) for detailed instructions.
 
 ## Documentation
 
+- **[QUICK_START.md](QUICK_START.md)** - Quick start guide for users
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Technical architecture and design (NEW in v5.4.9)
+- **[SECURITY.md](SECURITY.md)** - Security best practices and credential management (NEW in v5.4.9)
 - **[BUILD.md](BUILD.md)** - Building and packaging the module
 - **[SIGNING.md](SIGNING.md)** - Module signing configuration
-- **[TESTING.md](TESTING.md)** - Testing checklist for validation
+- **[TESTING.md](TESTING.md)** - Testing procedures and validation
 - **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** - Current limitations and known problems
-- **[CHANGELOG.md](CHANGELOG.md)** - Version history and changes
-- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development workflow and architecture
+- **[CHANGELOG.md](CHANGELOG.md)** - Complete version history and changes
+- **[DEVELOPMENT.md](DEVELOPMENT.md)** - Development workflow and guidelines
 
 ## Version History
 

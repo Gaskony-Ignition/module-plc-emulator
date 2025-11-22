@@ -7,6 +7,7 @@ import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.AbstractDeviceModuleHook;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceExtensionPoint;
+import com.inductiveautomation.ignition.gateway.web.systemjs.SystemJsModule;
 import com.inductiveautomation.plcsimulator.gateway.device.EnhancedSimulatorExtensionPoint;
 import com.inductiveautomation.plcsimulator.gateway.web.FileUploadRoutes;
 import org.slf4j.Logger;
@@ -28,7 +29,6 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private GatewayContext context;
-    private ParserService parserService;
 
     // Device registry for file upload routes to access devices
     private static final Map<String, EnhancedSimulatorDevice> deviceRegistry = new ConcurrentHashMap<>();
@@ -37,6 +37,29 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     public void setup(GatewayContext context) {
         this.context = context;
         logger.info("Enhanced PLC Simulator module setup - GatewayContext initialized: {}", (context != null));
+
+        // Register WebUI component for file upload page
+        try {
+            // Create SystemJsModule that points to our bundled React component
+            SystemJsModule plcUploadModule = new SystemJsModule(
+                "com.inductiveautomation.plcsimulator.PLCUpload",
+                "/res/plcsimulator/plcUpload.js"
+            );
+
+            // Add navigation menu item in the Connections section
+            context.getWebResourceManager().getNavigationModel().getConnections()
+                .addCategory("plcsimulator", cat -> cat
+                    .label("PLC Simulator")
+                    .addPage("File Upload", page -> page
+                        .position(10)
+                        .mount("/plc-file-upload", "PLCUpload", plcUploadModule)
+                    )
+                );
+
+            logger.info("Added 'PLC Simulator > File Upload' menu item to Gateway Config (React WebUI component)");
+        } catch (Exception e) {
+            logger.error("Failed to add WebUI navigation menu item", e);
+        }
     }
 
     @Override
@@ -51,34 +74,12 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         );
         logger.info("Registered EnhancedSimulator resource bundle");
 
-        // Start parser service (shared by all device instances)
-        // NOTE: Parser service is optional - devices will use built-in Java parsers if unavailable
-        try {
-            parserService = new ParserService(logger, "localhost", 5000);
-            parserService.start();
-            logger.info("Parser service started on localhost:5000");
-        } catch (Exception e) {
-            logger.warn("Parser service not available (Python executable not bundled). Devices will use built-in parsers.", e);
-            parserService = null;
-        }
-
-        logger.info("Enhanced PLC Simulator module started successfully");
+        logger.info("Enhanced PLC Simulator module started successfully (using built-in Java parsers)");
     }
 
     @Override
     public void shutdown() {
         logger.info("Enhanced PLC Simulator module shutting down");
-
-        // Stop parser service
-        if (parserService != null) {
-            try {
-                parserService.stop();
-                logger.info("Parser service stopped");
-            } catch (Exception e) {
-                logger.error("Error stopping parser service", e);
-            }
-        }
-
         logger.info("Enhanced PLC Simulator module shutdown complete");
     }
 
@@ -103,13 +104,6 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     @Override
     public boolean isFreeModule() {
         return true;
-    }
-
-    /**
-     * Get the parser service for use by devices.
-     */
-    public ParserService getParserService() {
-        return parserService;
     }
 
     /**
@@ -170,7 +164,14 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
 
     /**
      * Mount web resources from the "mounted" folder.
-     * This makes plc-file-upload.js and React app accessible at /res/plcsimulator/*
+     * Files in the mounted/ directory will be accessible at /res/plcsimulator/*
+     *
+     * IMPORTANT: Ignition automatically adds the /res/plcsimulator prefix based on
+     * getMountPathAlias(). Do NOT replicate this path structure in your filesystem.
+     *
+     * Example mapping:
+     *   Filesystem: gateway/src/main/resources/mounted/simple-upload.html
+     *   URL:        /res/plcsimulator/simple-upload.html
      */
     @Override
     public Optional<String> getMountedResourceFolder() {
@@ -179,16 +180,23 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
 
     /**
      * Return the mount path alias for web resources.
-     * Resources will be available at /res/plcsimulator/*
+     * This alias determines the URL prefix for BOTH resources and data routes.
      *
-     * This includes:
+     * Resources (from getMountedResourceFolder) will be accessible at:
+     *   /res/plcsimulator/*
+     *
+     * Data routes (from mountRouteHandlers) will be accessible at:
+     *   /data/plcsimulator/*
+     *
+     * Available resources:
      * - /res/plcsimulator/index.html - Landing page
+     * - /res/plcsimulator/simple-upload.html - Simple file upload UI
      * - /res/plcsimulator/edit-program.html - File upload UI (vanilla JS)
-     * - /res/plcsimulator/app - React application (advanced UI)
      * - /res/plcsimulator/plc-file-upload.js - Form enhancement script
      *
-     * NOTE: This alias is also used by Ignition to determine the data route base path.
-     * Data routes will be available at /data/plcsimulator/*
+     * NOTE: Resources at /res/* are served by Ignition's resource servlet and are
+     * publicly accessible (not subject to data route authentication).
+     * Data routes at /data/* use the authentication configured in mountRouteHandlers.
      */
     @Override
     public Optional<String> getMountPathAlias() {

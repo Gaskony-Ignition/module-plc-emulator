@@ -50,11 +50,18 @@ public class L5XParser implements PLCParser {
     @Override
     public JsonObject parseContent(String fileContent, String fileName) {
         try {
-            // Parse XML
+            // Parse XML with XXE protection
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);
             factory.setValidating(false);
+
+            // Disable all XXE (XML External Entity) features for security
             factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setXIncludeAware(false);
+            factory.setExpandEntityReferences(false);
 
             DocumentBuilder builder = factory.newDocumentBuilder();
             Document doc = builder.parse(new ByteArrayInputStream(fileContent.getBytes()));

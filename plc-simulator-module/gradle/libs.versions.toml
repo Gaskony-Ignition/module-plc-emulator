@@ -1,6 +1,6 @@
 [versions]
 ignition = "8.3.0"
-gson = "2.10.1"
+gson = "2.11.0"
 
 [libraries]
 ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
