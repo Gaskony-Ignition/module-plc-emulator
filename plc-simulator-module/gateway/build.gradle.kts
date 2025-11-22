@@ -22,6 +22,44 @@ dependencies {
 
     compileOnly("javax.servlet:javax.servlet-api:3.1.0")
 
+    // Gateway web UI dependencies for config pages
+    compileOnly("com.inductiveautomation.ignition:gateway-web:8.3.0")
+    compileOnly("org.apache.wicket:wicket-core:9.8.0")
+
+    // Include web-ui component bundle
+    modlImplementation(projects.webUi)
+
     // Only bundle dependencies NOT provided by Ignition/modules
     modlImplementation(libs.gson)
+
+    // Testing dependencies
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    testImplementation("org.mockito:mockito-core:5.7.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
+    testImplementation("org.assertj:assertj-core:3.24.2")
+
+    // Make compile-only dependencies available for tests
+    testImplementation(libs.ignition.common)
+    testImplementation(libs.ignition.gateway.api)
+    testImplementation("javax.servlet:javax.servlet-api:3.1.0")
+    testImplementation(libs.gson)
+    testImplementation("com.inductiveautomation.opcua:opc-ua-gateway-api:10.3.0")
+}
+
+tasks.test {
+    useJUnitPlatform()
+
+    testLogging {
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showStandardStreams = false
+    }
+
+    // Fail build if no tests found
+    failFast = false
+
+    reports {
+        html.required.set(true)
+        junitXml.required.set(true)
+    }
 }

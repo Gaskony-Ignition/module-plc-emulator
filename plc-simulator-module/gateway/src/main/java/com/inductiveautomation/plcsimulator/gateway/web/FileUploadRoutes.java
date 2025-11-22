@@ -106,6 +106,28 @@ public class FileUploadRoutes {
             logger.error("Failed to mount /health route", e);
         }
 
+        try {
+            logger.info("Mounting /auth/status route...");
+            routes.newRoute("/auth/status")
+                .handler(this::handleAuthStatus)
+                .accessControl(req -> RouteAccess.GRANTED)  // Public endpoint - returns auth status
+                .mount();
+            logger.info("✓ /auth/status route mounted (public)");
+        } catch (Exception e) {
+            logger.error("Failed to mount /auth/status route", e);
+        }
+
+        try {
+            logger.info("Mounting /page route (authenticated HTML page)...");
+            routes.newRoute("/page")
+                .handler(this::handleUploadPage)
+                .accessControl(this::checkAuthenticated)  // Requires authentication
+                .mount();
+            logger.info("✓ /page route mounted (requires authentication) - accessible at /data/plcsimulator/page");
+        } catch (Exception e) {
+            logger.error("Failed to mount /page route", e);
+        }
+
         logger.info("File upload routes mounting complete at /data/plcsimulator/");
     }
 
@@ -118,14 +140,52 @@ public class FileUploadRoutes {
         try {
             String deviceName = context.getRequest().getParameter("device");
 
-            // Read file content from request body - preserve original format including line endings
+            // SECURITY: Check Content-Length BEFORE reading to prevent DoS
+            long contentLength = context.getRequest().getContentLengthLong();
+            long maxSize = FileValidator.getMaxFileSizeMB() * 1024 * 1024; // Convert MB to bytes
+
+            if (contentLength > maxSize) {
+                response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+                result.put("success", false);
+                result.put("error", String.format(
+                    "File too large: %d MB exceeds maximum %d MB",
+                    contentLength / (1024 * 1024),
+                    FileValidator.getMaxFileSizeMB()
+                ));
+                logger.warn("Rejected oversized upload: {} bytes (max {} bytes)",
+                    contentLength, maxSize);
+                return result;
+            }
+
+            if (contentLength < 0) {
+                // Content-Length header not provided - will check during read
+                logger.debug("Content-Length not provided, will enforce limit during read");
+            }
+
+            // Read file content from request body with size enforcement
             String fileContent;
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(context.getRequest().getInputStream(), StandardCharsets.UTF_8))) {
                 StringBuilder content = new StringBuilder();
                 char[] buffer = new char[8192];
                 int charsRead;
+                long totalRead = 0;
+
                 while ((charsRead = reader.read(buffer)) != -1) {
+                    totalRead += charsRead;
+
+                    // Enforce limit during read (in case Content-Length was not provided)
+                    if (totalRead > maxSize) {
+                        response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+                        result.put("success", false);
+                        result.put("error", String.format(
+                            "File size exceeds maximum allowed: %d MB",
+                            FileValidator.getMaxFileSizeMB()
+                        ));
+                        logger.warn("Upload exceeded size limit during read: {} bytes", totalRead);
+                        return result;
+                    }
+
                     content.append(buffer, 0, charsRead);
                 }
                 fileContent = content.toString();
@@ -145,7 +205,7 @@ public class FileUploadRoutes {
 
             logger.info("Received file upload: {} ({} bytes)", filename, fileContent.length());
 
-            // Validate file content
+            // Validate file content (additional validation beyond size)
             FileValidator.ValidationResult validation = FileValidator.validateContent(fileContent, filename);
             if (!validation.isValid()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -290,6 +350,124 @@ public class FileUploadRoutes {
     }
 
     /**
+     * Handle authentication status check.
+     * Returns whether the current user is authenticated.
+     * This is a public endpoint so JavaScript can check auth status.
+     *
+     * IMPROVED: Instead of just checking session existence, we verify the session
+     * is valid by checking if the REQUEST would pass our authentication check.
+     */
+    private JSONObject handleAuthStatus(RequestContext context, HttpServletResponse response) throws JSONException {
+        JSONObject result = new JSONObject();
+
+        try {
+            // Use the ACTUAL checkAuthenticated logic to see if they're really authenticated
+            RouteAccess access = checkAuthenticated(context);
+            boolean isAuthenticated = (access == RouteAccess.GRANTED);
+
+            String username = "";
+            if (isAuthenticated) {
+                jakarta.servlet.http.HttpServletRequest httpRequest = context.getRequest();
+                // Try to get username from various sources
+                if (httpRequest.getRemoteUser() != null) {
+                    username = httpRequest.getRemoteUser();
+                } else if (httpRequest.getUserPrincipal() != null) {
+                    username = httpRequest.getUserPrincipal().getName();
+                } else {
+                    username = "gateway-user";
+                }
+                logger.debug("Auth status: authenticated, user: {}", username);
+            } else {
+                logger.debug("Auth status: not authenticated");
+            }
+
+            response.setStatus(HttpServletResponse.SC_OK);
+            result.put("authenticated", isAuthenticated);
+            result.put("username", username);
+            result.put("loginUrl", "/app/home");
+
+        } catch (Exception e) {
+            logger.error("Error checking auth status", e);
+            response.setStatus(HttpServletResponse.SC_OK);
+            result.put("authenticated", false);
+            result.put("username", "");
+            result.put("error", e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * Serve the upload HTML page with authentication.
+     * This replaces the public /res/plcsimulator/simple-upload.html resource.
+     * Accessible at /data/plcsimulator/page (requires Gateway login).
+     */
+    private Object handleUploadPage(RequestContext context, HttpServletResponse response) {
+        try {
+            // Read the HTML file from resources
+            String htmlContent = readResourceFile("/mounted/simple-upload.html");
+
+            if (htmlContent == null) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.setContentType("text/plain");
+                response.getWriter().write("Upload page not found");
+                return null;
+            }
+
+            // Update the HTML to work from this new path
+            // Replace API endpoint references to use correct paths
+            htmlContent = htmlContent
+                .replace("/data/plcsimulator/devices", "/data/plcsimulator/devices")
+                .replace("/data/plcsimulator/upload", "/data/plcsimulator/upload");
+
+            // Serve the HTML
+            response.setStatus(HttpServletResponse.SC_OK);
+            response.setContentType("text/html; charset=UTF-8");
+            response.setCharacterEncoding("UTF-8");
+            response.getWriter().write(htmlContent);
+
+            logger.debug("Served upload page to authenticated user");
+
+        } catch (Exception e) {
+            logger.error("Error serving upload page", e);
+            try {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                response.setContentType("text/plain");
+                response.getWriter().write("Error loading upload page: " + e.getMessage());
+            } catch (Exception ex) {
+                logger.error("Error writing error response", ex);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Read a resource file from the classpath.
+     */
+    private String readResourceFile(String resourcePath) {
+        try {
+            var inputStream = getClass().getResourceAsStream(resourcePath);
+            if (inputStream == null) {
+                logger.error("Resource not found: {}", resourcePath);
+                return null;
+            }
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line).append("\n");
+                }
+                return content.toString();
+            }
+        } catch (Exception e) {
+            logger.error("Error reading resource file: {}", resourcePath, e);
+            return null;
+        }
+    }
+
+    /**
      * Handle device status requests.
      */
     private JSONObject handleDeviceStatus(RequestContext requestContext, HttpServletResponse response) throws JSONException {
@@ -358,21 +536,21 @@ public class FileUploadRoutes {
 
                 // Fall back to old logic using config fileName
                 if (fileName != null && !fileName.isEmpty()) {
-                    File dataDir = context.getSystemManager().getDataDir();
-                    File storageDir = new File(dataDir, "plc-simulator");
+                    try {
+                        File dataDir = context.getSystemManager().getDataDir();
+                        File storageDir = new File(dataDir, "plc-simulator");
 
-                    // Try device-specific file first
-                    File deviceFile = new File(storageDir, deviceName + "_" + fileName);
-                    if (!deviceFile.exists()) {
-                        // Fall back to non-prefixed file
-                        deviceFile = new File(storageDir, fileName);
-                    }
+                        // Use secure path validation
+                        File deviceFile = validateFilePath(storageDir, deviceName, fileName);
 
-                    if (deviceFile.exists()) {
-                        hasFile = true;
-                        fileSize = deviceFile.length();
-                        lastModified = deviceFile.lastModified();
-                        filePath = deviceFile.getAbsolutePath();
+                        if (deviceFile.exists()) {
+                            hasFile = true;
+                            fileSize = deviceFile.length();
+                            lastModified = deviceFile.lastModified();
+                            filePath = deviceFile.getAbsolutePath();
+                        }
+                    } catch (SecurityException secEx) {
+                        logger.error("Invalid file path for device {}: {}", deviceName, secEx.getMessage());
                     }
                 }
             }
@@ -439,20 +617,17 @@ public class FileUploadRoutes {
                 return result;
             }
 
-            // Find and delete the file
+            // Find and delete the file with secure path validation
             File dataDir = context.getSystemManager().getDataDir();
             File storageDir = new File(dataDir, "plc-simulator");
 
-            // Try device-specific file first
-            File deviceFile = new File(storageDir, deviceName + "_" + fileName);
-            if (!deviceFile.exists()) {
-                // Fall back to non-prefixed file
-                deviceFile = new File(storageDir, fileName);
-            }
+            try {
+                // Use secure path validation to prevent directory traversal
+                File deviceFile = validateFilePath(storageDir, deviceName, fileName);
 
-            if (deviceFile.exists()) {
-                boolean deleted = deviceFile.delete();
-                if (deleted) {
+                if (deviceFile.exists()) {
+                    boolean deleted = deviceFile.delete();
+                    if (deleted) {
                     logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
 
                     response.setStatus(HttpServletResponse.SC_OK);
@@ -460,14 +635,20 @@ public class FileUploadRoutes {
                     result.put("message", "File deleted successfully");
                     result.put("fileName", fileName);
                 } else {
-                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                        result.put("success", false);
+                        result.put("error", "Failed to delete file");
+                    }
+                } else {
+                    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                     result.put("success", false);
-                    result.put("error", "Failed to delete file");
+                    result.put("error", "File not found on disk: " + fileName);
                 }
-            } else {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            } catch (SecurityException se) {
+                logger.error("Security violation: attempt to delete file outside allowed directory", se);
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 result.put("success", false);
-                result.put("error", "File not found on disk: " + fileName);
+                result.put("error", "Invalid file path");
             }
 
             return result;
@@ -582,37 +763,192 @@ public class FileUploadRoutes {
 
     /**
      * Check if the user is authenticated.
-     * Note: In Ignition Gateway context, if the user has accessed /main/* routes,
-     * they are already authenticated. We'll allow access for simplicity.
+     * Uses Ignition's SecurityContext to verify proper authentication.
+     *
+     * SECURITY: This method implements proper authentication checking.
+     * It does NOT rely on session age or other insecure fallbacks.
      */
     private RouteAccess checkAuthenticated(RequestContext req) {
-        // Gateway web routes under /main/* require authentication by default
-        // Users accessing these routes are already authenticated via Ignition's gateway
-        // So we can grant access for any request that reaches this point
-        return RouteAccess.GRANTED;
+        try {
+            jakarta.servlet.http.HttpServletRequest httpRequest = req.getRequest();
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("Authentication check for URI: {}", httpRequest.getRequestURI());
+            }
+
+            // Method 1: Check for Ignition SecurityContext (preferred)
+            Object securityContext = httpRequest.getAttribute("com.inductiveautomation.ignition.gateway.security.SecurityContext");
+            if (securityContext != null) {
+                // Use reflection to check authentication (SecurityContext is internal API)
+                Class<?> secContextClass = securityContext.getClass();
+                try {
+                    java.lang.reflect.Method isAuthMethod = secContextClass.getMethod("isAuthenticated");
+                    Boolean isAuth = (Boolean) isAuthMethod.invoke(securityContext);
+
+                    if (Boolean.TRUE.equals(isAuth)) {
+                        logger.debug("Authentication granted via SecurityContext");
+                        return RouteAccess.GRANTED;
+                    } else {
+                        logger.debug("Authentication denied - not authenticated");
+                        return RouteAccess.UNAUTHORIZED;
+                    }
+                } catch (NoSuchMethodException e) {
+                    // Try alternate method: check for user object
+                    try {
+                        java.lang.reflect.Method getUserMethod = secContextClass.getMethod("getUser");
+                        Object user = getUserMethod.invoke(securityContext);
+
+                        if (user != null) {
+                            logger.debug("Authentication granted - user exists");
+                            return RouteAccess.GRANTED;
+                        }
+                    } catch (Exception getUserEx) {
+                        logger.warn("Could not determine authentication from SecurityContext", getUserEx);
+                    }
+                }
+            }
+
+            // Method 2: Check standard servlet authentication
+            String remoteUser = httpRequest.getRemoteUser();
+            java.security.Principal userPrincipal = httpRequest.getUserPrincipal();
+
+            if (remoteUser != null || userPrincipal != null) {
+                logger.debug("Authentication granted via servlet principal");
+                return RouteAccess.GRANTED;
+            }
+
+            // Method 3: Check session for authenticated user marker
+            jakarta.servlet.http.HttpSession session = httpRequest.getSession(false);
+            if (session != null) {
+                // Check for Ignition's authentication marker in session
+                Object authMarker = session.getAttribute("web-auth-request-collection");
+                if (authMarker != null) {
+                    try {
+                        // Check if authenticated via session attribute
+                        Class<?> collectionClass = authMarker.getClass();
+                        java.lang.reflect.Method isAuthMethod = collectionClass.getMethod("isAuthenticated");
+                        Boolean isAuth = (Boolean) isAuthMethod.invoke(authMarker);
+
+                        if (Boolean.TRUE.equals(isAuth)) {
+                            logger.debug("Authentication granted via session auth collection");
+                            return RouteAccess.GRANTED;
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Could not check session auth collection", e);
+                    }
+                }
+            }
+
+            // No authentication found
+            logger.debug("Authentication denied - no valid authentication found");
+            return RouteAccess.UNAUTHORIZED;
+
+        } catch (Exception e) {
+            logger.error("Error checking authentication", e);
+            // Fail closed - deny access on error
+            return RouteAccess.UNAUTHORIZED;
+        }
     }
 
     /**
      * Sanitize filename to prevent directory traversal attacks.
-     * Removes path separators and keeps only the filename.
+     * Removes path separators and keeps only safe characters.
+     *
+     * SECURITY: Prevents path traversal attacks like "../../../etc/passwd"
      */
     private String sanitizeFileName(String filename) {
         if (filename == null || filename.isEmpty()) {
-            return "uploaded_file.txt";
+            throw new IllegalArgumentException("File name cannot be empty");
         }
 
-        // Remove any path components
-        String sanitized = new File(filename).getName();
+        // Reject path traversal attempts
+        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
+            throw new SecurityException("Invalid filename: path traversal attempt detected");
+        }
 
-        // Remove any remaining suspicious characters
-        sanitized = sanitized.replaceAll("[^a-zA-Z0-9._-]", "_");
+        // Reject null bytes (null byte injection attack)
+        if (filename.contains("\0")) {
+            throw new SecurityException("Invalid filename: null byte detected");
+        }
 
-        // Ensure we have a valid filename
-        if (sanitized.isEmpty()) {
-            sanitized = "uploaded_file.txt";
+        // Enforce length limit (255 is typical filesystem limit)
+        if (filename.length() > 255) {
+            throw new SecurityException("Invalid filename: too long (max 255 characters)");
+        }
+
+        // Extract just the filename (remove any path components using Paths API)
+        String sanitized = java.nio.file.Paths.get(filename).getFileName().toString();
+
+        // Verify no path separators remain after extraction
+        if (sanitized.contains("/") || sanitized.contains("\\")) {
+            throw new SecurityException("Invalid filename: contains path separators");
         }
 
         return sanitized;
+    }
+
+    /**
+     * Sanitize device name to prevent directory traversal attacks.
+     * Only allows alphanumeric characters, underscores, and hyphens.
+     *
+     * SECURITY: Device names are used in file paths and must be strictly validated.
+     */
+    private String sanitizeDeviceName(String deviceName) {
+        if (deviceName == null || deviceName.isEmpty()) {
+            throw new IllegalArgumentException("Device name cannot be empty");
+        }
+
+        // Reject path traversal attempts
+        if (deviceName.contains("..") || deviceName.contains("/") ||
+            deviceName.contains("\\") || deviceName.contains("\0")) {
+            throw new SecurityException("Invalid device name: contains illegal characters");
+        }
+
+        // Only allow alphanumeric, underscore, hyphen
+        if (!deviceName.matches("^[a-zA-Z0-9_-]+$")) {
+            throw new SecurityException("Invalid device name: must contain only letters, numbers, underscores, and hyphens");
+        }
+
+        // Length limit
+        if (deviceName.length() > 100) {
+            throw new SecurityException("Invalid device name: too long (max 100 characters)");
+        }
+
+        return deviceName;
+    }
+
+    /**
+     * Validate that a file path is within the allowed storage directory.
+     * Prevents path traversal attacks by checking canonical paths.
+     *
+     * SECURITY: Critical check to prevent accessing files outside storage directory.
+     */
+    private File validateFilePath(File storageDir, String deviceName, String fileName) throws SecurityException {
+        try {
+            // Sanitize inputs
+            String safeDeviceName = sanitizeDeviceName(deviceName);
+            String safeFileName = sanitizeFileName(fileName);
+
+            // Construct file path
+            File deviceFile = new File(storageDir, safeDeviceName + "_" + safeFileName);
+
+            // Get canonical paths to resolve any symlinks or relative paths
+            String canonicalFilePath = deviceFile.getCanonicalPath();
+            String canonicalStorageDir = storageDir.getCanonicalPath();
+
+            // Verify the file is within the storage directory
+            if (!canonicalFilePath.startsWith(canonicalStorageDir + File.separator)) {
+                logger.error("Path traversal attempt detected: device={}, file={}, resolved={}",
+                    deviceName, fileName, canonicalFilePath);
+                throw new SecurityException("Invalid file path: outside storage directory");
+            }
+
+            return deviceFile;
+
+        } catch (java.io.IOException e) {
+            logger.error("Error validating file path", e);
+            throw new SecurityException("Invalid file path", e);
+        }
     }
 
     /**

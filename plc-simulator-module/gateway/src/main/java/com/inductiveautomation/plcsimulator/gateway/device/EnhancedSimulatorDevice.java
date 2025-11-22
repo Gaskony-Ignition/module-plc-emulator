@@ -7,7 +7,6 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.plcsimulator.gateway.FileVersionManager;
 import com.inductiveautomation.plcsimulator.gateway.FileWatcher;
 import com.inductiveautomation.plcsimulator.gateway.OpcUaSimulationEngine;
-import com.inductiveautomation.plcsimulator.gateway.ParserService;
 import com.inductiveautomation.plcsimulator.gateway.SimulatorModuleHook;
 import com.inductiveautomation.plcsimulator.gateway.parser.ParserFactory;
 import com.inductiveautomation.plcsimulator.gateway.parser.PLCParser;
@@ -368,100 +367,15 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     private JsonObject parseFile(String filePath) {
         try {
             EnhancedSimulatorConfig.ParserType parserType = config.parser().parserType();
-            String parserKey = parserType.getKey();
 
             logger.info("Parsing file: {} with parser: {}", filePath, parserType.getDisplayName());
 
-            // First, try to use parser service if available
-            JsonObject result = tryParserService(filePath, parserKey);
-            if (result != null) {
-                logger.info("File parsed successfully using parser service");
-                return result;
-            }
-
-            // Fallback to built-in parser
-            logger.warn("Parser service unavailable, using built-in fallback parser");
+            // Use built-in Java parser
             return parseFileBuiltIn(filePath, parserType);
 
         } catch (Exception e) {
             logger.error("Error parsing file", e);
             return null;
-        }
-    }
-
-    /**
-     * Attempts to parse using the external parser service.
-     * Properly handles HTTP connection cleanup to prevent resource leaks.
-     */
-    private JsonObject tryParserService(String filePath, String parserKey) {
-        HttpURLConnection conn = null;
-        BufferedReader reader = null;
-
-        try {
-            // Determine parser endpoint based on type
-            String endpoint = switch (parserKey) {
-                case "rockwell" -> "l5k";
-                case "json" -> "json";
-                case "siemens" -> "siemens";
-                case "schneider" -> "schneider";
-                case "beckhoff" -> "beckhoff";
-                default -> "json";
-            };
-
-            // Call parser service REST API
-            // Use Docker bridge gateway IP to access host from container
-            String parserUrl = String.format("http://172.17.0.1:5000/parse/%s?file=%s",
-                endpoint, filePath);
-
-            URL url = new URL(parserUrl);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(2000); // Shorter timeout for fallback
-            conn.setReadTimeout(10000);
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode == 200) {
-                reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String inputLine;
-
-                while ((inputLine = reader.readLine()) != null) {
-                    response.append(inputLine);
-                }
-
-                JsonObject result = gson.fromJson(response.toString(), JsonObject.class);
-
-                if (result.has("error")) {
-                    logger.error("Parser error: {}", result.get("error").getAsString());
-                    return null;
-                }
-
-                return result;
-
-            } else {
-                logger.warn("Parser service returned error code: {}", responseCode);
-                return null;
-            }
-
-        } catch (Exception e) {
-            logger.debug("Parser service not available: {}", e.getMessage());
-            return null;
-        } finally {
-            // Ensure resources are closed even in error paths
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (Exception e) {
-                    logger.debug("Error closing reader: {}", e.getMessage());
-                }
-            }
-            if (conn != null) {
-                try {
-                    conn.disconnect();
-                } catch (Exception e) {
-                    logger.debug("Error disconnecting HTTP connection: {}", e.getMessage());
-                }
-            }
         }
     }
 

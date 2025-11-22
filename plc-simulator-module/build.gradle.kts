@@ -1,9 +1,9 @@
 plugins {
     base
-    id("io.ia.sdk.modl") version "0.4.0"
+    id("io.ia.sdk.modl") version "0.5.0"
 }
 
-version = "5.4.0"
+version = "5.4.9"
 group = "com.gaskony"
 
 ignitionModule {

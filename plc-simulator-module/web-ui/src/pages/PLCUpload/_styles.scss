@@ -1,0 +1,14 @@
+.plc-upload-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.plc-upload-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  flex: 1;
+}

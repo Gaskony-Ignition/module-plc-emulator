@@ -21,8 +21,13 @@ wrapper.log
 .DS_Store
 Thumbs.db
 
-# Keep signing certificates for development
-# These are development-only with public passwords
-# !keystore.jks
-# !certificate.der
-# !sign.props
+# Signing credentials - NEVER commit!
+gradle.properties
+
+# Note: gradle.properties.template is the template (safe to commit)
+# Developers should copy template to gradle.properties and fill in credentials
+
+# Keep development signing certificates (marked as dev-only)
+# Production certificates should NEVER be in version control
+!dev-keystore.jks
+!dev-certificate.der

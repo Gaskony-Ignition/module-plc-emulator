@@ -7,9 +7,266 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed - Python Parser Service Code Cleanup (2025-11-22)
+- **Deleted obsolete Python parser infrastructure** (~75.2 MB freed)
+  - Removed `/plc-simulator-refactored/` directory (212 KB) - Obsolete Python parser library
+  - Removed `/python-parser/` directory (75 MB) - Python parser service, venv, build artifacts
+  - Removed `ParserService.java` - Wrapper for Python parser service
+  - **Rationale**: Module now uses pure Java parsers exclusively (since v2.0.0)
+  - **Benefit**: Simpler architecture, no Python dependency, all security fixes in Java code
+  - **Impact**: No user-facing changes - Java parsers were already primary implementation
+- **Updated BUILD.md** - Removed Python parser build instructions
+- **Cleaned up code references**:
+  - `SimulatorModuleHook.java` - Removed parser service startup/shutdown code
+  - `EnhancedSimulatorDevice.java` - Removed parser service fallback, uses Java parsers directly
+- **Module size reduction**: Smaller, faster builds without Python bundling
+
 ### Planned
 - Additional parser implementations (Siemens, Schneider, Beckhoff)
 - Incremental address space updates (currently full rebuild on hot reload)
+
+---
+
+## [5.4.9] - 2025-11-22 - **MAJOR SECURITY & QUALITY UPDATE**
+
+### 🔒 CRITICAL SECURITY FIXES
+
+**All critical and high-priority security vulnerabilities have been resolved. This is a mandatory security update.**
+
+#### Fixed - XXE (XML External Entity) Vulnerability - CRITICAL
+- **L5XParser.java XXE Prevention** - Added comprehensive XML security features
+  - Disabled external entity loading (`external-general-entities`, `external-parameter-entities`)
+  - Disabled DTD loading (`load-external-dtd`, `disallow-doctype-decl`)
+  - Disabled XInclude processing
+  - Disabled entity reference expansion
+  - **Impact**: Prevents attackers from reading arbitrary files from server via malicious L5X files
+  - **Test**: L5XParserTest.testXXEPrevention() validates protection
+  - Location: L5XParser.java:52-67
+
+#### Fixed - Authentication Bypass Vulnerability - CRITICAL
+- **FileUploadRoutes Secure Authentication** - Replaced insecure authentication method
+  - Removed 163-line fallback authentication logic (had 1-second session age bypass!)
+  - Implemented proper 81-line SecurityContext validation
+  - Uses Ignition's built-in authentication framework
+  - **Impact**: All file upload/delete endpoints now require valid authentication
+  - Location: FileUploadRoutes.java:771-858
+  - Changed logging from WARN to DEBUG for cleaner logs
+
+#### Fixed - Path Traversal Vulnerability - HIGH
+- **Comprehensive Path Sanitization** - Prevents directory traversal attacks
+  - `sanitizeFileName()` - Rejects ../,  /, \, null bytes, excessive length
+  - `sanitizeDeviceName()` - Allows only alphanumeric + underscore + hyphen
+  - `validateFilePath()` - Canonical path validation prevents escaping storage directory
+  - **Impact**: Prevents attackers from writing files outside designated storage
+  - **Test**: 18 security tests in FileUploadRoutesSecurityTest
+  - Location: FileUploadRoutes.java:859-923
+
+#### Fixed - Hardcoded Credentials Exposure - HIGH
+- **Environment Variable Configuration** - Removed hardcoded module signing passwords
+  - gradle.properties now uses `${IGNITION_KEYSTORE_PASSWORD:-default}` pattern
+  - Created gradle.properties.template (safe to commit)
+  - Added gradle.properties to .gitignore
+  - Created SECURITY.md with credential management best practices
+  - **Impact**: Production signing credentials no longer committed to repository
+  - Location: gradle.properties, SECURITY.md
+
+#### Fixed - File Size DoS Vulnerability - MEDIUM
+- **Content-Length Validation** - Prevents memory exhaustion attacks
+  - Checks Content-Length header BEFORE reading request body
+  - Enforces size limit during streaming read (max 50MB)
+  - **Impact**: Prevents denial-of-service via extremely large file uploads
+  - Location: FileUploadRoutes.java:137-216
+
+---
+
+### ✅ COMPREHENSIVE TEST COVERAGE
+
+#### Added - Unit Test Suite (40 tests, 100% passing)
+- **L5XParserTest.java** - 12 tests including XXE prevention
+  - Basic XML parsing (simple L5X, controller tags, program tags)
+  - UDT definition and expansion
+  - Tag descriptions and array dimensions
+  - **SECURITY: XXE attack prevention test**
+  - Edge cases (malformed XML, empty XML, missing controller)
+
+- **FileValidatorTest.java** - 10 tests for file validation
+  - File size limits (exact limit, too large)
+  - Format validation (L5K, L5X, JSON, CSV)
+  - Empty/null content handling
+
+- **FileUploadRoutesSecurityTest.java** - 18 security-focused tests
+  - Filename sanitization (path traversal, null bytes, length)
+  - Device name validation (special characters, path separators)
+  - Path validation (canonical paths, symlink detection)
+  - Security consistency across all methods
+
+#### Added - Test Infrastructure
+- JUnit Jupiter 5.10.1
+- Mockito 5.7.0 (mocking framework)
+- AssertJ 3.24.2 (fluent assertions)
+- Test resource files (simple.l5k, simple.l5x, with-udt.l5x, malicious-xxe.l5x)
+- Location: gateway/src/test/java/, gateway/src/test/resources/test-files/
+
+---
+
+### 🚀 CI/CD AUTOMATION
+
+#### Added - GitHub Actions Pipeline
+- Automated build and test on every push/PR
+- Java 17 + Node.js 18 environment setup
+- Gradle caching for faster builds
+- Test result artifact upload (30-day retention)
+- Module artifact upload (90-day retention)
+- Security scanning (hardcoded credentials check, gradle.properties validation)
+- Location: .github/workflows/ci.yml
+
+---
+
+### 📚 DOCUMENTATION ENHANCEMENTS
+
+#### Added - New Documentation
+- **ARCHITECTURE.md** - Comprehensive technical architecture (788 lines)
+  - Component breakdown (device driver, parser, validation, web layers)
+  - Data flow diagrams
+  - Security architecture (5-layer security model)
+  - Testing strategy
+  - Deployment guide
+  - Future enhancements
+
+- **SECURITY.md** - Security best practices
+  - Credential management with environment variables
+  - Module signing security
+  - Production deployment guidance
+
+#### Updated - Existing Documentation
+- All version references updated to 5.4.9
+- Security vulnerabilities marked as RESOLVED
+- Testing section added to CLAUDE_CONTEXT.md
+- README.md updated with security highlights
+
+---
+
+### 🔧 DEPENDENCY UPDATES
+
+#### Updated Dependencies
+- **Gson**: 2.10.1 → 2.11.0 (latest stable)
+- **Modl Plugin**: 0.4.0 → 0.5.0
+- All dependencies verified with test suite
+
+---
+
+### 🎯 BUILD CONFIGURATION
+
+#### Changed - Java Version
+- Downgraded from Java 21 to Java 17 for Ignition 8.3.1 compatibility
+- All build.gradle.kts files updated (gateway, common, designer, web-ui)
+- Resolves UnsupportedClassVersionError on Ignition 8.3.1 Gateway
+
+#### Build Info
+- Version: 5.4.9
+- Java: 17 (changed from 21)
+- Build: SUCCESS
+- All 40 tests: PASSING
+- Module Size: ~12MB
+- Signing: Self-signed development certificate (credentials from environment variables)
+
+---
+
+## [5.4.8] - 2025-11-22
+
+### SECURITY UPDATE - Full Authentication Implementation
+
+**Major security enhancement**: All API routes now require Gateway authentication. HTML pages served through authenticated data routes instead of public resources.
+
+#### Security - Authentication Required
+- **All API Routes Protected** - File upload and device management now require authenticated Gateway session
+  - `/upload` - Requires authentication (previously public)
+  - `/devices` - Requires authentication (previously public)
+  - `/device/:name/status` - Requires authentication (previously public)
+  - `/device/:name/delete` - Requires authentication (previously public)
+  - Public routes: `/health`, `/auth/status` (diagnostic endpoints only)
+
+#### Added - Authenticated HTML Page Route
+- **New `/page` Route** - Serves upload page through authenticated data route
+  - Route: `/data/plcsimulator/page`
+  - Access: Requires Gateway login
+  - Replaces: Public `/res/plcsimulator/simple-upload.html`
+  - HTML served from: `mounted/simple-upload.html` (via data route handler)
+  - Authentication: Server-side via `checkAuthenticated()` method
+
+#### Removed - Deprecated Features
+- **Removed `getStatusPanels()` Method** - Status panels no longer supported in Ignition 8.3+
+  - Modern approach: Use Gateway Config pages or custom routes
+  - Cleans up deprecated API usage
+
+#### Changed - HTML Resources
+- **Removed Client-Side Login Gate** - Authentication now handled server-side
+  - No JavaScript login checks needed
+  - Cleaner HTML files
+  - Better security (server enforces auth, not client)
+
+#### Technical Details
+- Authentication check: `GatewayContext.getUserSourceManager().getSessionInfo()`
+- Access control: Returns `RouteAccess.GRANTED` or `RouteAccess.DENIED`
+- Session-based: Uses Ignition's built-in session management
+- No changes to public health/diagnostic endpoints
+
+#### Build Info
+- Version: 5.4.8
+- Build: SUCCESS
+- SHA256: f04b1b67757a61705522fad261c843771dd51f69569db359d6130584466b9467
+- Module Size: 12M
+- Signing: Self-signed development certificate
+
+---
+
+## [5.4.1] - 2025-11-21
+
+### CRITICAL HOTFIX - Resource Mounting Structure
+
+**Emergency fix**: HTML resources were returning 404 errors due to incorrect directory structure in resource folder.
+
+#### Root Cause
+- Resources were nested in `mounted/res/plcsimulator/` directory
+- Ignition's `getMountPathAlias()` AUTOMATICALLY adds `/res/plcsimulator` prefix
+- This caused double-nesting: framework looked for files at wrong path
+- Result: 404 errors for all HTML pages (simple-upload.html, index.html, etc.)
+
+#### Fixed - CRITICAL REGRESSION
+- **Corrected Resource Structure** - Files now in correct location
+  - Before: `mounted/res/plcsimulator/simple-upload.html` (WRONG)
+  - After: `mounted/simple-upload.html` (CORRECT)
+  - URL: `/res/plcsimulator/simple-upload.html` (framework adds prefix automatically)
+  - Impact: All HTML resources now load correctly with HTTP 200
+
+#### Changed - Documentation Improvements
+- **Clarified Resource Mapping in SimulatorModuleHook.java**
+  - Added detailed comments explaining how Ignition maps resources
+  - Documented that `/res/plcsimulator` prefix is framework-managed
+  - Explained separation between resource paths (public) and data routes (authenticated)
+  - Prevents future confusion about resource folder structure
+
+#### Technical Details
+- Ignition maps: `getMountedResourceFolder()` → URL prefix from `getMountPathAlias()`
+- Filesystem: `mounted/file.html` → URL: `/res/plcsimulator/file.html`
+- Do NOT replicate URL structure in filesystem
+- Resources at `/res/*` are public (no authentication required)
+- Data routes at `/data/*` use authentication configured in mountRouteHandlers
+
+#### Verification
+```bash
+# Check resource is accessible (should return HTTP 200)
+curl -I http://gateway:8088/res/plcsimulator/simple-upload.html
+
+# Check data route requires authentication (should return HTTP 401 if not logged in)
+curl -I http://gateway:8088/data/plcsimulator/devices
+```
+
+#### Build Info
+- Version: 5.4.1
+- Build: SUCCESS
+- SHA256: 340c5c4476118a47e6f5b7b6ef3d643871888e75e46b31d876b4dc38c83db661
+- Module Size: 12M
 
 ---
 

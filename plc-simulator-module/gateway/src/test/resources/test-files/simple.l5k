@@ -1,0 +1,11 @@
+CONTROLLER TestController
+
+TAG MyTag DINT 0
+TAG MyString STRING "Hello"
+TAG MyBool BOOL 0
+
+PROGRAM MainProgram
+    TAG LocalTag DINT 100
+END
+
+END_CONTROLLER

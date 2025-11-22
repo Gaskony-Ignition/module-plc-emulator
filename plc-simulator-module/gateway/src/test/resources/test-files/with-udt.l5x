@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="TestController" ProcessorType="1756-L83E">
+        <DataTypes>
+            <DataType Name="MyUDT" Family="NoFamily">
+                <Members>
+                    <Member Name="Value" DataType="DINT"/>
+                    <Member Name="Status" DataType="BOOL"/>
+                    <Member Name="Name" DataType="STRING"/>
+                </Members>
+            </DataType>
+        </DataTypes>
+        <Tags>
+            <Tag Name="MyUDTInstance" DataType="MyUDT"/>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>
