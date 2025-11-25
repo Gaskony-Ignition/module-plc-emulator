@@ -2,7 +2,7 @@
  * Enhanced PLC Simulator - File Upload
  *
  * This module provides the File Upload page embedded in the Gateway web interface.
- * Uses an iframe to display the authenticated file upload page within the Gateway frame.
+ * Renders an iframe within the Gateway's page content area.
  */
 
 (function() {
@@ -13,46 +13,74 @@
         return;
     }
 
-    console.log('PLC Simulator File Upload: Loading...');
+    console.log('PLC Simulator File Upload: Initializing...');
 
-    // Find the main content area and embed our page in an iframe
     function embedPage() {
-        // Check if we already embedded
+        // Prevent duplicate embedding
         if (document.getElementById('plc-upload-iframe')) {
+            console.log('PLC Simulator File Upload: Already embedded');
             return;
         }
 
-        // Find the Gateway's main content container - be specific to avoid matching wrong elements
-        var container = document.querySelector('.main-content') ||
-                        document.querySelector('#main-content') ||
-                        document.querySelector('.gateway-page-content') ||
-                        document.querySelector('[data-component="page-content"]');
-
-        // Create iframe to embed our page
+        // Create iframe
         var iframe = document.createElement('iframe');
         iframe.id = 'plc-upload-iframe';
         iframe.src = '/data/plcsimulator/page';
         iframe.title = 'PLC File Upload';
+        iframe.style.cssText = 'width: 100%; height: calc(100vh - 150px); border: none; min-height: 500px; background: #0f172a; display: block;';
 
-        if (container) {
-            // Clear container and add iframe
-            container.innerHTML = '';
-            iframe.style.cssText = 'width: 100%; height: calc(100vh - 120px); border: none; min-height: 600px; background: #0f172a;';
-            container.appendChild(iframe);
-        } else {
-            // Fallback: use fixed positioning over the page
-            iframe.style.cssText = 'position: fixed; top: 60px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100vh - 60px); border: none; z-index: 1000; background: #0f172a;';
-            document.body.appendChild(iframe);
+        // Find where to insert - look for the main content wrapper
+        // The Gateway uses React, so we need to find the right container
+        var attempts = 0;
+        var maxAttempts = 20;
+
+        function tryInsert() {
+            attempts++;
+
+            // Look for common Gateway content containers
+            var container = document.querySelector('[class*="page-content"]') ||
+                           document.querySelector('[class*="PageContent"]') ||
+                           document.querySelector('.main-content') ||
+                           document.querySelector('#main-content') ||
+                           document.querySelector('[role="main"]') ||
+                           document.querySelector('main');
+
+            if (container && !document.getElementById('plc-upload-iframe')) {
+                // Don't clear - just append
+                container.appendChild(iframe);
+                console.log('PLC Simulator File Upload: Embedded in container');
+                return true;
+            }
+
+            // Fallback: append to body with positioning that doesn't cover menu
+            if (attempts >= maxAttempts) {
+                if (!document.getElementById('plc-upload-iframe')) {
+                    // Create a wrapper div positioned below the header
+                    var wrapper = document.createElement('div');
+                    wrapper.id = 'plc-upload-wrapper';
+                    wrapper.style.cssText = 'position: absolute; top: 120px; left: 250px; right: 0; bottom: 0; overflow: hidden;';
+                    wrapper.appendChild(iframe);
+                    iframe.style.height = '100%';
+                    document.body.appendChild(wrapper);
+                    console.log('PLC Simulator File Upload: Embedded with fallback positioning');
+                }
+                return true;
+            }
+
+            // Retry
+            setTimeout(tryInsert, 100);
+            return false;
         }
 
-        console.log('PLC Simulator File Upload: Page embedded');
+        tryInsert();
     }
 
-    // Try to embed immediately or wait for DOM
+    // Wait for DOM then embed
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', embedPage);
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(embedPage, 200);
+        });
     } else {
-        // Small delay to let Gateway framework render
-        setTimeout(embedPage, 100);
+        setTimeout(embedPage, 200);
     }
 })();
