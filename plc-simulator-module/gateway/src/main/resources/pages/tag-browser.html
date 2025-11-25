@@ -16,7 +16,7 @@
             min-height: 100%;
         }
 
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1400px; margin: 0 auto; }
 
         .header {
             background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
@@ -57,6 +57,7 @@
             gap: 12px;
             align-items: center;
             margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
         select, input {
@@ -77,10 +78,7 @@
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
-        .search-box {
-            flex: 1;
-            max-width: 300px;
-        }
+        .search-box { flex: 1; min-width: 200px; max-width: 300px; }
 
         .btn {
             display: inline-block;
@@ -106,6 +104,7 @@
             padding: 12px 16px;
             background: #0f172a;
             border-radius: 6px;
+            flex-wrap: wrap;
         }
 
         .stat {
@@ -117,16 +116,21 @@
         .stat-label { color: #94a3b8; font-size: 13px; }
         .stat-value { color: #3b82f6; font-weight: 600; font-size: 16px; }
 
+        /* Virtual scroll container */
         .tag-tree {
             background: #0f172a;
             border: 1px solid #334155;
             border-radius: 8px;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 340px);
+            min-height: 400px;
         }
 
         .tree-header {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 150px;
+            grid-template-columns: minmax(300px, 2fr) 120px minmax(100px, 1fr) 160px;
             gap: 16px;
             padding: 12px 16px;
             background: #1e293b;
@@ -134,30 +138,57 @@
             font-weight: 600;
             font-size: 13px;
             color: #94a3b8;
+            flex-shrink: 0;
+        }
+
+        .tree-body {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Virtual scroll spacer */
+        .virtual-spacer {
+            position: relative;
+        }
+
+        .virtual-viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
         }
 
         .tag-item {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 150px;
+            grid-template-columns: minmax(300px, 2fr) 120px minmax(100px, 1fr) 160px;
             gap: 16px;
-            padding: 10px 16px;
+            padding: 8px 16px;
             border-bottom: 1px solid #1e293b;
             align-items: center;
-            transition: background 0.2s;
+            transition: background 0.15s;
+            height: 40px;
         }
 
         .tag-item:hover { background: #1e293b; }
-        .tag-item:last-child { border-bottom: none; }
 
         .tag-name {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 13px;
+            overflow: hidden;
+            white-space: nowrap;
         }
 
-        .tag-icon { font-size: 14px; }
+        .tag-name-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tag-icon { font-size: 14px; flex-shrink: 0; }
 
         .folder-icon { color: #fbbf24; }
         .bool-icon { color: #10b981; }
@@ -175,6 +206,9 @@
         .tag-value {
             font-family: 'Consolas', 'Monaco', monospace;
             font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .value-bool-true { color: #10b981; }
@@ -184,72 +218,65 @@
 
         .tag-actions {
             display: flex;
-            gap: 8px;
+            gap: 6px;
         }
 
         .btn-small {
-            padding: 4px 10px;
-            font-size: 12px;
+            padding: 4px 8px;
+            font-size: 11px;
             border-radius: 4px;
         }
 
-        .btn-write {
-            background: #10b981;
-        }
+        .btn-write { background: #10b981; }
+        .btn-write:hover { background: #059669; }
 
-        .btn-write:hover {
-            background: #059669;
+        .folder-row {
+            background: #1e3a5f;
+            cursor: pointer;
         }
+        .folder-row:hover { background: #1e4a7f; }
 
-        .write-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1000;
+        .expand-icon {
+            display: inline-flex;
+            width: 16px;
+            height: 16px;
             justify-content: center;
             align-items: center;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            font-size: 10px;
         }
 
-        .write-modal.active {
-            display: flex;
+        .expand-icon.expanded { transform: rotate(90deg); }
+        .expand-icon.loading { animation: spin 1s linear infinite; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .indent { padding-left: 24px; }
+
+        .no-tags, .loading-indicator {
+            padding: 40px;
+            text-align: center;
+            color: #64748b;
         }
 
-        .write-dialog {
-            background: #1e293b;
-            border-radius: 12px;
-            padding: 24px;
-            max-width: 450px;
-            width: 90%;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        .loading-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #475569;
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
         }
 
-        .write-dialog h2 {
-            margin-bottom: 16px;
-            font-size: 18px;
-        }
-
-        .write-dialog .tag-info {
-            background: #0f172a;
-            padding: 12px;
+        .error-message {
+            background: #7f1d1d;
+            border: 1px solid #dc2626;
             border-radius: 6px;
-            margin-bottom: 16px;
-            font-family: 'Consolas', monospace;
-            font-size: 13px;
-        }
-
-        .write-dialog input {
-            width: 100%;
-            margin-bottom: 16px;
-        }
-
-        .write-dialog .btn-row {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
+            padding: 16px;
+            color: #fecaca;
         }
 
         .live-indicator {
@@ -276,80 +303,11 @@
             50% { opacity: 0.5; }
         }
 
-        .value-changed {
-            animation: highlight 0.5s ease-out;
-        }
+        .value-changed { animation: highlight 0.5s ease-out; }
 
         @keyframes highlight {
             from { background: rgba(16, 185, 129, 0.3); }
             to { background: transparent; }
-        }
-
-        .folder-row {
-            background: #1e3a5f;
-            cursor: pointer;
-        }
-
-        .folder-row:hover { background: #1e4a7f; }
-
-        .indent-1 { padding-left: 32px; }
-        .indent-2 { padding-left: 48px; }
-        .indent-3 { padding-left: 64px; }
-
-        .expand-icon {
-            display: inline-block;
-            width: 16px;
-            transition: transform 0.2s;
-        }
-
-        .expanded .expand-icon { transform: rotate(90deg); }
-
-        .hidden { display: none; }
-
-        .no-tags {
-            padding: 40px;
-            text-align: center;
-            color: #64748b;
-        }
-
-        .loading {
-            padding: 40px;
-            text-align: center;
-            color: #94a3b8;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 24px;
-            height: 24px;
-            border: 3px solid #475569;
-            border-radius: 50%;
-            border-top-color: #3b82f6;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .error-message {
-            background: #7f1d1d;
-            border: 1px solid #dc2626;
-            border-radius: 6px;
-            padding: 16px;
-            color: #fecaca;
-        }
-
-        .refresh-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            background: #065f46;
-            border-radius: 12px;
-            font-size: 11px;
-            color: #a7f3d0;
         }
 
         .auto-refresh-toggle {
@@ -383,6 +341,144 @@
         }
 
         .toggle-switch.active::after { left: 22px; }
+
+        /* Write modal */
+        .write-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .write-modal.active { display: flex; }
+
+        .write-dialog {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+
+        .write-dialog h2 { margin-bottom: 16px; font-size: 18px; }
+
+        .write-dialog .tag-info {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+        }
+
+        .write-dialog input { width: 100%; margin-bottom: 16px; }
+
+        .write-dialog .btn-row {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* Load more button */
+        .load-more-row {
+            padding: 12px 16px;
+            text-align: center;
+            background: #1e293b;
+            cursor: pointer;
+            color: #3b82f6;
+            font-size: 13px;
+        }
+        .load-more-row:hover { background: #2d3a4f; }
+
+        /* View mode toggle */
+        .view-toggle {
+            display: flex;
+            background: #0f172a;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .view-toggle button {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .view-toggle button.active {
+            background: #3b82f6;
+            color: white;
+        }
+        .view-toggle button:hover:not(.active) {
+            background: #334155;
+        }
+
+        /* Breadcrumb */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            font-size: 13px;
+            color: #94a3b8;
+            flex-wrap: wrap;
+        }
+        .breadcrumb-item {
+            color: #3b82f6;
+            cursor: pointer;
+        }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-sep { color: #475569; }
+
+        /* Simulation toggle button */
+        .btn-sim {
+            background: #475569;
+            position: relative;
+        }
+        .btn-sim:hover { background: #64748b; }
+        .btn-sim.active {
+            background: #f59e0b;
+            color: #1e293b;
+        }
+        .btn-sim.active:hover { background: #d97706; }
+
+        /* Simulation status in header */
+        .sim-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 16px;
+            font-size: 12px;
+            color: #fcd34d;
+        }
+        .sim-dot {
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        /* Simulation pattern dropdown */
+        .sim-pattern-select {
+            background: #1e293b;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            padding: 2px 4px;
+            font-size: 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -390,10 +486,13 @@
         <div class="header">
             <div>
                 <h1>🏷️ Tag Browser</h1>
-                <div class="subtitle">Enhanced PLC Simulator v7.3.11 - View and monitor OPC-UA tags</div>
+                <div class="subtitle">Enhanced PLC Simulator v7.3.14</div>
             </div>
             <div class="nav-links">
-                <a href="/web/config/plcsimulator.plc-file-upload" class="nav-link" target="_top">📤 Upload</a>
+                <span id="simEngineStatus" class="sim-status" style="display:none;">
+                    <span class="sim-dot"></span>
+                    <span id="simTagCount">0</span> simulating
+                </span>
             </div>
         </div>
 
@@ -404,9 +503,13 @@
                     <option value="">Select a device...</option>
                 </select>
                 <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search tags..." />
-                <button class="btn btn-secondary" onclick="loadTags()">🔄 Refresh</button>
+                <div class="view-toggle">
+                    <button id="viewTree" class="active" onclick="setViewMode('tree')">🌳 Tree</button>
+                    <button id="viewFlat" onclick="setViewMode('flat')">📋 Flat</button>
+                </div>
+                <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Refresh</button>
                 <div class="auto-refresh-toggle">
-                    <span style="color: #94a3b8; font-size: 13px;">Auto-refresh</span>
+                    <span style="color: #94a3b8; font-size: 13px;">Live</span>
                     <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
                 </div>
             </div>
@@ -431,9 +534,11 @@
                     </span>
                 </div>
             </div>
+
+            <div id="breadcrumb" class="breadcrumb" style="display: none;"></div>
         </div>
 
-        <div class="card">
+        <div class="card" style="padding: 0;">
             <div class="tag-tree" id="tagTree">
                 <div class="tree-header">
                     <span>Tag Name</span>
@@ -441,10 +546,12 @@
                     <span>Value</span>
                     <span>Actions</span>
                 </div>
-                <div id="tagContent">
-                    <div class="no-tags">
-                        <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
-                        <p>Select a device to browse its tags</p>
+                <div class="tree-body" id="treeBody">
+                    <div id="tagContent">
+                        <div class="no-tags">
+                            <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
+                            <p>Select a device to browse its tags</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -471,11 +578,30 @@
     </div>
 
     <script>
+        // State
         let selectedDevice = null;
         let autoRefreshInterval = null;
-        let allTags = [];
-        let liveValues = {};
         let currentWriteTag = null;
+        let viewMode = 'tree'; // 'tree' or 'flat'
+        let currentPath = ''; // Current folder path for tree view
+        let expandedPaths = new Set(); // Track expanded folders
+        let loadedChildren = {}; // Cache of loaded children by path
+        let childrenOffset = {}; // Track pagination offset per folder path
+        let childrenTotal = {}; // Track total children per folder path
+        let flatTags = []; // All tags for flat view
+        let flatOffset = 0;
+        let flatTotal = 0;
+        let stats = { totalTags: 0, folders: 0, udtInstances: 0 };
+        let searchQuery = '';
+        let searchTimeout = null;
+        let liveValues = {}; // Cache of live values
+        let isLoadingMore = {}; // Track loading state per folder
+        let simulatedTags = new Set(); // Tags with simulation enabled
+        let simulationEngineAvailable = false;
+
+        // Constants
+        const PAGE_SIZE = 200; // Increased for better UX
+        const ROW_HEIGHT = 40;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -484,14 +610,45 @@
             document.getElementById('deviceSelect').addEventListener('change', (e) => {
                 selectedDevice = e.target.value;
                 if (selectedDevice) {
-                    loadTags();
+                    resetState();
+                    loadRootTags();
                 } else {
                     showNoDevice();
                 }
             });
 
-            document.getElementById('searchBox').addEventListener('input', filterTags);
+            document.getElementById('searchBox').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    searchQuery = e.target.value.toLowerCase();
+                    if (searchQuery) {
+                        // Switch to flat view for search
+                        setViewMode('flat');
+                        loadFlatTags(true);
+                    } else {
+                        refreshCurrentView();
+                    }
+                }, 300);
+            });
+
+            // Setup virtual scroll
+            document.getElementById('treeBody').addEventListener('scroll', handleScroll);
         });
+
+        function resetState() {
+            currentPath = '';
+            expandedPaths.clear();
+            loadedChildren = {};
+            childrenOffset = {};
+            childrenTotal = {};
+            isLoadingMore = {};
+            flatTags = [];
+            flatOffset = 0;
+            flatTotal = 0;
+            liveValues = {};
+            simulatedTags.clear();
+            simulationEngineAvailable = false;
+        }
 
         async function loadDeviceList() {
             try {
@@ -514,7 +671,7 @@
                     if (deviceParam) {
                         select.value = deviceParam;
                         selectedDevice = deviceParam;
-                        loadTags();
+                        loadRootTags();
                     }
                 }
             } catch (error) {
@@ -522,187 +679,452 @@
             }
         }
 
-        async function loadTags() {
-            if (!selectedDevice) return;
+        function setViewMode(mode) {
+            viewMode = mode;
+            document.getElementById('viewTree').classList.toggle('active', mode === 'tree');
+            document.getElementById('viewFlat').classList.toggle('active', mode === 'flat');
+            document.getElementById('breadcrumb').style.display = mode === 'tree' ? 'flex' : 'none';
 
-            const content = document.getElementById('tagContent');
-            content.innerHTML = '<div class="loading"><span class="loading-spinner"></span>Loading tags...</div>';
-
-            try {
-                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags`, {
-                    credentials: 'include'
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    allTags = data.tags || [];
-                    renderTags(allTags);
-                    updateStats(data);
-                    document.getElementById('statsBar').style.display = 'flex';
+            if (selectedDevice) {
+                if (mode === 'tree') {
+                    loadRootTags();
                 } else {
-                    // If tags endpoint doesn't exist, show a placeholder
-                    content.innerHTML = `
-                        <div class="no-tags">
-                            <p style="font-size: 48px; margin-bottom: 16px;">🏗️</p>
-                            <p style="margin-bottom: 12px;">Tag browsing API coming soon!</p>
-                            <p style="color: #64748b; font-size: 13px;">
-                                For now, use Ignition Designer's OPC Browser to view tags.<br>
-                                Path format: [${selectedDevice}]/Controller:Global/TagName
-                            </p>
-                        </div>
-                    `;
+                    loadFlatTags(true);
                 }
-            } catch (error) {
-                console.error('Error loading tags:', error);
-                document.getElementById('tagContent').innerHTML = `
-                    <div class="error-message">
-                        <p><strong>Error loading tags:</strong> ${error.message}</p>
-                        <p style="margin-top: 8px; font-size: 13px;">Check that the device is running and has tags configured.</p>
-                    </div>
-                `;
             }
         }
 
-        function renderTags(tags) {
-            const content = document.getElementById('tagContent');
+        async function loadRootTags() {
+            if (!selectedDevice) return;
 
-            if (!tags || tags.length === 0) {
+            showLoading();
+
+            try {
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags?limit=${PAGE_SIZE}&depth=1`,
+                    { credentials: 'include' }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    stats = {
+                        totalTags: data.totalTags || 0,
+                        folders: data.folders || 0,
+                        udtInstances: data.udtInstances || 0
+                    };
+                    updateStats();
+
+                    loadedChildren[''] = data.tags || [];
+                    childrenOffset[''] = data.tags?.length || 0;
+                    childrenTotal[''] = data.totalAtLevel || 0;
+
+                    // Auto-expand the first folder (usually Controller:Global) and load its children
+                    const rootTags = data.tags || [];
+                    if (rootTags.length > 0) {
+                        for (const tag of rootTags) {
+                            if (tag.isFolder && tag.path) {
+                                // Auto-expand this folder
+                                expandedPaths.add(tag.path);
+                                // Pre-load its children
+                                await loadChildren(tag.path);
+                                break; // Only auto-expand the first folder
+                            }
+                        }
+                    }
+
+                    // Load simulation state
+                    await loadSimulatedTags();
+
+                    renderTreeView();
+                } else {
+                    showError('Failed to load tags');
+                }
+            } catch (error) {
+                console.error('Error loading tags:', error);
+                showError(error.message);
+            }
+        }
+
+        async function loadFlatTags(reset = false) {
+            if (!selectedDevice) return;
+
+            if (reset) {
+                flatTags = [];
+                flatOffset = 0;
+                flatTotal = 0;
+                showLoading();
+            }
+
+            try {
+                let url = `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags?flat=true&offset=${flatOffset}&limit=${PAGE_SIZE}`;
+
+                const response = await fetch(url, { credentials: 'include' });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    stats = {
+                        totalTags: data.totalTags || 0,
+                        folders: data.folders || 0,
+                        udtInstances: data.udtInstances || 0
+                    };
+                    updateStats();
+
+                    flatTotal = data.totalAtLevel || 0;
+                    const newTags = data.tags || [];
+
+                    if (reset) {
+                        flatTags = newTags;
+                    } else {
+                        flatTags = flatTags.concat(newTags);
+                    }
+
+                    // Apply search filter client-side for loaded tags
+                    renderFlatView();
+                } else {
+                    showError('Failed to load tags');
+                }
+            } catch (error) {
+                console.error('Error loading flat tags:', error);
+                showError(error.message);
+            }
+        }
+
+        async function loadChildren(parentPath, append = false) {
+            // If already loaded and not appending, return cached
+            if (loadedChildren[parentPath] && !append) {
+                return loadedChildren[parentPath];
+            }
+
+            const offset = append ? (childrenOffset[parentPath] || 0) : 0;
+
+            try {
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags/children?path=${encodeURIComponent(parentPath)}&offset=${offset}&limit=${PAGE_SIZE}`,
+                    { credentials: 'include' }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const newChildren = data.children || [];
+
+                    if (append && loadedChildren[parentPath]) {
+                        loadedChildren[parentPath] = loadedChildren[parentPath].concat(newChildren);
+                    } else {
+                        loadedChildren[parentPath] = newChildren;
+                    }
+
+                    childrenOffset[parentPath] = (childrenOffset[parentPath] || 0) + newChildren.length;
+                    childrenTotal[parentPath] = data.totalChildren || 0;
+
+                    return loadedChildren[parentPath];
+                }
+            } catch (error) {
+                console.error('Error loading children:', error);
+            }
+            return [];
+        }
+
+        async function loadMoreChildren(parentPath) {
+            if (isLoadingMore[parentPath]) return;
+
+            isLoadingMore[parentPath] = true;
+            await loadChildren(parentPath, true);
+            isLoadingMore[parentPath] = false;
+            renderTreeView();
+        }
+
+        async function toggleFolder(path, iconElement) {
+            if (expandedPaths.has(path)) {
+                expandedPaths.delete(path);
+                renderTreeView();
+            } else {
+                // Show loading state
+                iconElement.classList.add('loading');
+                iconElement.textContent = '⟳';
+
+                await loadChildren(path);
+                expandedPaths.add(path);
+
+                iconElement.classList.remove('loading');
+                iconElement.textContent = '▶';
+
+                renderTreeView();
+            }
+        }
+
+        function renderTreeView() {
+            const content = document.getElementById('tagContent');
+            const items = buildVisibleItems('', 0);
+
+            if (items.length === 0) {
                 content.innerHTML = `
                     <div class="no-tags">
                         <p style="font-size: 48px; margin-bottom: 16px;">📭</p>
-                        <p>No tags found for this device</p>
-                        <p style="color: #64748b; font-size: 13px; margin-top: 8px;">
-                            Upload a PLC file to create tags
-                        </p>
+                        <p>No tags found</p>
                     </div>
                 `;
                 return;
             }
 
-            // Build hierarchical tree matching Designer OPC Browser
-            // Structure: Controller:Global > UDT instances (expandable) > members
-            const tree = buildTagTree(tags);
-            content.innerHTML = renderTree(tree, 0);
+            content.innerHTML = items.map(item => renderTagRow(item)).join('');
+            updateBreadcrumb();
+            document.getElementById('statsBar').style.display = 'flex';
         }
 
-        function buildTagTree(tags) {
-            const tree = { folders: {}, tags: [] };
+        function buildVisibleItems(parentPath, depth) {
+            const children = loadedChildren[parentPath] || [];
+            let items = [];
 
-            tags.forEach(tag => {
-                // Parse the path to build hierarchy
-                // API returns: Controller:Global/Motor1/Speed (for UDT member)
-                // API returns: Controller:Global/SimpleTag (for atomic tag)
-                const path = tag.path || tag.name;
-                const parts = path.split('/');
+            for (const child of children) {
+                const item = { ...child, depth };
+                items.push(item);
 
-                let current = tree;
+                // If folder is expanded, add its children
+                if (child.isFolder && expandedPaths.has(child.path)) {
+                    const nestedItems = buildVisibleItems(child.path, depth + 1);
+                    items = items.concat(nestedItems);
 
-                // Navigate/create folder structure for all but the last part
-                for (let i = 0; i < parts.length - 1; i++) {
-                    const part = parts[i];
-                    if (!current.folders[part]) {
-                        current.folders[part] = { folders: {}, tags: [], isUdt: false };
+                    // Add "Load more" entry if there are more children
+                    const loadedCount = childrenOffset[child.path] || 0;
+                    const totalCount = childrenTotal[child.path] || 0;
+                    if (loadedCount < totalCount) {
+                        items.push({
+                            isLoadMore: true,
+                            parentPath: child.path,
+                            loadedCount: loadedCount,
+                            totalCount: totalCount,
+                            depth: depth + 1
+                        });
                     }
-                    current = current.folders[part];
                 }
+            }
 
-                // Mark UDT folders
-                if (tag.isUdt || tag.isFolder) {
-                    // This is a UDT instance marker - mark the folder
-                    const folderName = parts[parts.length - 1];
-                    if (!current.folders[folderName]) {
-                        current.folders[folderName] = { folders: {}, tags: [], isUdt: true, dataType: tag.data_type };
-                    } else {
-                        current.folders[folderName].isUdt = true;
-                        current.folders[folderName].dataType = tag.data_type;
-                    }
-                } else {
-                    // This is a leaf tag
-                    current.tags.push({
-                        ...tag,
-                        displayName: parts[parts.length - 1]
+            // Also add "Load more" for the root level if needed
+            if (parentPath === '') {
+                const loadedCount = childrenOffset[''] || 0;
+                const totalCount = childrenTotal[''] || 0;
+                if (loadedCount < totalCount) {
+                    items.push({
+                        isLoadMore: true,
+                        parentPath: '',
+                        loadedCount: loadedCount,
+                        totalCount: totalCount,
+                        depth: 0
                     });
                 }
-            });
+            }
 
-            // Sort folders and tags alphabetically at each level
-            sortTree(tree);
-
-            return tree;
+            return items;
         }
 
-        function sortTree(node) {
-            // Sort tags alphabetically
-            node.tags.sort((a, b) => a.displayName.localeCompare(b.displayName));
+        function renderFlatView() {
+            const content = document.getElementById('tagContent');
 
-            // Recursively sort child folders
-            Object.values(node.folders).forEach(folder => sortTree(folder));
-        }
+            // Filter by search
+            let filtered = flatTags;
+            if (searchQuery) {
+                filtered = flatTags.filter(tag =>
+                    tag.name.toLowerCase().includes(searchQuery) ||
+                    tag.path.toLowerCase().includes(searchQuery) ||
+                    (tag.data_type && tag.data_type.toLowerCase().includes(searchQuery))
+                );
+            }
 
-        function renderTree(node, depth) {
-            let html = '';
+            if (filtered.length === 0) {
+                content.innerHTML = `
+                    <div class="no-tags">
+                        <p style="font-size: 48px; margin-bottom: 16px;">🔍</p>
+                        <p>${searchQuery ? 'No matching tags found' : 'No tags found'}</p>
+                    </div>
+                `;
+                return;
+            }
 
-            // Sort folder names alphabetically
-            const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
+            let html = filtered.map(tag => renderTagRow({ ...tag, depth: 0 })).join('');
 
-            // Render folders first
-            folderNames.forEach(name => {
-                const folder = node.folders[name];
-                const folderId = `folder-${name.replace(/[^a-zA-Z0-9]/g, '_')}-${depth}`;
-                const isUdt = folder.isUdt;
-                const icon = isUdt ? '📦' : '📁';
-                const typeDisplay = isUdt ? folder.dataType : 'Folder';
-
+            // Add "load more" if there are more tags
+            if (flatTags.length < flatTotal) {
                 html += `
-                    <div class="tag-item folder-row indent-${depth}" onclick="toggleFolder('${folderId}')">
+                    <div class="load-more-row" onclick="loadMoreFlatTags()">
+                        Load more... (${flatTags.length} of ${flatTotal} tags)
+                    </div>
+                `;
+            }
+
+            content.innerHTML = html;
+            document.getElementById('statsBar').style.display = 'flex';
+        }
+
+        function loadMoreFlatTags() {
+            flatOffset = flatTags.length;
+            loadFlatTags(false);
+        }
+
+        function renderTagRow(item) {
+            const indent = item.depth * 24;
+
+            // Handle "Load more" pseudo-item
+            if (item.isLoadMore) {
+                const remaining = item.totalCount - item.loadedCount;
+                return `
+                    <div class="load-more-row" style="padding-left: ${16 + indent}px" onclick="loadMoreChildren('${escapeAttr(item.parentPath)}')">
+                        📥 Load more... (${item.loadedCount.toLocaleString()} of ${item.totalCount.toLocaleString()} loaded, ${remaining.toLocaleString()} remaining)
+                    </div>
+                `;
+            }
+
+            const isFolder = item.isFolder;
+
+            if (isFolder) {
+                const isExpanded = expandedPaths.has(item.path);
+                const hasChildren = item.hasChildren !== false && item.childCount !== 0;
+                const icon = item.isUdt ? '📦' : '📁';
+
+                return `
+                    <div class="tag-item folder-row" style="padding-left: ${16 + indent}px" onclick="toggleFolder('${escapeAttr(item.path)}', this.querySelector('.expand-icon'))">
                         <div class="tag-name">
-                            <span class="expand-icon">▶</span>
-                            <span class="tag-icon ${isUdt ? 'udt-icon' : 'folder-icon'}">${icon}</span>
-                            <span>${name}</span>
+                            ${hasChildren ? `<span class="expand-icon ${isExpanded ? 'expanded' : ''}">▶</span>` : '<span style="width:16px"></span>'}
+                            <span class="tag-icon ${item.isUdt ? 'udt-icon' : 'folder-icon'}">${icon}</span>
+                            <span class="tag-name-text" title="${escapeAttr(item.path)}">${escapeHtml(item.name)}</span>
+                            ${item.childCount ? `<span style="color:#64748b;font-size:11px;margin-left:8px">(${item.childCount})</span>` : ''}
                         </div>
-                        <div class="tag-type">${typeDisplay}</div>
+                        <div class="tag-type">${escapeHtml(item.data_type || 'Folder')}</div>
                         <div class="tag-value">-</div>
-                        <div class="tag-actions">-</div>
-                    </div>
-                    <div id="${folderId}" class="folder-contents hidden">
-                        ${renderTree(folder, depth + 1)}
-                    </div>
-                `;
-            });
-
-            // Render tags
-            node.tags.forEach(tag => {
-                const icon = getTagIcon(tag.data_type);
-                const valueClass = getValueClass(tag.data_type, tag.value);
-                const tagPath = tag.path || tag.name;
-                const tagId = tagPath.replace(/[^a-zA-Z0-9]/g, '_');
-
-                html += `
-                    <div class="tag-item indent-${depth}" data-tag-path="${tagPath}">
-                        <div class="tag-name">
-                            <span class="tag-icon ${icon.class}">${icon.emoji}</span>
-                            <span>${tag.displayName}</span>
-                        </div>
-                        <div class="tag-type">${tag.data_type || 'Unknown'}</div>
-                        <div class="tag-value ${valueClass}" id="value-${tagId}">${formatValue(tag.value, tag.data_type)}</div>
                         <div class="tag-actions">
-                            <button class="btn btn-small btn-write" onclick="openWriteModal('${escapeHtml(tagPath)}', '${escapeHtml(tag.displayName)}', '${tag.data_type || 'STRING'}', '${escapeHtml(formatValue(tag.value, tag.data_type))}')">
-                                ✏️ Write
-                            </button>
-                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${escapeHtml(tagPath)}')">
-                                📋 Copy
-                            </button>
+                            <button class="btn btn-small btn-secondary" onclick="event.stopPropagation(); copyTagPath('${escapeAttr(item.path)}')">📋</button>
                         </div>
                     </div>
                 `;
-            });
+            } else {
+                const iconInfo = getTagIcon(item.data_type);
+                const valueClass = getValueClass(item.data_type, item.value);
+                const displayValue = liveValues[item.path] !== undefined ? liveValues[item.path] : formatValue(item.value, item.data_type);
+                const tagId = item.path.replace(/[^a-zA-Z0-9]/g, '_');
+                const isSimulating = simulatedTags.has(item.path);
+                const simBtnClass = isSimulating ? 'btn-sim active' : 'btn-sim';
+                const simBtnTitle = isSimulating ? 'Simulation ON - Click to disable' : 'Click to enable simulation';
+                const simBtnIcon = isSimulating ? '🔄' : '⏸️';
 
-            return html;
+                return `
+                    <div class="tag-item" style="padding-left: ${16 + indent}px" data-path="${escapeAttr(item.path)}">
+                        <div class="tag-name">
+                            <span style="width:16px"></span>
+                            <span class="tag-icon ${iconInfo.class}">${iconInfo.emoji}</span>
+                            <span class="tag-name-text" title="${escapeAttr(item.path)}">${escapeHtml(item.name)}</span>
+                            ${isSimulating ? '<span style="color:#f59e0b;font-size:10px;margin-left:4px;">SIM</span>' : ''}
+                        </div>
+                        <div class="tag-type">${escapeHtml(item.data_type || 'Unknown')}</div>
+                        <div class="tag-value ${valueClass}" id="value-${tagId}">${escapeHtml(displayValue)}</div>
+                        <div class="tag-actions">
+                            <button class="btn btn-small ${simBtnClass}" onclick="toggleSimulation('${escapeAttr(item.path)}')" title="${simBtnTitle}">${simBtnIcon}</button>
+                            <button class="btn btn-small btn-write" onclick="openWriteModal('${escapeAttr(item.path)}', '${escapeAttr(item.name)}', '${escapeAttr(item.data_type || 'STRING')}', '${escapeAttr(displayValue)}')" title="Write value">✏️</button>
+                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${escapeAttr(item.path)}')" title="Copy tag path">📋</button>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
+        function updateBreadcrumb() {
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (viewMode !== 'tree') {
+                breadcrumb.style.display = 'none';
+                return;
+            }
+
+            breadcrumb.style.display = 'flex';
+            let html = `<span class="breadcrumb-item" onclick="navigateTo('')">🏠 Root</span>`;
+
+            if (currentPath) {
+                const parts = currentPath.split('/');
+                let path = '';
+                for (const part of parts) {
+                    path = path ? path + '/' + part : part;
+                    html += `<span class="breadcrumb-sep">›</span>`;
+                    html += `<span class="breadcrumb-item" onclick="navigateTo('${escapeAttr(path)}')">${escapeHtml(part)}</span>`;
+                }
+            }
+
+            breadcrumb.innerHTML = html;
+        }
+
+        function navigateTo(path) {
+            currentPath = path;
+            // Ensure all parent paths are expanded
+            if (path) {
+                const parts = path.split('/');
+                let p = '';
+                for (const part of parts) {
+                    p = p ? p + '/' + part : part;
+                    expandedPaths.add(p);
+                }
+            }
+            renderTreeView();
+        }
+
+        function handleScroll(e) {
+            // In flat view, check if we need to load more
+            if (viewMode === 'flat' && flatTags.length < flatTotal) {
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                if (scrollHeight - scrollTop - clientHeight < 200) {
+                    loadMoreFlatTags();
+                }
+            }
+        }
+
+        function refreshCurrentView() {
+            if (!selectedDevice) return;
+            resetState();
+            if (viewMode === 'tree') {
+                loadRootTags();
+            } else {
+                loadFlatTags(true);
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('totalTags').textContent = stats.totalTags.toLocaleString();
+            document.getElementById('totalFolders').textContent = stats.folders.toLocaleString();
+            document.getElementById('totalUdts').textContent = stats.udtInstances.toLocaleString();
+        }
+
+        function showLoading() {
+            document.getElementById('tagContent').innerHTML = `
+                <div class="loading-indicator">
+                    <span class="loading-spinner"></span>
+                    Loading tags...
+                </div>
+            `;
+            document.getElementById('statsBar').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('tagContent').innerHTML = `
+                <div class="error-message">
+                    <p><strong>Error:</strong> ${escapeHtml(message)}</p>
+                </div>
+            `;
+        }
+
+        function showNoDevice() {
+            document.getElementById('tagContent').innerHTML = `
+                <div class="no-tags">
+                    <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
+                    <p>Select a device to browse its tags</p>
+                </div>
+            `;
+            document.getElementById('statsBar').style.display = 'none';
+        }
+
+        // Helper functions
         function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeAttr(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
         }
 
         function getTagIcon(dataType) {
@@ -717,7 +1139,7 @@
         function getValueClass(dataType, value) {
             const type = (dataType || '').toUpperCase();
             if (type === 'BOOL' || type === 'BOOLEAN') {
-                return value === true || value === 'true' ? 'value-bool-true' : 'value-bool-false';
+                return value === true || value === 'true' || value === 'TRUE' ? 'value-bool-true' : 'value-bool-false';
             }
             if (['INT', 'DINT', 'SINT', 'LINT', 'REAL', 'LREAL', 'FLOAT'].includes(type)) {
                 return 'value-number';
@@ -726,76 +1148,139 @@
         }
 
         function formatValue(value, dataType) {
-            if (value === undefined || value === null) return '-';
+            if (value === undefined || value === null || value === '') return '-';
             const type = (dataType || '').toUpperCase();
             if (type === 'BOOL' || type === 'BOOLEAN') {
-                return value === true || value === 'true' ? 'TRUE' : 'FALSE';
+                return value === true || value === 'true' || value === '"true"' ? 'TRUE' : 'FALSE';
             }
             if (['REAL', 'LREAL', 'FLOAT'].includes(type)) {
-                return parseFloat(value).toFixed(2);
+                const num = parseFloat(value);
+                return isNaN(num) ? value : num.toFixed(2);
+            }
+            // Remove surrounding quotes if present
+            if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
+                return value.slice(1, -1);
             }
             return String(value);
         }
 
-        function toggleFolder(folderId) {
-            const folder = document.getElementById(folderId);
-            const row = folder.previousElementSibling;
-
-            folder.classList.toggle('hidden');
-            row.classList.toggle('expanded');
-        }
-
         function copyTagPath(path) {
-            // Format matches Designer OPC-UA tag path: [DeviceName]Controller:Global.TagName
             const fullPath = `[${selectedDevice}]${path}`;
             navigator.clipboard.writeText(fullPath).then(() => {
-                // Show brief toast instead of alert
                 showToast(`Copied: ${fullPath}`);
             });
         }
 
-        function showToast(message) {
+        function showToast(message, isError = false) {
             const toast = document.createElement('div');
             toast.textContent = message;
-            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+            const bg = isError ? '#ef4444' : '#10b981';
+            toast.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${bg};color:white;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 2000);
         }
 
-        function filterTags() {
-            const query = document.getElementById('searchBox').value.toLowerCase();
-            if (!query) {
-                renderTags(allTags);
+        // =====================================================
+        // Per-tag simulation control
+        // =====================================================
+
+        /**
+         * Load the list of tags that have simulation enabled.
+         */
+        async function loadSimulatedTags() {
+            if (!selectedDevice) return;
+
+            try {
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags/simulated`,
+                    { credentials: 'include' }
+                );
+
+                if (response.ok) {
+                    const data = await response.json();
+                    simulationEngineAvailable = data.simulationEngineAvailable || false;
+                    simulatedTags.clear();
+
+                    if (data.simulatedTags) {
+                        for (const tag of data.simulatedTags) {
+                            simulatedTags.add(tag.path);
+                        }
+                    }
+
+                    updateSimStatusHeader();
+                }
+            } catch (error) {
+                console.error('Error loading simulated tags:', error);
+            }
+        }
+
+        /**
+         * Toggle simulation for a specific tag.
+         */
+        async function toggleSimulation(tagPath) {
+            if (!selectedDevice) return;
+
+            if (!simulationEngineAvailable) {
+                showToast('Simulation engine not available. Enable simulation in device settings.', true);
                 return;
             }
 
-            const filtered = allTags.filter(tag => {
-                const path = tag.path || tag.name;
+            try {
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tag/simulate`,
+                    {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ tagPath: tagPath })
+                    }
+                );
 
-                return (tag.name && tag.name.toLowerCase().includes(query)) ||
-                    (path && path.toLowerCase().includes(query)) ||
-                    (tag.data_type && tag.data_type.toLowerCase().includes(query));
-            });
+                const result = await response.json();
 
-            renderTags(filtered);
+                if (result.success) {
+                    // Update local state
+                    if (result.simulationEnabled) {
+                        simulatedTags.add(tagPath);
+                        showToast(`Simulation enabled for ${tagPath.split('/').pop()}`);
+                    } else {
+                        simulatedTags.delete(tagPath);
+                        showToast(`Simulation disabled for ${tagPath.split('/').pop()}`);
+                    }
+
+                    updateSimStatusHeader();
+
+                    // Re-render to update button state
+                    if (viewMode === 'tree') {
+                        renderTreeView();
+                    } else {
+                        renderFlatView();
+                    }
+                } else {
+                    showToast(result.error || 'Failed to toggle simulation', true);
+                }
+            } catch (error) {
+                console.error('Error toggling simulation:', error);
+                showToast('Error toggling simulation', true);
+            }
         }
 
-        function updateStats(data) {
-            document.getElementById('totalTags').textContent = data.totalTags || allTags.length;
-            document.getElementById('totalFolders').textContent = data.folders || 0;
-            document.getElementById('totalUdts').textContent = data.udtInstances || 0;
+        /**
+         * Update the simulation status indicator in the header.
+         */
+        function updateSimStatusHeader() {
+            const statusEl = document.getElementById('simEngineStatus');
+            const countEl = document.getElementById('simTagCount');
+
+            if (simulatedTags.size > 0) {
+                statusEl.style.display = 'inline-flex';
+                countEl.textContent = simulatedTags.size;
+            } else {
+                statusEl.style.display = 'none';
+            }
         }
 
-        function showNoDevice() {
-            document.getElementById('tagContent').innerHTML = `
-                <div class="no-tags">
-                    <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
-                    <p>Select a device to browse its tags</p>
-                </div>
-            `;
-            document.getElementById('statsBar').style.display = 'none';
-        }
-
+        // Auto-refresh / Live values
         function toggleAutoRefresh() {
             const toggle = document.getElementById('autoRefreshToggle');
             const indicator = document.getElementById('refreshIndicator');
@@ -808,41 +1293,35 @@
             } else {
                 toggle.classList.add('active');
                 indicator.style.display = 'flex';
-                // Use live values endpoint for faster updates
-                autoRefreshInterval = setInterval(() => {
-                    if (selectedDevice) updateLiveValues();
-                }, 1000); // 1 second refresh
+                updateLiveValues(); // Immediate update
+                autoRefreshInterval = setInterval(updateLiveValues, 1000);
             }
         }
 
-        // Fetch live values and update display without re-rendering entire tree
         async function updateLiveValues() {
             if (!selectedDevice) return;
 
             try {
-                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags/live`, {
-                    credentials: 'include'
-                });
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags/live`,
+                    { credentials: 'include' }
+                );
 
                 if (response.ok) {
                     const data = await response.json();
                     if (data.values) {
-                        // Update displayed values
-                        Object.entries(data.values).forEach(([path, value]) => {
-                            // Element IDs use the slash-separated path from the API
+                        for (const [path, value] of Object.entries(data.values)) {
+                            liveValues[path] = formatValue(value, null);
+
+                            // Update displayed value
                             const tagId = path.replace(/[^a-zA-Z0-9]/g, '_');
-                            const valueEl = document.getElementById(`value-${tagId}`);
-                            if (valueEl) {
-                                const oldValue = valueEl.textContent;
-                                const newValue = String(value);
-                                if (oldValue !== newValue) {
-                                    valueEl.textContent = newValue;
-                                    valueEl.classList.add('value-changed');
-                                    setTimeout(() => valueEl.classList.remove('value-changed'), 500);
-                                }
+                            const el = document.getElementById(`value-${tagId}`);
+                            if (el && el.textContent !== liveValues[path]) {
+                                el.textContent = liveValues[path];
+                                el.classList.add('value-changed');
+                                setTimeout(() => el.classList.remove('value-changed'), 500);
                             }
-                        });
-                        liveValues = data.values;
+                        }
                     }
                 }
             } catch (error) {
@@ -850,7 +1329,7 @@
             }
         }
 
-        // Write tag modal functions
+        // Write modal
         function openWriteModal(tagPath, tagName, dataType, currentValue) {
             currentWriteTag = { path: tagPath, name: tagName, dataType: dataType };
 
@@ -860,8 +1339,7 @@
             document.getElementById('writeTagCurrentValue').textContent = currentValue;
 
             const input = document.getElementById('writeTagValue');
-            input.value = currentValue === 'TRUE' || currentValue === 'FALSE' ?
-                (currentValue === 'TRUE' ? 'true' : 'false') : currentValue;
+            input.value = currentValue === 'TRUE' ? 'true' : (currentValue === 'FALSE' ? 'false' : currentValue);
             input.focus();
             input.select();
 
@@ -880,31 +1358,34 @@
             const value = document.getElementById('writeTagValue').value;
 
             try {
-                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tag/write`, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        tagPath: currentWriteTag.path,
-                        value: value,
-                        dataType: currentWriteTag.dataType
-                    })
-                });
+                const response = await fetch(
+                    `/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tag/write`,
+                    {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            tagPath: currentWriteTag.path,
+                            value: value,
+                            dataType: currentWriteTag.dataType
+                        })
+                    }
+                );
 
                 const result = await response.json();
 
                 if (result.success) {
-                    // Update the displayed value immediately
+                    // Update cache and display
+                    liveValues[currentWriteTag.path] = formatValue(value, currentWriteTag.dataType);
                     const tagId = currentWriteTag.path.replace(/[^a-zA-Z0-9]/g, '_');
-                    const valueEl = document.getElementById(`value-${tagId}`);
-                    if (valueEl) {
-                        valueEl.textContent = formatValue(value, currentWriteTag.dataType);
-                        valueEl.classList.add('value-changed');
-                        setTimeout(() => valueEl.classList.remove('value-changed'), 500);
+                    const el = document.getElementById(`value-${tagId}`);
+                    if (el) {
+                        el.textContent = liveValues[currentWriteTag.path];
+                        el.classList.add('value-changed');
+                        setTimeout(() => el.classList.remove('value-changed'), 500);
                     }
                     closeWriteModal();
+                    showToast('Value written successfully');
                 } else {
                     alert(`Write failed: ${result.error}`);
                 }
