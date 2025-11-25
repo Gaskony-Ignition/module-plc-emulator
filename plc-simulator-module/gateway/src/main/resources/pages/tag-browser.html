@@ -389,7 +389,7 @@
         <div class="header">
             <div>
                 <h1>🏷️ Tag Browser</h1>
-                <div class="subtitle">Enhanced PLC Simulator v7.3.5 - View and monitor OPC-UA tags</div>
+                <div class="subtitle">Enhanced PLC Simulator v7.3.6 - View and monitor OPC-UA tags</div>
             </div>
             <div class="nav-links">
                 <a href="/web/config/plcsimulator.plc-file-upload" class="nav-link" target="_top">📤 Upload</a>
@@ -578,110 +578,106 @@
                 return;
             }
 
-            // Build flat structure matching Designer OPC Browser
-            // Only top-level folders: Controller:Global, Programs/ProgramName
-            // All tags (including UDT members) as flat list under their folder
+            // Build hierarchical tree matching Designer OPC Browser
+            // Structure: Controller:Global > UDT instances (expandable) > members
             const tree = buildTagTree(tags);
-            content.innerHTML = renderTree(tree);
+            content.innerHTML = renderTree(tree, 0);
         }
 
         function buildTagTree(tags) {
-            // Structure: { 'Controller:Global': [...tags], 'Programs.MainProgram': [...tags] }
-            const folders = {};
+            const tree = { folders: {}, tags: [] };
 
             tags.forEach(tag => {
-                // Skip UDT folder entries - we only want leaf tags
-                if (tag.isFolder || tag.isUdt) return;
+                // Parse the path to build hierarchy
+                // API returns: Controller:Global/Motor1/Speed (for UDT member)
+                // API returns: Controller:Global/SimpleTag (for atomic tag)
+                const path = tag.path || tag.name;
+                const parts = path.split('/');
 
-                let path = tag.path || tag.name;
-                let folder = '';
-                let tagName = '';
+                let current = tree;
 
-                // Determine folder and tag name based on path
-                if (path.startsWith('Controller:Global/')) {
-                    folder = 'Controller:Global';
-                    // Tag name is everything after Controller:Global/, with slashes converted to dots
-                    tagName = path.substring('Controller:Global/'.length).replace(/\//g, '.');
-                } else if (path.startsWith('Programs/')) {
-                    // Extract program name: Programs/MainProgram/TagName -> folder = Programs.MainProgram
-                    const parts = path.split('/');
-                    if (parts.length >= 3) {
-                        folder = 'Programs.' + parts[1];
-                        tagName = parts.slice(2).join('.');
+                // Navigate/create folder structure for all but the last part
+                for (let i = 0; i < parts.length - 1; i++) {
+                    const part = parts[i];
+                    if (!current.folders[part]) {
+                        current.folders[part] = { folders: {}, tags: [], isUdt: false };
+                    }
+                    current = current.folders[part];
+                }
+
+                // Mark UDT folders
+                if (tag.isUdt || tag.isFolder) {
+                    // This is a UDT instance marker - mark the folder
+                    const folderName = parts[parts.length - 1];
+                    if (!current.folders[folderName]) {
+                        current.folders[folderName] = { folders: {}, tags: [], isUdt: true, dataType: tag.data_type };
                     } else {
-                        folder = 'Programs';
-                        tagName = parts.slice(1).join('.');
+                        current.folders[folderName].isUdt = true;
+                        current.folders[folderName].dataType = tag.data_type;
                     }
                 } else {
-                    folder = 'Other';
-                    tagName = path;
+                    // This is a leaf tag
+                    current.tags.push({
+                        ...tag,
+                        displayName: parts[parts.length - 1]
+                    });
                 }
-
-                if (!folders[folder]) {
-                    folders[folder] = [];
-                }
-
-                folders[folder].push({
-                    ...tag,
-                    displayName: tagName,
-                    fullPath: folder + '.' + tagName  // Full OPC-UA style path
-                });
             });
 
-            // Sort tags within each folder alphabetically (like Designer)
-            Object.keys(folders).forEach(folder => {
-                folders[folder].sort((a, b) => a.displayName.localeCompare(b.displayName));
-            });
+            // Sort folders and tags alphabetically at each level
+            sortTree(tree);
 
-            return folders;
+            return tree;
         }
 
-        function renderTree(folders) {
+        function sortTree(node) {
+            // Sort tags alphabetically
+            node.tags.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+            // Recursively sort child folders
+            Object.values(node.folders).forEach(folder => sortTree(folder));
+        }
+
+        function renderTree(node, depth) {
             let html = '';
 
-            // Sort folder names: Controller:Global first, then Programs.*
-            const folderNames = Object.keys(folders).sort((a, b) => {
-                if (a === 'Controller:Global') return -1;
-                if (b === 'Controller:Global') return 1;
-                return a.localeCompare(b);
-            });
+            // Sort folder names alphabetically
+            const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
 
-            folderNames.forEach(folderName => {
-                const tags = folders[folderName];
-                const folderId = `folder-${folderName.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                const tagCount = tags.length;
+            // Render folders first
+            folderNames.forEach(name => {
+                const folder = node.folders[name];
+                const folderId = `folder-${name.replace(/[^a-zA-Z0-9]/g, '_')}-${depth}`;
+                const isUdt = folder.isUdt;
+                const icon = isUdt ? '📦' : '📁';
+                const typeDisplay = isUdt ? folder.dataType : 'Folder';
 
                 html += `
-                    <div class="tag-item folder-row" onclick="toggleFolder('${folderId}')">
+                    <div class="tag-item folder-row indent-${depth}" onclick="toggleFolder('${folderId}')">
                         <div class="tag-name">
                             <span class="expand-icon">▶</span>
-                            <span class="tag-icon folder-icon">📁</span>
-                            <span>${folderName}</span>
+                            <span class="tag-icon ${isUdt ? 'udt-icon' : 'folder-icon'}">${icon}</span>
+                            <span>${name}</span>
                         </div>
-                        <div class="tag-type">${tagCount} tags</div>
+                        <div class="tag-type">${typeDisplay}</div>
                         <div class="tag-value">-</div>
                         <div class="tag-actions">-</div>
                     </div>
                     <div id="${folderId}" class="folder-contents hidden">
-                        ${renderTagList(tags, folderName)}
+                        ${renderTree(folder, depth + 1)}
                     </div>
                 `;
             });
 
-            return html;
-        }
-
-        function renderTagList(tags, folderName) {
-            let html = '';
-
-            tags.forEach(tag => {
+            // Render tags
+            node.tags.forEach(tag => {
                 const icon = getTagIcon(tag.data_type);
                 const valueClass = getValueClass(tag.data_type, tag.value);
-                const fullPath = tag.fullPath || (folderName + '.' + tag.displayName);
-                const tagId = fullPath.replace(/[^a-zA-Z0-9]/g, '_');
+                const tagPath = tag.path || tag.name;
+                const tagId = tagPath.replace(/[^a-zA-Z0-9]/g, '_');
 
                 html += `
-                    <div class="tag-item indent-1" data-tag-path="${fullPath}">
+                    <div class="tag-item indent-${depth}" data-tag-path="${tagPath}">
                         <div class="tag-name">
                             <span class="tag-icon ${icon.class}">${icon.emoji}</span>
                             <span>${tag.displayName}</span>
@@ -689,10 +685,10 @@
                         <div class="tag-type">${tag.data_type || 'Unknown'}</div>
                         <div class="tag-value ${valueClass}" id="value-${tagId}">${formatValue(tag.value, tag.data_type)}</div>
                         <div class="tag-actions">
-                            <button class="btn btn-small btn-write" onclick="openWriteModal('${escapeHtml(tag.path || tag.name)}', '${escapeHtml(tag.displayName)}', '${tag.data_type || 'STRING'}', '${escapeHtml(formatValue(tag.value, tag.data_type))}')">
+                            <button class="btn btn-small btn-write" onclick="openWriteModal('${escapeHtml(tagPath)}', '${escapeHtml(tag.displayName)}', '${tag.data_type || 'STRING'}', '${escapeHtml(formatValue(tag.value, tag.data_type))}')">
                                 ✏️ Write
                             </button>
-                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${escapeHtml(fullPath)}')">
+                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${escapeHtml(tagPath)}')">
                                 📋 Copy
                             </button>
                         </div>
@@ -773,19 +769,10 @@
             }
 
             const filtered = allTags.filter(tag => {
-                // Skip folder entries
-                if (tag.isFolder || tag.isUdt) return false;
-
-                // Convert path to dot notation for searching
-                let dotPath = tag.path || tag.name;
-                if (dotPath.startsWith('Controller:Global/')) {
-                    dotPath = 'Controller:Global.' + dotPath.substring('Controller:Global/'.length).replace(/\//g, '.');
-                } else if (dotPath.startsWith('Programs/')) {
-                    dotPath = dotPath.replace(/\//g, '.');
-                }
+                const path = tag.path || tag.name;
 
                 return (tag.name && tag.name.toLowerCase().includes(query)) ||
-                    (dotPath && dotPath.toLowerCase().includes(query)) ||
+                    (path && path.toLowerCase().includes(query)) ||
                     (tag.data_type && tag.data_type.toLowerCase().includes(query));
             });
 
@@ -841,17 +828,8 @@
                     if (data.values) {
                         // Update displayed values
                         Object.entries(data.values).forEach(([path, value]) => {
-                            // Convert API slash notation to full dot path for element ID matching
-                            // API returns: Controller:Global/Motor1/Speed
-                            // Element ID uses: Controller:Global.Motor1.Speed
-                            let fullPath = path;
-                            if (fullPath.startsWith('Controller:Global/')) {
-                                fullPath = 'Controller:Global.' + fullPath.substring('Controller:Global/'.length).replace(/\//g, '.');
-                            } else if (fullPath.startsWith('Programs/')) {
-                                fullPath = fullPath.replace(/\//g, '.');
-                            }
-
-                            const tagId = fullPath.replace(/[^a-zA-Z0-9]/g, '_');
+                            // Element IDs use the slash-separated path from the API
+                            const tagId = path.replace(/[^a-zA-Z0-9]/g, '_');
                             const valueEl = document.getElementById(`value-${tagId}`);
                             if (valueEl) {
                                 const oldValue = valueEl.textContent;
