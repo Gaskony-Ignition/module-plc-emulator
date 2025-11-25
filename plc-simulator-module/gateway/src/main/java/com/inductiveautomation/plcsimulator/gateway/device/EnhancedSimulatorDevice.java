@@ -593,6 +593,7 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
     /**
      * Handle file change event from file watcher.
+     * Uses incremental updates when possible to minimize OPC-UA disconnection time.
      */
     private void handleFileChange(File changedFile) {
         logger.info("File change detected, reloading device: {}", context.getName());
@@ -600,38 +601,72 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
         try {
             deviceStatus = "Reloading";
 
-            // Stop simulation engine temporarily
-            if (simulationEngine != null && simulationEngine.isRunning()) {
-                simulationEngine.stop();
-            }
-
             // Re-parse the file
-            parsedData = parseFile(currentFilePath);
+            JsonObject newData = parseFile(currentFilePath);
 
-            if (parsedData == null) {
+            if (newData == null) {
                 deviceStatus = "Error: Failed to parse file after reload";
                 logger.error("Failed to parse file during hot reload");
                 return;
             }
 
-            // Rebuild address space
-            // Note: Full rebuild - incremental updates would be better but more complex
-            getNodeManager().removeNode(rootNode.getNodeId());
-            createRootNode();
-            buildAddressSpace();
+            // Try incremental update first (faster, maintains subscriptions)
+            if (parsedData != null) {
+                IncrementalAddressSpaceUpdater updater = new IncrementalAddressSpaceUpdater(
+                    nodeId -> getNodeManager().get(nodeId),
+                    context::nodeId,
+                    context.getName()
+                );
 
-            // Restart simulation if it was running
-            if (config.simulation().enabled()) {
-                initializeSimulation();
+                IncrementalAddressSpaceUpdater.CompareResult changes = updater.compare(parsedData, newData);
+
+                if (updater.canApplyIncrementally(changes)) {
+                    // Only value changes - apply incrementally without rebuild
+                    logger.info("Applying incremental update ({} value changes)", changes.changedTags.size());
+                    updater.applyIncrementalUpdate(changes);
+                    parsedData = newData;
+                    deviceStatus = "Running";
+                    logger.info("Incremental update complete - no rebuild required");
+                    return;
+                }
+
+                logger.info("Structural changes detected - performing full rebuild");
             }
 
-            deviceStatus = "Running";
-            logger.info("Device successfully reloaded from file change");
+            // Full rebuild needed (new/removed tags or first load)
+            performFullRebuild(newData);
 
         } catch (Exception e) {
             logger.error("Error handling file change", e);
             deviceStatus = "Error: Hot reload failed - " + e.getMessage();
         }
+    }
+
+    /**
+     * Perform a full address space rebuild.
+     * Used when structural changes are detected (tags added/removed).
+     */
+    private void performFullRebuild(JsonObject newData) {
+        // Stop simulation engine temporarily
+        if (simulationEngine != null && simulationEngine.isRunning()) {
+            simulationEngine.stop();
+        }
+
+        // Update parsed data
+        parsedData = newData;
+
+        // Rebuild address space
+        getNodeManager().removeNode(rootNode.getNodeId());
+        createRootNode();
+        buildAddressSpace();
+
+        // Restart simulation if it was running
+        if (config.simulation().enabled()) {
+            initializeSimulation();
+        }
+
+        deviceStatus = "Running";
+        logger.info("Device successfully reloaded with full rebuild");
     }
 
     @Override

@@ -24,10 +24,11 @@ public class ParserFactory {
         availableParsers.add(new BeckhoffParser());  // Beckhoff TwinCAT 2/3
         availableParsers.add(new ABBParser());  // ABB Automation Builder / Control Builder Plus
         availableParsers.add(new MitsubishiParser());  // Mitsubishi GX Works 2/3
+        availableParsers.add(new OmronParser());  // Omron CX-Programmer / Sysmac Studio
         availableParsers.add(new JsonPLCParser());
         availableParsers.add(new CsvParser());
 
-        logger.info("Registered {} PLC parsers: L5K, L5X, Siemens, Schneider, Beckhoff, ABB, Mitsubishi, JSON, CSV",
+        logger.info("Registered {} PLC parsers: L5K, L5X, Siemens, Schneider, Beckhoff, ABB, Mitsubishi, Omron, JSON, CSV",
                     availableParsers.size());
     }
 

@@ -1,79 +1,52 @@
 package com.inductiveautomation.plcsimulator.gateway.web;
 
-import com.google.gson.JsonObject;
-import com.inductiveautomation.ignition.gateway.model.GatewayContext;
-import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 /**
- * Security-focused tests for FileUploadRoutes.
- * Tests path traversal prevention, filename sanitization, and file size limits.
+ * Security-focused tests for PathSecurity utility.
+ * Tests path traversal prevention, filename sanitization, and device name validation.
  *
  * CRITICAL: These tests verify protection against security vulnerabilities.
  */
 class FileUploadRoutesSecurityTest {
-
-    @Mock
-    private GatewayContext gatewayContext;
-
-    @Mock
-    private RouteGroup routeGroup;
-
-    private FileUploadRoutes routes;
 
     @TempDir
     Path tempDir;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-        routes = new FileUploadRoutes(gatewayContext, routeGroup);
+        // No setup needed - PathSecurity has static methods
     }
 
     // ========== Filename Sanitization Tests ==========
 
     @Test
     @DisplayName("SECURITY: Should reject null filename")
-    void testSanitizeFileNameRejectsNull() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
-        assertThatThrownBy(() -> method.invoke(routes, (String) null))
-            .hasCauseInstanceOf(IllegalArgumentException.class)
-            .cause()
+    void testSanitizeFileNameRejectsNull() {
+        assertThatThrownBy(() -> PathSecurity.sanitizeFileName(null))
+            .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("File name cannot be empty");
     }
 
     @Test
     @DisplayName("SECURITY: Should reject empty filename")
-    void testSanitizeFileNameRejectsEmpty() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
-        assertThatThrownBy(() -> method.invoke(routes, ""))
-            .hasCauseInstanceOf(IllegalArgumentException.class)
-            .cause()
+    void testSanitizeFileNameRejectsEmpty() {
+        assertThatThrownBy(() -> PathSecurity.sanitizeFileName(""))
+            .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("File name cannot be empty");
     }
 
     @Test
     @DisplayName("SECURITY: Should reject path traversal with ../ in filename")
-    void testSanitizeFileNameRejectsParentDirectory() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeFileNameRejectsParentDirectory() {
         String[] maliciousNames = {
             "../etc/passwd",
             "../../secret.txt",
@@ -82,19 +55,15 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String maliciousName : maliciousNames) {
-            assertThatThrownBy(() -> method.invoke(routes, maliciousName))
-                .hasCauseInstanceOf(SecurityException.class)
-                .cause()
+            assertThatThrownBy(() -> PathSecurity.sanitizeFileName(maliciousName))
+                .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("path traversal");
         }
     }
 
     @Test
     @DisplayName("SECURITY: Should reject absolute paths in filename")
-    void testSanitizeFileNameRejectsAbsolutePaths() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeFileNameRejectsAbsolutePaths() {
         String[] maliciousNames = {
             "/etc/passwd",
             "/root/secret.txt",
@@ -103,48 +72,35 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String maliciousName : maliciousNames) {
-            assertThatThrownBy(() -> method.invoke(routes, maliciousName))
-                .hasCauseInstanceOf(SecurityException.class)
-                .cause()
+            assertThatThrownBy(() -> PathSecurity.sanitizeFileName(maliciousName))
+                .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("path traversal");
         }
     }
 
     @Test
     @DisplayName("SECURITY: Should reject null byte in filename")
-    void testSanitizeFileNameRejectsNullByte() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeFileNameRejectsNullByte() {
         String maliciousName = "evil.txt\0.jpg";
 
-        assertThatThrownBy(() -> method.invoke(routes, maliciousName))
-            .hasCauseInstanceOf(SecurityException.class)
-            .cause()
+        assertThatThrownBy(() -> PathSecurity.sanitizeFileName(maliciousName))
+            .isInstanceOf(SecurityException.class)
             .hasMessageContaining("null byte");
     }
 
     @Test
     @DisplayName("SECURITY: Should reject filename exceeding max length")
-    void testSanitizeFileNameRejectsTooLong() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
-        // Create filename > 255 characters
+    void testSanitizeFileNameRejectsTooLong() {
         String longName = "a".repeat(256) + ".l5k";
 
-        assertThatThrownBy(() -> method.invoke(routes, longName))
-            .hasCauseInstanceOf(SecurityException.class)
-            .cause()
+        assertThatThrownBy(() -> PathSecurity.sanitizeFileName(longName))
+            .isInstanceOf(SecurityException.class)
             .hasMessageContaining("too long");
     }
 
     @Test
     @DisplayName("Should accept valid filename")
-    void testSanitizeFileNameAcceptsValid() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeFileNameAcceptsValid() {
         String[] validNames = {
             "program.l5k",
             "my-file_v2.l5x",
@@ -153,7 +109,7 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String validName : validNames) {
-            String result = (String) method.invoke(routes, validName);
+            String result = PathSecurity.sanitizeFileName(validName);
             assertThat(result).isEqualTo(validName);
         }
     }
@@ -162,34 +118,23 @@ class FileUploadRoutesSecurityTest {
 
     @Test
     @DisplayName("SECURITY: Should reject null device name")
-    void testSanitizeDeviceNameRejectsNull() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
-        assertThatThrownBy(() -> method.invoke(routes, (String) null))
-            .hasCauseInstanceOf(IllegalArgumentException.class)
-            .cause()
+    void testSanitizeDeviceNameRejectsNull() {
+        assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(null))
+            .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Device name cannot be empty");
     }
 
     @Test
     @DisplayName("SECURITY: Should reject empty device name")
-    void testSanitizeDeviceNameRejectsEmpty() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
-        assertThatThrownBy(() -> method.invoke(routes, ""))
-            .hasCauseInstanceOf(IllegalArgumentException.class)
-            .cause()
+    void testSanitizeDeviceNameRejectsEmpty() {
+        assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(""))
+            .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("Device name cannot be empty");
     }
 
     @Test
     @DisplayName("SECURITY: Should reject path traversal in device name")
-    void testSanitizeDeviceNameRejectsPathTraversal() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeDeviceNameRejectsPathTraversal() {
         String[] maliciousNames = {
             "../admin",
             "../../root",
@@ -199,19 +144,15 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String maliciousName : maliciousNames) {
-            assertThatThrownBy(() -> method.invoke(routes, maliciousName))
-                .hasCauseInstanceOf(SecurityException.class)
-                .cause()
+            assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(maliciousName))
+                .isInstanceOf(SecurityException.class)
                 .hasMessageContaining("illegal characters");
         }
     }
 
     @Test
     @DisplayName("SECURITY: Should reject special characters in device name")
-    void testSanitizeDeviceNameRejectsSpecialChars() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeDeviceNameRejectsSpecialChars() {
         String[] maliciousNames = {
             "device;rm -rf /",  // Contains / so will trigger "illegal characters"
             "device`whoami`",
@@ -222,33 +163,25 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String maliciousName : maliciousNames) {
-            assertThatThrownBy(() -> method.invoke(routes, maliciousName))
-                .hasCauseInstanceOf(SecurityException.class)
-                .cause()
+            assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(maliciousName))
+                .isInstanceOf(SecurityException.class)
                 .hasMessageMatching("(?i).*(illegal characters|must contain only).*");
         }
     }
 
     @Test
     @DisplayName("SECURITY: Should reject device name exceeding max length")
-    void testSanitizeDeviceNameRejectsTooLong() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeDeviceNameRejectsTooLong() {
         String longName = "a".repeat(101);
 
-        assertThatThrownBy(() -> method.invoke(routes, longName))
-            .hasCauseInstanceOf(SecurityException.class)
-            .cause()
+        assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(longName))
+            .isInstanceOf(SecurityException.class)
             .hasMessageContaining("too long");
     }
 
     @Test
     @DisplayName("Should accept valid device name")
-    void testSanitizeDeviceNameAcceptsValid() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        method.setAccessible(true);
-
+    void testSanitizeDeviceNameAcceptsValid() {
         String[] validNames = {
             "PLC1",
             "Device_123",
@@ -257,7 +190,7 @@ class FileUploadRoutesSecurityTest {
         };
 
         for (String validName : validNames) {
-            String result = (String) method.invoke(routes, validName);
+            String result = PathSecurity.sanitizeDeviceName(validName);
             assertThat(result).isEqualTo(validName);
         }
     }
@@ -266,11 +199,7 @@ class FileUploadRoutesSecurityTest {
 
     @Test
     @DisplayName("SECURITY: Should reject path outside storage directory")
-    void testValidateFilePathRejectsOutsideDirectory() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod(
-            "validateFilePath", File.class, String.class, String.class);
-        method.setAccessible(true);
-
+    void testValidateFilePathRejectsOutsideDirectory() {
         File storageDir = tempDir.toFile();
 
         // Try to escape using path traversal
@@ -279,24 +208,20 @@ class FileUploadRoutesSecurityTest {
 
         // This should throw SecurityException because sanitizeFileName
         // will reject the malicious filename
-        assertThatThrownBy(() -> method.invoke(routes, storageDir, maliciousDevice, maliciousFile))
-            .hasCauseInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> PathSecurity.validateFilePath(storageDir, maliciousDevice, maliciousFile))
+            .isInstanceOf(SecurityException.class);
     }
 
     @Test
     @DisplayName("SECURITY: Should detect symlink attacks")
     void testValidateFilePathDetectsSymlinks() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod(
-            "validateFilePath", File.class, String.class, String.class);
-        method.setAccessible(true);
-
         File storageDir = tempDir.toFile();
 
         // Even if a symlink exists, canonical path checking should prevent escaping
         String deviceName = "device1";
         String fileName = "test.l5k";
 
-        File result = (File) method.invoke(routes, storageDir, deviceName, fileName);
+        File result = PathSecurity.validateFilePath(storageDir, deviceName, fileName);
 
         // Verify the result is within storage directory
         assertThat(result.getCanonicalPath())
@@ -306,15 +231,11 @@ class FileUploadRoutesSecurityTest {
     @Test
     @DisplayName("Should accept valid file path")
     void testValidateFilePathAcceptsValid() throws Exception {
-        Method method = FileUploadRoutes.class.getDeclaredMethod(
-            "validateFilePath", File.class, String.class, String.class);
-        method.setAccessible(true);
-
         File storageDir = tempDir.toFile();
         String deviceName = "MyPLC";
         String fileName = "program.l5k";
 
-        File result = (File) method.invoke(routes, storageDir, deviceName, fileName);
+        File result = PathSecurity.validateFilePath(storageDir, deviceName, fileName);
 
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("MyPLC_program.l5k");
@@ -326,11 +247,7 @@ class FileUploadRoutesSecurityTest {
 
     @Test
     @DisplayName("SECURITY: Should prevent directory traversal in combined attack")
-    void testCombinedPathTraversalPrevention() throws Exception {
-        Method validatePath = FileUploadRoutes.class.getDeclaredMethod(
-            "validateFilePath", File.class, String.class, String.class);
-        validatePath.setAccessible(true);
-
+    void testCombinedPathTraversalPrevention() {
         File storageDir = tempDir.toFile();
 
         // Various attack vectors
@@ -345,21 +262,15 @@ class FileUploadRoutesSecurityTest {
             String deviceName = attack[0];
             String fileName = attack[1];
 
-            assertThatThrownBy(() -> validatePath.invoke(routes, storageDir, deviceName, fileName))
-                .hasCauseInstanceOf(SecurityException.class)
+            assertThatThrownBy(() -> PathSecurity.validateFilePath(storageDir, deviceName, fileName))
+                .isInstanceOf(SecurityException.class)
                 .describedAs("Should reject attack: device='%s', file='%s'", deviceName, fileName);
         }
     }
 
     @Test
     @DisplayName("SECURITY: Should enforce consistent security across all methods")
-    void testSecurityConsistency() throws Exception {
-        // All three security methods should reject the same malicious inputs
-        Method sanitizeFile = FileUploadRoutes.class.getDeclaredMethod("sanitizeFileName", String.class);
-        Method sanitizeDevice = FileUploadRoutes.class.getDeclaredMethod("sanitizeDeviceName", String.class);
-        sanitizeFile.setAccessible(true);
-        sanitizeDevice.setAccessible(true);
-
+    void testSecurityConsistency() {
         String[] pathTraversalAttempts = {
             "../admin",
             "../../root",
@@ -368,12 +279,12 @@ class FileUploadRoutesSecurityTest {
 
         for (String attempt : pathTraversalAttempts) {
             // Both methods should reject path traversal
-            assertThatThrownBy(() -> sanitizeDevice.invoke(routes, attempt))
-                .hasCauseInstanceOf(SecurityException.class)
+            assertThatThrownBy(() -> PathSecurity.sanitizeDeviceName(attempt))
+                .isInstanceOf(SecurityException.class)
                 .describedAs("Device name should reject: %s", attempt);
 
-            assertThatThrownBy(() -> sanitizeFile.invoke(routes, attempt))
-                .hasCauseInstanceOf(SecurityException.class)
+            assertThatThrownBy(() -> PathSecurity.sanitizeFileName(attempt))
+                .isInstanceOf(SecurityException.class)
                 .describedAs("File name should reject: %s", attempt);
         }
     }

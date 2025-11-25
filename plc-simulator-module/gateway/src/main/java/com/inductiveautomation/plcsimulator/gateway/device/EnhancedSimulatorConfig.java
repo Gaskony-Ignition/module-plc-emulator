@@ -25,6 +25,7 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         BECKHOFF("beckhoff", "Beckhoff TwinCAT"),
         ABB("abb", "ABB Automation Builder / Control Builder Plus"),
         MITSUBISHI("mitsubishi", "Mitsubishi GX Works 2/3"),
+        OMRON("omron", "Omron CX-Programmer / Sysmac Studio"),
         JSON("json", "JSON Format"),
         CSV("csv", "CSV Format");
 

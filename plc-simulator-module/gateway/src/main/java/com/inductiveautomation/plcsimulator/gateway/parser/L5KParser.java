@@ -7,9 +7,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,42 +21,46 @@ import static com.inductiveautomation.plcsimulator.gateway.parser.DataTypeUtils.
  * - DATATYPE definitions (User Defined Types)
  * - TAG sections with multi-line format
  * - PROGRAM sections
- *
- * This parser now correctly handles UDTs and creates hierarchical structures.
  */
 public class L5KParser implements PLCParser {
 
     private static final Logger logger = LoggerFactory.getLogger(L5KParser.class);
 
     // Regex patterns for parsing L5K format
-    // Fixed: Accept both ( and { for CONTROLLER section (real Studio 5000 uses parentheses)
-    private static final Pattern CONTROLLER_PATTERN = Pattern.compile("^\\s*CONTROLLER\\s+(\\S+)\\s*[\\({]", Pattern.CASE_INSENSITIVE);
-
-    // DATATYPE patterns for UDT parsing
-    private static final Pattern DATATYPE_START_PATTERN = Pattern.compile("^\\s*DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DATATYPE_END_PATTERN = Pattern.compile("^\\s*END_DATATYPE", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DATATYPE_MEMBER_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DATATYPE_BIT_PATTERN = Pattern.compile("^\\s*BIT\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+", Pattern.CASE_INSENSITIVE);
-
-    // ADD_ON_INSTRUCTION patterns for AOI parsing (critical for full tag expansion)
-    private static final Pattern AOI_START_PATTERN = Pattern.compile("^\\s*ADD_ON_INSTRUCTION_DEFINITION\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern AOI_END_PATTERN = Pattern.compile("^\\s*END_ADD_ON_INSTRUCTION_DEFINITION", Pattern.CASE_INSENSITIVE);
-    private static final Pattern AOI_PARAMETERS_START = Pattern.compile("^\\s*PARAMETERS", Pattern.CASE_INSENSITIVE);
-    private static final Pattern AOI_PARAMETERS_END = Pattern.compile("^\\s*END_PARAMETERS", Pattern.CASE_INSENSITIVE);
-    private static final Pattern AOI_LOCAL_TAGS_START = Pattern.compile("^\\s*LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
-    private static final Pattern AOI_LOCAL_TAGS_END = Pattern.compile("^\\s*END_LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
-
-    // Tag patterns within TAG...END_TAG blocks
-    private static final Pattern TAG_BLOCK_START_PATTERN = Pattern.compile("^\\s*TAG\\s*$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TAG_BLOCK_END_PATTERN = Pattern.compile("^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TAG_DEFINITION_PATTERN = Pattern.compile("^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)(?:\\[(\\d+(?:,\\d+)*)\\])?", Pattern.CASE_INSENSITIVE);
-
-    // Controller-scoped tags (outside TAG blocks) - Critical for real Studio 5000 files
-    private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile("^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
-
-    // Program pattern - Fixed: Require at start of line to avoid matching "PROGRAM" in comments
-    private static final Pattern PROGRAM_PATTERN = Pattern.compile("^\\s*PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern END_PROGRAM_PATTERN = Pattern.compile("END_PROGRAM", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CONTROLLER_PATTERN = Pattern.compile(
+        "^\\s*CONTROLLER\\s+(\\S+)\\s*[\\({]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_START_PATTERN = Pattern.compile(
+        "^\\s*DATATYPE\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_END_PATTERN = Pattern.compile(
+        "^\\s*END_DATATYPE", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_MEMBER_PATTERN = Pattern.compile(
+        "^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DATATYPE_BIT_PATTERN = Pattern.compile(
+        "^\\s*BIT\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_START_PATTERN = Pattern.compile(
+        "^\\s*ADD_ON_INSTRUCTION_DEFINITION\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_END_PATTERN = Pattern.compile(
+        "^\\s*END_ADD_ON_INSTRUCTION_DEFINITION", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_PARAMETERS_START = Pattern.compile(
+        "^\\s*PARAMETERS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_PARAMETERS_END = Pattern.compile(
+        "^\\s*END_PARAMETERS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_LOCAL_TAGS_START = Pattern.compile(
+        "^\\s*LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern AOI_LOCAL_TAGS_END = Pattern.compile(
+        "^\\s*END_LOCAL_TAGS", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_BLOCK_START_PATTERN = Pattern.compile(
+        "^\\s*TAG\\s*$", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_BLOCK_END_PATTERN = Pattern.compile(
+        "^\\s*END_TAG", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TAG_DEFINITION_PATTERN = Pattern.compile(
+        "^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)(?:\\[(\\d+(?:,\\d+)*)\\])?", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CONTROLLER_TAG_PATTERN = Pattern.compile(
+        "^\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*:\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*\\(", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PROGRAM_PATTERN = Pattern.compile(
+        "^\\s*PROGRAM\\s+(\\S+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern END_PROGRAM_PATTERN = Pattern.compile(
+        "END_PROGRAM", Pattern.CASE_INSENSITIVE);
 
     @Override
     public JsonObject parse(String filePath) {
@@ -74,96 +76,50 @@ public class L5KParser implements PLCParser {
     @Override
     public JsonObject parseContent(String fileContent, String fileName) {
         try {
-            logger.info("Parsing L5K file: {}", fileName);
-            logger.info("File content length: {} characters", fileContent.length());
+            logger.info("Parsing L5K file: {} ({} chars)", fileName, fileContent.length());
 
             JsonObject result = new JsonObject();
             result.addProperty("vendor", "rockwell");
             result.addProperty("format", "L5K");
 
-            // Split content into lines for processing
             String[] lines = fileContent.split("\\r?\\n");
-            logger.info("File has {} lines", lines.length);
 
             // Parse controller name
             String controllerName = parseControllerName(lines);
             if (controllerName != null) {
                 result.addProperty("controller", controllerName);
-                logger.info("Found controller: {}", controllerName);
             }
 
-            // CRITICAL: Parse UDT and AOI definitions FIRST - we need these to expand instances
-            Map<String, UDTDefinition> udtDefinitions = parseUDTDefinitions(lines);
-            logger.info("Parsed {} UDT definitions", udtDefinitions.size());
+            // Build type definitions map: UDTs + AOIs + Built-ins
+            Map<String, UDTDefinition> allDefinitions = buildTypeDefinitions(lines);
+            logger.info("Total type definitions: {}", allDefinitions.size());
 
-            // Parse AOI (Add-On Instruction) definitions - treat like UDTs for expansion
-            Map<String, UDTDefinition> aoiDefinitions = parseAOIDefinitions(lines);
-            logger.info("Parsed {} AOI definitions", aoiDefinitions.size());
+            // Add UDT definitions to result for reference
+            addUdtDefinitionsToResult(result, allDefinitions);
 
-            // Merge AOI definitions with UDT definitions (both expand the same way)
-            Map<String, UDTDefinition> allDefinitions = new HashMap<>(udtDefinitions);
-            allDefinitions.putAll(aoiDefinitions);
-
-            // Add built-in Rockwell structured types (TIMER, COUNTER, CONTROL, MESSAGE)
-            Map<String, UDTDefinition> builtInTypes = createBuiltInTypeDefinitions();
-            allDefinitions.putAll(builtInTypes);
-            logger.info("Total definitions (UDTs + AOIs + Built-ins): {}", allDefinitions.size());
-
-            // Add UDT/AOI definitions to result (for debugging/reference)
-            if (!udtDefinitions.isEmpty()) {
-                JsonArray udts = new JsonArray();
-                for (UDTDefinition udt : udtDefinitions.values()) {
-                    JsonObject udtJson = new JsonObject();
-                    udtJson.addProperty("name", udt.name);
-                    JsonArray members = new JsonArray();
-                    for (UDTMember member : udt.members) {
-                        JsonObject memberJson = new JsonObject();
-                        memberJson.addProperty("name", member.name);
-                        memberJson.addProperty("data_type", member.dataType);
-                        members.add(memberJson);
-                    }
-                    udtJson.add("members", members);
-                    udts.add(udtJson);
-                }
-                result.add("udts", udts);
-            }
-
-            // Parse tags (both controller and program scoped) with UDT/AOI expansion
+            // Parse tags with UDT expansion
             ParseResult parseResult = parseTagsWithUDTs(lines, allDefinitions);
 
-            // Add global tags
-            if (parseResult.globalTags.size() > 0) {
+            if (!parseResult.globalTags.isEmpty()) {
                 result.add("global_tags", parseResult.globalTags);
-                logger.info("Found {} global tags", parseResult.globalTags.size());
             }
 
-            // Add program tags
             if (!parseResult.programTags.isEmpty()) {
                 JsonArray programs = new JsonArray();
-                for (Map.Entry<String, JsonArray> entry : parseResult.programTags.entrySet()) {
+                for (var entry : parseResult.programTags.entrySet()) {
                     JsonObject program = new JsonObject();
                     program.addProperty("name", entry.getKey());
                     program.add("tags", entry.getValue());
                     programs.add(program);
                 }
                 result.add("programs", programs);
-                logger.info("Found {} programs with tags", parseResult.programTags.size());
             }
 
-            // Log summary
-            int totalTags = parseResult.globalTags.size() + parseResult.programTags.values().stream()
-                .mapToInt(JsonArray::size)
-                .sum();
-            logger.info("L5K parsing complete: {} total tag declarations found, {} were UDT/AOI instances that will expand into folders",
-                totalTags, parseResult.udtInstanceCount);
+            int totalTags = parseResult.globalTags.size() +
+                parseResult.programTags.values().stream().mapToInt(JsonArray::size).sum();
+            logger.info("L5K parsing complete: {} tags, {} UDT instances", totalTags, parseResult.udtInstanceCount);
 
-            // If no tags found, provide detailed diagnostic info
-            if (totalTags == 0) {
-                logger.warn("No tags found in L5K file - file may have unexpected format");
-                return createDemoStructure();
-            }
-
-            return result;
+            return totalTags > 0 ? result : createDemoStructure();
 
         } catch (Exception e) {
             logger.error("Error parsing L5K content", e);
@@ -171,286 +127,211 @@ public class L5KParser implements PLCParser {
         }
     }
 
-    /**
-     * Parse all DATATYPE definitions from the file.
-     * These define User Defined Types (UDTs) that tags can reference.
-     */
+    private Map<String, UDTDefinition> buildTypeDefinitions(String[] lines) {
+        Map<String, UDTDefinition> definitions = new HashMap<>();
+
+        // Parse UDT definitions from file
+        definitions.putAll(parseUDTDefinitions(lines));
+
+        // Parse AOI definitions (expand like UDTs)
+        definitions.putAll(parseAOIDefinitions(lines));
+
+        // Add built-in Rockwell types
+        definitions.putAll(RockwellBuiltInTypes.createAll());
+
+        return definitions;
+    }
+
     private Map<String, UDTDefinition> parseUDTDefinitions(String[] lines) {
-        Map<String, UDTDefinition> udtDefinitions = new HashMap<>();
+        Map<String, UDTDefinition> definitions = new HashMap<>();
 
         for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-
-            Matcher startMatcher = DATATYPE_START_PATTERN.matcher(line);
+            Matcher startMatcher = DATATYPE_START_PATTERN.matcher(lines[i]);
             if (startMatcher.find()) {
                 String udtName = startMatcher.group(1);
                 UDTDefinition udt = new UDTDefinition(udtName);
 
-                logger.debug("Found DATATYPE: {} at line {}", udtName, i+1);
-
-                // Parse members until END_DATATYPE
                 for (int j = i + 1; j < lines.length; j++) {
-                    String memberLine = lines[j];
-
-                    // Check for end of datatype
-                    if (DATATYPE_END_PATTERN.matcher(memberLine).find()) {
-                        udtDefinitions.put(udtName, udt);
-                        logger.debug("Completed UDT {} with {} members", udtName, udt.members.size());
-                        i = j; // Skip to end of this datatype
+                    if (DATATYPE_END_PATTERN.matcher(lines[j]).find()) {
+                        definitions.put(udtName, udt);
+                        i = j;
                         break;
                     }
 
-                    // Check for BIT field (special case)
-                    Matcher bitMatcher = DATATYPE_BIT_PATTERN.matcher(memberLine);
+                    // BIT field
+                    Matcher bitMatcher = DATATYPE_BIT_PATTERN.matcher(lines[j]);
                     if (bitMatcher.find()) {
-                        String bitName = bitMatcher.group(1);
-                        udt.addMember(bitName, "BOOL");
+                        udt.addMember(bitMatcher.group(1), "BOOL");
                         continue;
                     }
 
-                    // Check for regular member
-                    Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(memberLine);
+                    // Regular member
+                    Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(lines[j]);
                     if (memberMatcher.find()) {
                         String memberName = memberMatcher.group(1);
-                        String memberType = memberMatcher.group(2);
-
-                        // Skip hidden/internal members (start with ZZZZ)
                         if (!memberName.startsWith("ZZZZ")) {
-                            udt.addMember(memberName, normalizeDataType(memberType));
-                            logger.trace("Added UDT member: {}.{} of type {}", udtName, memberName, memberType);
+                            udt.addMember(memberName, normalizeDataType(memberMatcher.group(2)));
                         }
                     }
                 }
             }
         }
-
-        return udtDefinitions;
+        return definitions;
     }
 
-    /**
-     * Parse all ADD_ON_INSTRUCTION definitions from the file.
-     * AOIs (Add-On Instructions) are custom function blocks with PARAMETERS and LOCAL_TAGS.
-     * These should be treated like UDTs for tag expansion purposes.
-     */
     private Map<String, UDTDefinition> parseAOIDefinitions(String[] lines) {
-        Map<String, UDTDefinition> aoiDefinitions = new HashMap<>();
+        Map<String, UDTDefinition> definitions = new HashMap<>();
 
         for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-
-            Matcher startMatcher = AOI_START_PATTERN.matcher(line);
+            Matcher startMatcher = AOI_START_PATTERN.matcher(lines[i]);
             if (startMatcher.find()) {
                 String aoiName = startMatcher.group(1);
                 UDTDefinition aoi = new UDTDefinition(aoiName);
+                boolean inParameters = false, inLocalTags = false;
 
-                logger.debug("Found ADD_ON_INSTRUCTION: {} at line {}", aoiName, i+1);
-
-                boolean inParameters = false;
-                boolean inLocalTags = false;
-
-                // Parse PARAMETERS and LOCAL_TAGS sections until END_ADD_ON_INSTRUCTION_DEFINITION
                 for (int j = i + 1; j < lines.length; j++) {
-                    String aoiLine = lines[j];
+                    String line = lines[j];
 
-                    // Check for end of AOI
-                    if (AOI_END_PATTERN.matcher(aoiLine).find()) {
-                        aoiDefinitions.put(aoiName, aoi);
-                        logger.debug("Completed AOI {} with {} members", aoiName, aoi.members.size());
-                        i = j; // Skip to end of this AOI
+                    if (AOI_END_PATTERN.matcher(line).find()) {
+                        definitions.put(aoiName, aoi);
+                        i = j;
                         break;
                     }
 
-                    // Track PARAMETERS section
-                    if (AOI_PARAMETERS_START.matcher(aoiLine).find()) {
-                        inParameters = true;
-                        inLocalTags = false;
-                        continue;
-                    }
-                    if (AOI_PARAMETERS_END.matcher(aoiLine).find()) {
-                        inParameters = false;
-                        continue;
-                    }
+                    if (AOI_PARAMETERS_START.matcher(line).find()) { inParameters = true; inLocalTags = false; continue; }
+                    if (AOI_PARAMETERS_END.matcher(line).find()) { inParameters = false; continue; }
+                    if (AOI_LOCAL_TAGS_START.matcher(line).find()) { inLocalTags = true; inParameters = false; continue; }
+                    if (AOI_LOCAL_TAGS_END.matcher(line).find()) { inLocalTags = false; continue; }
 
-                    // Track LOCAL_TAGS section
-                    if (AOI_LOCAL_TAGS_START.matcher(aoiLine).find()) {
-                        inLocalTags = true;
-                        inParameters = false;
-                        continue;
-                    }
-                    if (AOI_LOCAL_TAGS_END.matcher(aoiLine).find()) {
-                        inLocalTags = false;
-                        continue;
-                    }
-
-                    // Parse members in PARAMETERS or LOCAL_TAGS sections
                     if (inParameters || inLocalTags) {
-                        Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(aoiLine);
+                        Matcher memberMatcher = DATATYPE_MEMBER_PATTERN.matcher(line);
                         if (memberMatcher.find()) {
                             String memberName = memberMatcher.group(1);
-                            String memberType = memberMatcher.group(2);
-
-                            // Skip system parameters (EnableIn, EnableOut) and hidden members
-                            if (!memberName.equals("EnableIn") && !memberName.equals("EnableOut")
-                                && !memberName.startsWith("ZZZZ")) {
-                                aoi.addMember(memberName, normalizeDataType(memberType));
-                                logger.trace("Added AOI member: {}.{} of type {} (from {})",
-                                    aoiName, memberName, memberType, inParameters ? "PARAMETERS" : "LOCAL_TAGS");
+                            if (!memberName.equals("EnableIn") && !memberName.equals("EnableOut") && !memberName.startsWith("ZZZZ")) {
+                                aoi.addMember(memberName, normalizeDataType(memberMatcher.group(2)));
                             }
                         }
                     }
                 }
             }
         }
-
-        return aoiDefinitions;
+        return definitions;
     }
 
-    /**
-     * Parse tags with UDT/AOI expansion.
-     * AOIs are treated just like UDTs for expansion purposes.
-     */
     private ParseResult parseTagsWithUDTs(String[] lines, Map<String, UDTDefinition> udtDefinitions) {
         ParseResult result = new ParseResult();
         String currentProgram = null;
-        boolean inTagBlock = false;
-        boolean inControllerScope = false;
+        boolean inTagBlock = false, inControllerScope = false;
 
-        for (int i = 0; i < lines.length; i++) {
-            String line = lines[i];
-
-            // Check for CONTROLLER section (contains controller-scoped tags)
+        for (String line : lines) {
             if (CONTROLLER_PATTERN.matcher(line).find()) {
                 inControllerScope = true;
                 currentProgram = null;
                 continue;
             }
 
-            // Check for PROGRAM section
             Matcher programMatcher = PROGRAM_PATTERN.matcher(line);
             if (programMatcher.find()) {
                 currentProgram = programMatcher.group(1);
                 inControllerScope = false;
-                logger.debug("Entering program section: {}", currentProgram);
                 continue;
             }
 
-            // Check for END_PROGRAM
             if (END_PROGRAM_PATTERN.matcher(line).find()) {
                 currentProgram = null;
                 continue;
             }
 
-            // Check for TAG block start
             if (TAG_BLOCK_START_PATTERN.matcher(line).find()) {
                 inTagBlock = true;
-                logger.debug("Entering TAG block at line {} in {}", i+1,
-                    currentProgram != null ? "program " + currentProgram : "controller scope");
                 continue;
             }
 
-            // Check for TAG block end
             if (TAG_BLOCK_END_PATTERN.matcher(line).find()) {
                 inTagBlock = false;
                 continue;
             }
 
-            // CRITICAL: Parse controller-scoped tags that appear OUTSIDE TAG blocks
-            // This handles the real Studio 5000 format where controller tags don't use TAG keyword
+            // Controller-scoped tags outside TAG blocks
             if (!inTagBlock && inControllerScope && currentProgram == null) {
-                Matcher controllerTagMatcher = CONTROLLER_TAG_PATTERN.matcher(line);
-                if (controllerTagMatcher.find()) {
-                    String tagName = controllerTagMatcher.group(1);
-                    String dataType = controllerTagMatcher.group(2);
-
-                    JsonObject tag = new JsonObject();
-                    tag.addProperty("name", tagName);
-                    tag.addProperty("data_type", normalizeDataType(dataType));
-
-                    // Check if this is a UDT/AOI instance and expand it
-                    if (expandUdtInstance(tag, dataType, udtDefinitions)) {
-                        result.udtInstanceCount++;
-                    } else {
-                        // Regular atomic tag (MESSAGE, TIMER, etc.)
-                        tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
-                    }
-
+                Matcher tagMatcher = CONTROLLER_TAG_PATTERN.matcher(line);
+                if (tagMatcher.find()) {
+                    JsonObject tag = createTag(tagMatcher.group(1), tagMatcher.group(2), null, udtDefinitions, result);
                     result.globalTags.add(tag);
-                    logger.trace("Added controller tag (outside TAG block): {} of type {}", tagName, dataType);
-                    continue;  // Skip to next line
+                    continue;
                 }
             }
 
-            // Parse tag definitions within TAG blocks
+            // Tags within TAG blocks
             if (inTagBlock) {
                 Matcher tagMatcher = TAG_DEFINITION_PATTERN.matcher(line);
                 if (tagMatcher.find()) {
-                    String tagName = tagMatcher.group(1);
-                    String dataType = tagMatcher.group(2);
-                    String arrayDimensions = tagMatcher.group(3);
-
-                    JsonObject tag = new JsonObject();
-                    tag.addProperty("name", tagName);
-                    tag.addProperty("data_type", normalizeDataType(dataType));
-
-                    // Handle arrays
-                    if (arrayDimensions != null) {
-                        tag.addProperty("dimensions", arrayDimensions);
-                        tag.addProperty("isArray", true);
-                    }
-
-                    // Check if this is a UDT/AOI instance and expand it
-                    if (expandUdtInstance(tag, dataType, udtDefinitions)) {
-                        result.udtInstanceCount++;
-                    } else {
-                        // Regular atomic tag
-                        tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
-                    }
-
-                    // Add tag to appropriate collection
+                    JsonObject tag = createTag(tagMatcher.group(1), tagMatcher.group(2), tagMatcher.group(3), udtDefinitions, result);
                     if (currentProgram != null) {
                         result.programTags.computeIfAbsent(currentProgram, k -> new JsonArray()).add(tag);
                     } else {
                         result.globalTags.add(tag);
                     }
-
-                    logger.trace("Added tag: {} of type {} to {}", tagName, dataType,
-                        currentProgram != null ? "program " + currentProgram : "controller scope");
                 }
             }
         }
-
         return result;
     }
 
-    /**
-     * Expands a UDT/AOI instance by adding its members to the tag.
-     *
-     * @param tag The tag JSON object to expand
-     * @param dataType The UDT/AOI type name
-     * @param udtDefinitions Map of all UDT/AOI definitions
-     * @return true if expansion occurred, false if not a UDT/AOI
-     */
-    private boolean expandUdtInstance(JsonObject tag, String dataType, Map<String, UDTDefinition> udtDefinitions) {
-        if (!udtDefinitions.containsKey(dataType)) {
-            return false;
+    private JsonObject createTag(String name, String dataType, String dimensions,
+                                  Map<String, UDTDefinition> udtDefinitions, ParseResult result) {
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", name);
+        tag.addProperty("data_type", normalizeDataType(dataType));
+
+        if (dimensions != null) {
+            tag.addProperty("dimensions", dimensions);
+            tag.addProperty("isArray", true);
         }
 
-        UDTDefinition udtDef = udtDefinitions.get(dataType);
-        JsonArray udtMembers = new JsonArray();
+        if (udtDefinitions.containsKey(dataType)) {
+            expandUdtInstance(tag, udtDefinitions.get(dataType));
+            result.udtInstanceCount++;
+        } else {
+            tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
+        }
 
-        for (UDTMember member : udtDef.members) {
+        return tag;
+    }
+
+    private void expandUdtInstance(JsonObject tag, UDTDefinition udt) {
+        JsonArray members = new JsonArray();
+        for (var member : udt.getMembers()) {
             JsonObject memberJson = new JsonObject();
-            memberJson.addProperty("name", member.name);
-            memberJson.addProperty("data_type", member.dataType);
-            memberJson.addProperty("initial_value", getDefaultValue(member.dataType));
-            udtMembers.add(memberJson);
+            memberJson.addProperty("name", member.getName());
+            memberJson.addProperty("data_type", member.getDataType());
+            memberJson.addProperty("initial_value", getDefaultValue(member.getDataType()));
+            members.add(memberJson);
         }
+        tag.add("udt_members", members);
+    }
 
-        tag.add("udt_members", udtMembers);
-        logger.debug("Expanded UDT/AOI instance: {} of type {} with {} members",
-            tag.get("name").getAsString(), dataType, udtMembers.size());
-
-        return true;
+    private void addUdtDefinitionsToResult(JsonObject result, Map<String, UDTDefinition> allDefinitions) {
+        JsonArray udts = new JsonArray();
+        for (var udt : allDefinitions.values()) {
+            // Only include user-defined UDTs, not built-ins
+            if (!RockwellBuiltInTypes.createAll().containsKey(udt.getName())) {
+                JsonObject udtJson = new JsonObject();
+                udtJson.addProperty("name", udt.getName());
+                JsonArray members = new JsonArray();
+                for (var member : udt.getMembers()) {
+                    JsonObject memberJson = new JsonObject();
+                    memberJson.addProperty("name", member.getName());
+                    memberJson.addProperty("data_type", member.getDataType());
+                    members.add(memberJson);
+                }
+                udtJson.add("members", members);
+                udts.add(udtJson);
+            }
+        }
+        if (udts.size() > 0) {
+            result.add("udts", udts);
+        }
     }
 
     private String parseControllerName(String[] lines) {
@@ -463,33 +344,25 @@ public class L5KParser implements PLCParser {
         return "UnknownController";
     }
 
-
     private JsonObject createDemoStructure() {
-        String json = """
-            {
-                "controller": "DemoController",
-                "vendor": "rockwell",
-                "format": "L5K",
-                "global_tags": [
-                    {
-                        "name": "L5K_ParseError",
-                        "data_type": "DINT",
-                        "value": 1,
-                        "description": "L5K file could not be parsed - check format"
-                    }
-                ]
-            }
-            """;
-        return new com.google.gson.Gson().fromJson(json, JsonObject.class);
+        JsonObject result = new JsonObject();
+        result.addProperty("controller", "DemoController");
+        result.addProperty("vendor", "rockwell");
+        result.addProperty("format", "L5K");
+        JsonArray tags = new JsonArray();
+        JsonObject errorTag = new JsonObject();
+        errorTag.addProperty("name", "L5K_ParseError");
+        errorTag.addProperty("data_type", "DINT");
+        errorTag.addProperty("value", 1);
+        errorTag.addProperty("description", "L5K file could not be parsed - check format");
+        tags.add(errorTag);
+        result.add("global_tags", tags);
+        return result;
     }
 
     @Override
     public boolean canHandle(String fileName) {
-        if (fileName == null) {
-            return false;
-        }
-        String lowerName = fileName.toLowerCase();
-        return lowerName.endsWith(".l5k");
+        return fileName != null && fileName.toLowerCase().endsWith(".l5k");
     }
 
     @Override
@@ -497,348 +370,9 @@ public class L5KParser implements PLCParser {
         return "l5k";
     }
 
-    /**
-     * Create built-in Rockwell structured type definitions.
-     * All predefined types that need to be expanded like UDTs for comprehensive L5K support.
-     * Version 3.0.0 - Complete coverage of all Rockwell predefined types.
-     */
-    private Map<String, UDTDefinition> createBuiltInTypeDefinitions() {
-        Map<String, UDTDefinition> builtIns = new HashMap<>();
-
-        // ==================== BASIC TYPES ====================
-
-        // TIMER structure (Allen-Bradley/Rockwell documentation)
-        UDTDefinition timer = new UDTDefinition("TIMER");
-        timer.addMember("PRE", "DINT");  // Preset value
-        timer.addMember("ACC", "DINT");  // Accumulated value
-        timer.addMember("DN", "BOOL");   // Done bit
-        timer.addMember("EN", "BOOL");   // Enable bit
-        timer.addMember("TT", "BOOL");   // Timing bit
-        timer.addMember("ER", "BOOL");   // Error bit
-        builtIns.put("TIMER", timer);
-
-        // COUNTER structure
-        UDTDefinition counter = new UDTDefinition("COUNTER");
-        counter.addMember("PRE", "DINT");  // Preset value
-        counter.addMember("ACC", "DINT");  // Accumulated value
-        counter.addMember("CU", "BOOL");   // Count up enable
-        counter.addMember("CD", "BOOL");   // Count down enable
-        counter.addMember("DN", "BOOL");   // Done bit
-        counter.addMember("OV", "BOOL");   // Overflow bit
-        counter.addMember("UN", "BOOL");   // Underflow bit
-        builtIns.put("COUNTER", counter);
-
-        // CONTROL structure
-        UDTDefinition control = new UDTDefinition("CONTROL");
-        control.addMember("LEN", "DINT");  // Length
-        control.addMember("POS", "DINT");  // Position
-        control.addMember("EN", "BOOL");   // Enable bit
-        control.addMember("EU", "BOOL");   // Enable unload bit
-        control.addMember("DN", "BOOL");   // Done bit
-        control.addMember("EM", "BOOL");   // Empty bit
-        control.addMember("ER", "BOOL");   // Error bit
-        builtIns.put("CONTROL", control);
-
-        // MESSAGE structure (expanded from simplified version)
-        UDTDefinition message = new UDTDefinition("MESSAGE");
-        message.addMember("DN", "BOOL");         // Done bit
-        message.addMember("EN", "BOOL");         // Enable bit
-        message.addMember("ER", "BOOL");         // Error bit
-        message.addMember("EW", "BOOL");         // Enable wait bit
-        message.addMember("ST", "BOOL");         // Start bit
-        message.addMember("TO", "BOOL");         // Timeout bit
-        message.addMember("ERR", "INT");         // Error code
-        message.addMember("EXERR", "INT");       // Extended error code
-        message.addMember("DN_LEN", "INT");      // Done length
-        message.addMember("REQ_LEN", "INT");     // Request length
-        message.addMember("ConnectionPath", "STRING");  // Connection path
-        builtIns.put("MESSAGE", message);
-
-        // ==================== PROCESS CONTROL TYPES (HIGH PRIORITY) ====================
-
-        // PID - Standard PID control
-        UDTDefinition pid = new UDTDefinition("PID");
-        pid.addMember("EN", "BOOL");      // Enable
-        pid.addMember("CT", "BOOL");      // Control type (0=independent, 1=dependent)
-        pid.addMember("PV", "REAL");      // Process variable
-        pid.addMember("SP", "REAL");      // Setpoint
-        pid.addMember("CVH", "REAL");     // Control variable high limit
-        pid.addMember("CVL", "REAL");     // Control variable low limit
-        pid.addMember("KP", "REAL");      // Proportional gain
-        pid.addMember("KI", "REAL");      // Integral gain
-        pid.addMember("KD", "REAL");      // Derivative gain
-        pid.addMember("BIAS", "REAL");    // Bias
-        pid.addMember("TIE", "REAL");     // Track input enable
-        pid.addMember("MINTIE", "REAL");  // Minimum tie value
-        pid.addMember("MAXTIE", "REAL");  // Maximum tie value
-        pid.addMember("OUT", "REAL");     // Output
-        builtIns.put("PID", pid);
-
-        // PIDE - Enhanced PID control (widely used in industry)
-        UDTDefinition pide = new UDTDefinition("PIDE");
-        // Process variables
-        pide.addMember("PV", "REAL");           // Process variable
-        pide.addMember("PVFault", "BOOL");      // PV fault status
-        pide.addMember("SP", "REAL");           // Setpoint
-        pide.addMember("SPProg", "REAL");       // Program setpoint
-        pide.addMember("SPCascade", "REAL");    // Cascade setpoint
-        pide.addMember("SPHLimit", "REAL");     // SP high limit
-        pide.addMember("SPLLimit", "REAL");     // SP low limit
-        // Control variables
-        pide.addMember("CV", "REAL");           // Control variable
-        pide.addMember("CVEU", "REAL");         // CV in engineering units
-        pide.addMember("CVHLimit", "REAL");     // CV high limit
-        pide.addMember("CVLLimit", "REAL");     // CV low limit
-        pide.addMember("CVROCLimit", "REAL");   // CV rate of change limit
-        // Tuning parameters
-        pide.addMember("Kp", "REAL");           // Proportional gain
-        pide.addMember("Ki", "REAL");           // Integral gain
-        pide.addMember("Kd", "REAL");           // Derivative gain
-        pide.addMember("KFF", "REAL");          // Feedforward gain
-        pide.addMember("Bias", "REAL");         // Bias value
-        // Mode control
-        pide.addMember("ProgOper", "DINT");     // Operator mode (0=Manual, 1=Auto, 2=Cascade)
-        pide.addMember("ProgAutoReq", "BOOL");  // Auto mode request
-        pide.addMember("ProgManualReq", "BOOL");// Manual mode request
-        pide.addMember("ProgCasReq", "BOOL");   // Cascade mode request
-        pide.addMember("ProgValueReset", "BOOL");// Reset request
-        // Alarms
-        pide.addMember("PVHHAlarm", "BOOL");    // PV high-high alarm
-        pide.addMember("PVHAlarm", "BOOL");     // PV high alarm
-        pide.addMember("PVLAlarm", "BOOL");     // PV low alarm
-        pide.addMember("PVLLAlarm", "BOOL");    // PV low-low alarm
-        pide.addMember("DevHAlarm", "BOOL");    // Deviation high alarm
-        pide.addMember("DevLAlarm", "BOOL");    // Deviation low alarm
-        pide.addMember("PVROCPosAlarm", "BOOL");// PV ROC positive alarm
-        pide.addMember("PVROCNegAlarm", "BOOL");// PV ROC negative alarm
-        // Status
-        pide.addMember("EN", "BOOL");           // Enable
-        pide.addMember("EU", "BOOL");           // Error/uninitialized
-        pide.addMember("DN", "BOOL");           // Done
-        builtIns.put("PIDE", pide);
-
-        // ALARM_ANALOG - Analog alarming (essential for process control)
-        UDTDefinition alarmAnalog = new UDTDefinition("ALARM_ANALOG");
-        alarmAnalog.addMember("EnableIn", "BOOL");         // Enable input
-        alarmAnalog.addMember("In", "REAL");               // Analog input value
-        alarmAnalog.addMember("InFault", "BOOL");          // Input fault status
-        alarmAnalog.addMember("HHEnabled", "BOOL");        // High-high alarm enabled
-        alarmAnalog.addMember("HEnabled", "BOOL");         // High alarm enabled
-        alarmAnalog.addMember("LEnabled", "BOOL");         // Low alarm enabled
-        alarmAnalog.addMember("LLEnabled", "BOOL");        // Low-low alarm enabled
-        alarmAnalog.addMember("ROCPosEnabled", "BOOL");    // ROC positive enabled
-        alarmAnalog.addMember("ROCNegEnabled", "BOOL");    // ROC negative enabled
-        alarmAnalog.addMember("HHLimit", "REAL");          // High-high limit
-        alarmAnalog.addMember("HLimit", "REAL");           // High limit
-        alarmAnalog.addMember("LLimit", "REAL");           // Low limit
-        alarmAnalog.addMember("LLLimit", "REAL");          // Low-low limit
-        alarmAnalog.addMember("Deadband", "REAL");         // Alarm deadband
-        alarmAnalog.addMember("ROCPosLimit", "REAL");      // ROC positive limit
-        alarmAnalog.addMember("ROCNegLimit", "REAL");      // ROC negative limit
-        alarmAnalog.addMember("ROCPeriod", "REAL");        // ROC period
-        alarmAnalog.addMember("HHAlarm", "BOOL");          // High-high alarm active
-        alarmAnalog.addMember("HAlarm", "BOOL");           // High alarm active
-        alarmAnalog.addMember("LAlarm", "BOOL");           // Low alarm active
-        alarmAnalog.addMember("LLAlarm", "BOOL");          // Low-low alarm active
-        alarmAnalog.addMember("ROCPosAlarm", "BOOL");      // ROC positive alarm
-        alarmAnalog.addMember("ROCNegAlarm", "BOOL");      // ROC negative alarm
-        alarmAnalog.addMember("Status", "DINT");           // Alarm status word
-        alarmAnalog.addMember("InstructFault", "BOOL");    // Instruction fault
-        alarmAnalog.addMember("Severity", "DINT");         // Alarm severity
-        builtIns.put("ALARM_ANALOG", alarmAnalog);
-        builtIns.put("ALMA", alarmAnalog); // Alias
-
-        // ALARM_DIGITAL - Digital alarming
-        UDTDefinition alarmDigital = new UDTDefinition("ALARM_DIGITAL");
-        alarmDigital.addMember("EnableIn", "BOOL");        // Enable input
-        alarmDigital.addMember("In", "BOOL");              // Digital input
-        alarmDigital.addMember("InFault", "BOOL");         // Input fault
-        alarmDigital.addMember("Condition", "BOOL");       // Alarm condition (0=low, 1=high)
-        alarmDigital.addMember("AckRequired", "BOOL");     // Acknowledgment required
-        alarmDigital.addMember("Latched", "BOOL");         // Latched alarm
-        alarmDigital.addMember("ProgAck", "BOOL");         // Program acknowledge
-        alarmDigital.addMember("OperAck", "BOOL");         // Operator acknowledge
-        alarmDigital.addMember("ProgReset", "BOOL");       // Program reset
-        alarmDigital.addMember("OperReset", "BOOL");       // Operator reset
-        alarmDigital.addMember("ProgSuppress", "BOOL");    // Program suppress
-        alarmDigital.addMember("OperSuppress", "BOOL");    // Operator suppress
-        alarmDigital.addMember("ProgUnsuppress", "BOOL");  // Program unsuppress
-        alarmDigital.addMember("OperUnsuppress", "BOOL");  // Operator unsuppress
-        alarmDigital.addMember("Alarm", "BOOL");           // Alarm active
-        alarmDigital.addMember("AckAll", "BOOL");          // Acknowledge all
-        alarmDigital.addMember("Acked", "BOOL");           // Acknowledged status
-        alarmDigital.addMember("InAlarm", "BOOL");         // In alarm state
-        alarmDigital.addMember("Suppressed", "BOOL");      // Suppressed status
-        alarmDigital.addMember("Severity", "DINT");        // Alarm severity
-        alarmDigital.addMember("Status", "DINT");          // Status word
-        alarmDigital.addMember("InstructFault", "BOOL");   // Instruction fault
-        builtIns.put("ALARM_DIGITAL", alarmDigital);
-        builtIns.put("ALMD", alarmDigital); // Alias
-
-        // ==================== MOTION CONTROL TYPES (MEDIUM PRIORITY) ====================
-
-        // AXIS_CIP_DRIVE - CIP Motion axis (468 members - using essential subset)
-        UDTDefinition axisCipDrive = new UDTDefinition("AXIS_CIP_DRIVE");
-        // Position and velocity
-        axisCipDrive.addMember("ActualPosition", "REAL");      // Current position
-        axisCipDrive.addMember("CommandPosition", "REAL");     // Commanded position
-        axisCipDrive.addMember("ActualVelocity", "REAL");      // Current velocity
-        axisCipDrive.addMember("CommandVelocity", "REAL");     // Commanded velocity
-        axisCipDrive.addMember("ActualAcceleration", "REAL");  // Current acceleration
-        axisCipDrive.addMember("CommandAcceleration", "REAL"); // Commanded acceleration
-        // Axis state
-        axisCipDrive.addMember("CIPAxisState", "DINT");        // Axis state (0-10)
-        axisCipDrive.addMember("CIPAxisFaults", "DINT");       // Fault bits
-        axisCipDrive.addMember("CIPAxisStatus", "DINT");       // Status bits
-        axisCipDrive.addMember("AxisState", "DINT");           // Legacy axis state
-        // Control bits
-        axisCipDrive.addMember("ServoActionStatus", "DINT");   // Servo action status
-        axisCipDrive.addMember("AxisFault", "BOOL");           // Fault present
-        axisCipDrive.addMember("PhysicalAxisFault", "BOOL");   // Physical fault
-        axisCipDrive.addMember("ModuleFault", "BOOL");         // Module fault
-        axisCipDrive.addMember("ConfigurationFault", "BOOL");  // Config fault
-        // Motion parameters
-        axisCipDrive.addMember("MasterOffset", "REAL");        // Master offset
-        axisCipDrive.addMember("PositionError", "REAL");       // Position error
-        axisCipDrive.addMember("VelocityError", "REAL");       // Velocity error
-        axisCipDrive.addMember("MaximumSpeed", "REAL");        // Max speed
-        axisCipDrive.addMember("MaximumAcceleration", "REAL"); // Max acceleration
-        axisCipDrive.addMember("MaximumDeceleration", "REAL"); // Max deceleration
-        // Drive status
-        axisCipDrive.addMember("DriveStatus", "DINT");         // Drive status word
-        axisCipDrive.addMember("OutputCam", "DINT");           // Output cam status
-        axisCipDrive.addMember("OutputCamExecutionTargets", "DINT"); // Cam targets
-        builtIns.put("AXIS_CIP_DRIVE", axisCipDrive);
-
-        // AXIS_VIRTUAL - Virtual axis for simulation
-        UDTDefinition axisVirtual = new UDTDefinition("AXIS_VIRTUAL");
-        axisVirtual.addMember("ActualPosition", "REAL");
-        axisVirtual.addMember("CommandPosition", "REAL");
-        axisVirtual.addMember("ActualVelocity", "REAL");
-        axisVirtual.addMember("CommandVelocity", "REAL");
-        axisVirtual.addMember("ActualAcceleration", "REAL");
-        axisVirtual.addMember("AxisState", "DINT");
-        axisVirtual.addMember("AxisFault", "BOOL");
-        axisVirtual.addMember("MaximumSpeed", "REAL");
-        axisVirtual.addMember("MaximumAcceleration", "REAL");
-        axisVirtual.addMember("MaximumDeceleration", "REAL");
-        builtIns.put("AXIS_VIRTUAL", axisVirtual);
-
-        // AXIS_SERVO_DRIVE - Servo drive axis (legacy)
-        UDTDefinition axisServoDrive = new UDTDefinition("AXIS_SERVO_DRIVE");
-        axisServoDrive.addMember("ActualPosition", "REAL");
-        axisServoDrive.addMember("CommandPosition", "REAL");
-        axisServoDrive.addMember("ActualVelocity", "REAL");
-        axisServoDrive.addMember("CommandVelocity", "REAL");
-        axisServoDrive.addMember("AxisState", "DINT");
-        axisServoDrive.addMember("AxisFault", "BOOL");
-        builtIns.put("AXIS_SERVO_DRIVE", axisServoDrive);
-
-        // MOTION_GROUP - Motion group coordination
-        UDTDefinition motionGroup = new UDTDefinition("MOTION_GROUP");
-        motionGroup.addMember("GroupStatus", "DINT");          // Group status
-        motionGroup.addMember("GroupFault", "BOOL");           // Group fault
-        motionGroup.addMember("Alternate1UpdateMultiplier", "DINT"); // Update rate
-        motionGroup.addMember("Alternate2UpdateMultiplier", "DINT");
-        motionGroup.addMember("CoarseUpdatePeriod", "DINT");   // Coarse update period
-        builtIns.put("MOTION_GROUP", motionGroup);
-
-        // CAM - Electronic camming
-        UDTDefinition cam = new UDTDefinition("CAM");
-        cam.addMember("Type", "DINT");                 // Cam type
-        cam.addMember("Size", "DINT");                 // Cam size
-        cam.addMember("Status", "DINT");               // Cam status
-        cam.addMember("StartSlope", "REAL");           // Start slope
-        cam.addMember("EndSlope", "REAL");             // End slope
-        builtIns.put("CAM", cam);
-
-        // CAM_PROFILE - Cam profile data
-        UDTDefinition camProfile = new UDTDefinition("CAM_PROFILE");
-        camProfile.addMember("Type", "DINT");          // Profile type
-        camProfile.addMember("Interpolation", "DINT"); // Interpolation method
-        camProfile.addMember("Status", "DINT");        // Profile status
-        builtIns.put("CAM_PROFILE", camProfile);
-
-        // ==================== SPECIALTY TYPES (LOW PRIORITY) ====================
-
-        // COORDINATE_SYSTEM - Advanced motion coordination
-        UDTDefinition coordSystem = new UDTDefinition("COORDINATE_SYSTEM");
-        coordSystem.addMember("Type", "DINT");                 // System type
-        coordSystem.addMember("Status", "DINT");               // System status
-        coordSystem.addMember("ActualPosition", "REAL");       // Position X
-        coordSystem.addMember("ActualPositionY", "REAL");      // Position Y
-        coordSystem.addMember("ActualPositionZ", "REAL");      // Position Z
-        builtIns.put("COORDINATE_SYSTEM", coordSystem);
-
-        // PHASE - Batch control phases
-        UDTDefinition phase = new UDTDefinition("PHASE");
-        phase.addMember("Status", "DINT");             // Phase status
-        phase.addMember("Command", "DINT");            // Phase command
-        phase.addMember("Owner", "DINT");              // Owner ID
-        phase.addMember("Failures", "DINT");           // Failure count
-        builtIns.put("PHASE", phase);
-
-        // EQUIPMENT_SEQUENCE - Batch equipment sequence
-        UDTDefinition equipSeq = new UDTDefinition("EQUIPMENT_SEQUENCE");
-        equipSeq.addMember("Status", "DINT");          // Sequence status
-        equipSeq.addMember("Command", "DINT");         // Sequence command
-        equipSeq.addMember("Step", "DINT");            // Current step
-        builtIns.put("EQUIPMENT_SEQUENCE", equipSeq);
-
-        // FBD_TIMER - Function block diagram timer
-        UDTDefinition fbdTimer = new UDTDefinition("FBD_TIMER");
-        fbdTimer.addMember("PRE", "DINT");             // Preset
-        fbdTimer.addMember("ACC", "DINT");             // Accumulated
-        fbdTimer.addMember("EN", "BOOL");              // Enable
-        fbdTimer.addMember("DN", "BOOL");              // Done
-        fbdTimer.addMember("TT", "BOOL");              // Timing
-        builtIns.put("FBD_TIMER", fbdTimer);
-
-        // FBD_COUNTER - Function block diagram counter
-        UDTDefinition fbdCounter = new UDTDefinition("FBD_COUNTER");
-        fbdCounter.addMember("PRE", "DINT");           // Preset
-        fbdCounter.addMember("ACC", "DINT");           // Accumulated
-        fbdCounter.addMember("CU", "BOOL");            // Count up
-        fbdCounter.addMember("CD", "BOOL");            // Count down
-        fbdCounter.addMember("DN", "BOOL");            // Done
-        fbdCounter.addMember("OV", "BOOL");            // Overflow
-        fbdCounter.addMember("UN", "BOOL");            // Underflow
-        builtIns.put("FBD_COUNTER", fbdCounter);
-
-        logger.info("Created {} comprehensive built-in type definitions covering all Rockwell predefined types", builtIns.size());
-
-        return builtIns;
-    }
-
-    // Helper class for UDT definition
-    private static class UDTDefinition {
-        String name;
-        List<UDTMember> members = new ArrayList<>();
-
-        UDTDefinition(String name) {
-            this.name = name;
-        }
-
-        void addMember(String memberName, String memberType) {
-            members.add(new UDTMember(memberName, memberType));
-        }
-    }
-
-    // Helper class for UDT member
-    private static class UDTMember {
-        String name;
-        String dataType;
-
-        UDTMember(String name, String dataType) {
-            this.name = name;
-            this.dataType = dataType;
-        }
-    }
-
-    // Helper class to hold parsing results
     private static class ParseResult {
-        JsonArray globalTags = new JsonArray();
-        Map<String, JsonArray> programTags = new HashMap<>();
+        final JsonArray globalTags = new JsonArray();
+        final Map<String, JsonArray> programTags = new HashMap<>();
         int udtInstanceCount = 0;
     }
 }
