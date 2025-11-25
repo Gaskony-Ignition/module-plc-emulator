@@ -167,11 +167,11 @@ For production use, you have two options:
 
 4. **NEVER commit production keystore or passwords to git**
 
-### Option 2: Submit to Inductive Automation
-1. Build with dev certificate
-2. Submit to Inductive Automation for Ignition Exchange
-3. They will re-sign with their official certificate
-4. Distribute the officially-signed module
+### Option 2: Internal Distribution
+1. Build with dev certificate for testing
+2. For production, use your own production certificate
+3. Distribute the signed module internally
+4. Users may need to trust your certificate in Ignition Gateway settings
 
 ## CI/CD Integration
 

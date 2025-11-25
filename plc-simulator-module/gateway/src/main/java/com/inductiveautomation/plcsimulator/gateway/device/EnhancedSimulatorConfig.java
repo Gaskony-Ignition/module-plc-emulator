@@ -16,16 +16,17 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * Supported PLC file parser types.
-     * NOTE: Only Rockwell L5K parser is currently tested and enabled.
-     * Other parsers are reserved for future development.
+     * Multi-vendor support for major PLC platforms.
      */
     public enum ParserType {
-        ROCKWELL("rockwell", "Rockwell L5K (Allen-Bradley)");
-        // Future parser types - not yet implemented/tested:
-        // JSON("json", "JSON Format"),
-        // SIEMENS("siemens", "Siemens TIA Portal"),
-        // SCHNEIDER("schneider", "Schneider Electric"),
-        // BECKHOFF("beckhoff", "Beckhoff TwinCAT");
+        ROCKWELL("rockwell", "Rockwell L5K/L5X (Allen-Bradley)"),
+        SIEMENS("siemens", "Siemens TIA Portal (S7-1200/1500)"),
+        SCHNEIDER("schneider", "Schneider Electric (Unity Pro/EcoStruxure)"),
+        BECKHOFF("beckhoff", "Beckhoff TwinCAT"),
+        ABB("abb", "ABB Automation Builder / Control Builder Plus"),
+        MITSUBISHI("mitsubishi", "Mitsubishi GX Works 2/3"),
+        JSON("json", "JSON Format"),
+        CSV("csv", "CSV Format");
 
         private final String key;
         private final String displayName;

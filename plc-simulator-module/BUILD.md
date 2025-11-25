@@ -78,17 +78,17 @@ keytool -exportcert -alias plcsimulator -keystore keystore.jks \
 ```
 
 ### For Production (Official Signing)
-For distribution on Ignition Exchange or production use:
+For production deployment:
 
 1. Generate production certificates with private passwords (never commit to git)
 2. Update `gradle.properties` with production certificate paths and passwords
 3. Build signed module: `./gradlew clean build`
 4. Distribute the signed `PLCSimulator-1.0.0.modl` file
 
-Alternatively, submit to Inductive Automation for official signing:
+For internal distribution:
 1. Build module with your dev certificate
-2. Submit to Inductive Automation for Exchange distribution
-3. They will re-sign with their official certificate
+2. Test thoroughly in development environment
+3. Deploy to production Ignition Gateways
 
 ## Module Structure
 
