@@ -290,7 +290,7 @@ public class L5KParser implements PLCParser {
         }
 
         if (udtDefinitions.containsKey(dataType)) {
-            expandUdtInstance(tag, udtDefinitions.get(dataType));
+            expandUdtInstance(tag, udtDefinitions.get(dataType), udtDefinitions, 0);
             result.udtInstanceCount++;
         } else {
             tag.addProperty("value", getDefaultValue(normalizeDataType(dataType)));
@@ -299,13 +299,41 @@ public class L5KParser implements PLCParser {
         return tag;
     }
 
-    private void expandUdtInstance(JsonObject tag, UDTDefinition udt) {
+    /**
+     * Recursively expands a UDT instance, including nested UDTs.
+     *
+     * @param tag The tag JSON object to add udt_members to
+     * @param udt The UDT definition to expand
+     * @param allDefinitions Map of all UDT/AOI definitions for nested expansion
+     * @param depth Current recursion depth (to prevent infinite loops)
+     */
+    private void expandUdtInstance(JsonObject tag, UDTDefinition udt,
+                                   Map<String, UDTDefinition> allDefinitions, int depth) {
+        // Prevent infinite recursion (max 10 levels deep)
+        if (depth > 10) {
+            logger.warn("Maximum UDT nesting depth exceeded for type: {}", udt.getName());
+            return;
+        }
+
         JsonArray members = new JsonArray();
         for (var member : udt.getMembers()) {
             JsonObject memberJson = new JsonObject();
             memberJson.addProperty("name", member.getName());
             memberJson.addProperty("data_type", member.getDataType());
-            memberJson.addProperty("initial_value", getDefaultValue(member.getDataType()));
+
+            String memberType = member.getDataType();
+
+            // Check if this member is itself a UDT/AOI that needs expansion
+            if (allDefinitions.containsKey(memberType)) {
+                // Recursively expand nested UDT
+                expandUdtInstance(memberJson, allDefinitions.get(memberType), allDefinitions, depth + 1);
+                logger.trace("Expanded nested UDT member: {}.{} of type {}",
+                    udt.getName(), member.getName(), memberType);
+            } else {
+                // Atomic type - set default value
+                memberJson.addProperty("initial_value", getDefaultValue(memberType));
+            }
+
             members.add(memberJson);
         }
         tag.add("udt_members", members);

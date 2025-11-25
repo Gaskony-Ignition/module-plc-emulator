@@ -4,12 +4,12 @@ A device driver module for Inductive Automation's Ignition platform that simulat
 
 ## Current Status
 
-**Version**: v6.5.0 🌍
-**Status**: ✅ Production Ready - Extended Multi-Vendor Support
+**Version**: v7.0.0 🚀
+**Status**: ✅ Production Ready - 92% Global Market Coverage
 
 ### Supported PLC Formats
 
-**Currently Supported (6 of Top 6 Global Vendors - ~85% Market Coverage):**
+**Currently Supported (7 Major Vendors - ~92% Market Coverage):**
 
 - ✅ **Rockwell Automation** (~25% market share) - L5K/L5X files (Allen-Bradley Studio 5000)
   - **COMPLETE predefined type coverage** (22 types)
@@ -35,6 +35,26 @@ A device driver module for Inductive Automation's Ignition platform that simulat
   - Unity Pro project exports
   - EcoStruxure Control Expert exports
 
+- ✅ **Mitsubishi Electric** (~8% market share) - GX Works 2/3 CSV exports
+  - iQ-Platform PLCs (Q series, L series, F series)
+  - CSV device label lists
+  - Device type inference (M, X, Y, D, T, C registers)
+  - Hex value support (H prefix)
+  - Data type conversion (BIT, WORD, DWORD, REAL, etc.)
+
+- ✅ **Omron** (~7% market share) - CX-Programmer / Sysmac Studio *(NEW in v7.0.0)*
+  - CX-Programmer CSV symbol tables (.cxp, .opt)
+  - Sysmac Studio CSV and XML formats (.smc2)
+  - Device address type inference (CIO, W, D, H, A, T, C)
+  - Variable export formats
+
+- ✅ **ABB** (~5% market share) - Automation Builder / Control Builder Plus
+  - AC800M controller exports (.apj, .xml)
+  - IEC 61131-3 compliant variable declarations
+  - Global and program variables
+  - User-defined data types (structs)
+  - Child element and attribute parsing
+
 - ✅ **Beckhoff** (~3-4% market share) - TwinCAT 2/3 XML exports
   - TwinCAT 3 XTI format (.xti, .xml)
   - TwinCAT 2 TPY/TSM format (.tpy, .tsm)
@@ -45,53 +65,30 @@ A device driver module for Inductive Automation's Ignition platform that simulat
   - Structured Text declaration parsing
   - PERSISTENT/RETAIN keyword handling
 
-- ✅ **Mitsubishi Electric** (~8% market share) - GX Works 2/3 CSV exports
-  - iQ-Platform PLCs (Q series, L series, F series)
-  - CSV device label lists
-  - Device type inference (M, X, Y, D, T, C registers)
-  - Hex value support (H prefix)
-  - Data type conversion (BIT, WORD, DWORD, REAL, etc.)
-
-- ✅ **ABB** (~5% market share) - Automation Builder / Control Builder Plus
-  - AC800M controller exports (.apj, .xml)
-  - IEC 61131-3 compliant variable declarations
-  - Global and program variables
-  - User-defined data types (structs)
-  - Child element and attribute parsing
-
 - ✅ **Generic Formats**
   - JSON format (custom tag definitions)
   - CSV format (variable lists)
 
-**Future Vendor Support:**
-- 🔮 **Omron** - CX-Programmer / Sysmac Studio
+### What's New in v7.0.0 🚀 (Latest - Major Release)
+- ✅ **OMRON SUPPORT** - 7th major vendor added (~7% market share)
+  - CX-Programmer and Sysmac Studio support
+  - Brings total coverage to 92% of global market
+- ✅ **MAJOR CODE REFACTORING** - Cleaner, more maintainable codebase
+  - L5KParser: 843→378 lines (55% reduction)
+  - FileUploadRoutes: 1067→304 lines (72% reduction)
+  - Extracted PathSecurity, AuthenticationHelper, DeviceFileManager classes
+- ✅ **INCREMENTAL HOT-RELOAD** - Smart address space updates
+  - Detects structural vs value-only changes
+  - No OPC-UA client disconnection for value updates
+- ✅ **NEW TAG BROWSER UI** - Visual tag exploration
+  - Device selector, search, folder tree, auto-refresh
+- ✅ **153 TESTS** - Up from 64 (139% increase, 100% passing)
 
-### What's New in v6.5.0 🌍 (Latest - Extended Vendor Coverage)
-- ✅ **ADDITIONAL VENDOR SUPPORT** - Added 2 more major vendors
-  - ✅ Mitsubishi Electric parser - GX Works 2/3 CSV exports with device type inference
-  - ✅ ABB parser - Automation Builder/Control Builder Plus with IEC 61131-3 support
-  - ✅ 85% global market coverage across 6 major vendors
-- ✅ **COMPREHENSIVE TESTING** - 64 parser tests (100% passing)
-  - 11 Mitsubishi parser tests (GX Works CSV formats)
-  - 10 ABB parser tests (Automation Builder XML formats)
-  - All previous vendor tests still passing
-- ✅ **ENHANCED CSV PARSING** - Single-column CSV support
-- ✅ **IMPROVED TYPE INFERENCE** - Mitsubishi device code auto-detection
-
-### What's New in v6.0.0 🚀 (Multi-Vendor Support)
-- ✅ **MULTI-VENDOR PARSER SUPPORT** - Major market expansion
-  - ✅ Siemens TIA Portal parser - S7-1200/1500 support with data blocks and tag tables
-  - ✅ Schneider Electric parser - Unity Pro/EcoStruxure with XML and CSV support
-  - ✅ Beckhoff TwinCAT parser - TwinCAT 2/3 with GVL, POU, and DUT support
-  - ✅ Parser auto-detection based on file extension and content analysis
-  - ✅ 75% global market coverage across 4 major vendors
-- ✅ **COMPREHENSIVE TESTING** - 43 parser tests (100% passing)
-  - 12 Beckhoff parser tests (TwinCAT 2/3 formats)
-  - 12 Rockwell L5X parser tests (XXE security included)
-  - 11 Schneider parser tests (XML and CSV formats)
-  - 8 Siemens parser tests (TIA Portal formats)
-- ✅ **ROBUST ERROR HANDLING** - All parsers include XXE protection and malformed input handling
-- ✅ **PRODUCTION READY** - Fully tested and documented for all supported vendors
+### What's New in v6.5.0 🌍 (Extended Vendor Coverage)
+- ✅ **Mitsubishi Electric parser** - GX Works 2/3 CSV exports
+- ✅ **ABB parser** - Automation Builder/Control Builder Plus
+- ✅ 85% global market coverage across 6 vendors
+- ✅ 64 parser tests (100% passing)
 
 ### What's New in v5.4.9 🔒 (Security & Quality Update)
 - ✅ **CRITICAL SECURITY FIXES** - All vulnerabilities resolved
@@ -183,11 +180,15 @@ See [EDIT_PROGRAM_GUIDE.md](EDIT_PROGRAM_GUIDE.md) for detailed instructions.
 
 ## Supported PLC Formats
 
-- **Rockwell L5K (Allen-Bradley)** - Logix 5000 exports
+- **Rockwell L5K/L5X (Allen-Bradley)** - Logix 5000 exports with full UDT expansion
+- **Siemens TIA Portal** - XML exports (S7-1200/1500)
+- **Schneider Electric** - Unity Pro/EcoStruxure XML and CSV
+- **Mitsubishi Electric** - GX Works 2/3 CSV exports
+- **Omron** - CX-Programmer and Sysmac Studio
+- **ABB** - Automation Builder/Control Builder Plus
+- **Beckhoff TwinCAT** - TwinCAT 2/3 XML exports
 - **JSON Format** - Generic JSON tag definitions
-- **Siemens TIA Portal** - XML/CSV exports (planned)
-- **Schneider Electric** - Unity Pro/EcoStruxure (planned)
-- **Beckhoff TwinCAT** - XML project exports (planned)
+- **CSV Format** - Generic variable lists
 
 ## Features
 
@@ -214,13 +215,13 @@ See [EDIT_PROGRAM_GUIDE.md](EDIT_PROGRAM_GUIDE.md) for detailed instructions.
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
 
 **Recent versions:**
-- **v2.0.5** (Current) - Full URL display with copy button in device config
-- **v2.0.4** - Clickable Program Manager URL field
-- **v2.0.0** - Major production release with Java parsers and automatic file upload
-- **v1.5.1** - Route mounting and UI improvements
-- **v1.3.0** - Edit Program page workflow
+- **v7.0.0** (Current) - Omron support, major refactoring, incremental hot-reload, 153 tests
+- **v6.5.0** - Mitsubishi and ABB support (85% market coverage)
+- **v6.0.0** - Multi-vendor support (Siemens, Schneider, Beckhoff)
+- **v5.4.9** - Major security update (XXE, auth bypass, path traversal fixes)
+- **v3.0.0** - Complete Rockwell predefined type support (22 types)
 
-**Migration Note:** If upgrading from v1.x, see notes in CHANGELOG.md about v2.0.0 breaking changes (module architecture completely refactored).
+**Migration Note:** If upgrading from v1.x or v2.x, see CHANGELOG.md for breaking changes.
 
 ## Architecture
 

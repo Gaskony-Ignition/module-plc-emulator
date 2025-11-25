@@ -103,9 +103,29 @@ public class L5XParser implements PLCParser {
                 }
             }
 
+            // Parse Add-On Instructions (AOIs) - they expand like UDTs
+            JsonArray aois = new JsonArray();
+            NodeList aoiElements = controller.getElementsByTagName("AddOnInstructionDefinition");
+            for (int i = 0; i < aoiElements.getLength(); i++) {
+                Element aoiElement = (Element) aoiElements.item(i);
+                JsonObject aoi = parseAOI(aoiElement);
+                if (aoi != null) {
+                    aois.add(aoi);
+                    // Add AOIs to UDT definitions map so they can be expanded when used as tag types
+                    udtDefinitions.put(aoi.get("name").getAsString(), aoi);
+                }
+            }
+
             if (udts.size() > 0) {
                 result.add("udts", udts);
             }
+
+            if (aois.size() > 0) {
+                result.add("aois", aois);
+            }
+
+            // Add built-in Rockwell types to definitions for expansion
+            addBuiltInTypes(udtDefinitions);
 
             // Parse controller tags
             JsonArray controllerTags = new JsonArray();
@@ -161,7 +181,7 @@ public class L5XParser implements PLCParser {
 
     /**
      * Parse a single tag element.
-     * @param udtDefinitions Map of UDT definitions for expanding UDT instances
+     * @param udtDefinitions Map of UDT/AOI definitions for expanding instances
      */
     private JsonObject parseTag(Element tagElement, Map<String, JsonObject> udtDefinitions) {
         try {
@@ -173,7 +193,7 @@ public class L5XParser implements PLCParser {
             String constant = tagElement.getAttribute("Constant");
 
             tag.addProperty("name", name);
-            tag.addProperty("data_type", dataType);  // Fixed: Changed from "type" to "data_type" to match AddressSpaceBuilder expectations
+            tag.addProperty("data_type", dataType);
 
             if (usage != null && !usage.isEmpty()) {
                 tag.addProperty("usage", usage);
@@ -190,34 +210,10 @@ public class L5XParser implements PLCParser {
                 tag.addProperty("isArray", true);
             }
 
-            // Check if this is a UDT instance and expand it
+            // Check if this is a UDT/AOI instance and expand it recursively
             if (udtDefinitions.containsKey(dataType)) {
-                JsonObject udtDef = udtDefinitions.get(dataType);
-                if (udtDef.has("members")) {
-                    JsonArray members = udtDef.getAsJsonArray("members");
-                    JsonArray udtMembers = new JsonArray();
-
-                    // Copy member definitions to create UDT instance members
-                    for (int i = 0; i < members.size(); i++) {
-                        JsonObject memberDef = members.get(i).getAsJsonObject();
-                        JsonObject member = new JsonObject();
-
-                        member.addProperty("name", memberDef.get("name").getAsString());
-                        member.addProperty("data_type", memberDef.get("data_type").getAsString());
-
-                        if (memberDef.has("dimensions")) {
-                            member.addProperty("dimensions", memberDef.get("dimensions").getAsString());
-                        }
-
-                        // Set default initial value based on data type
-                        member.addProperty("initial_value", getDefaultValue(memberDef.get("data_type").getAsString()));
-
-                        udtMembers.add(member);
-                    }
-
-                    tag.add("udt_members", udtMembers);
-                    logger.debug("Expanded UDT instance: {} of type {} with {} members", name, dataType, udtMembers.size());
-                }
+                expandUdtInstance(tag, udtDefinitions.get(dataType), udtDefinitions, 0);
+                logger.debug("Expanded UDT/AOI instance: {} of type {}", name, dataType);
             }
 
             // Get description from Comments element
@@ -246,6 +242,60 @@ public class L5XParser implements PLCParser {
             logger.error("Error parsing tag element", e);
             return null;
         }
+    }
+
+    /**
+     * Recursively expands a UDT/AOI instance, including nested types.
+     *
+     * @param tag The tag JSON object to add udt_members to
+     * @param udtDef The UDT/AOI definition containing members
+     * @param allDefinitions Map of all UDT/AOI definitions for nested expansion
+     * @param depth Current recursion depth (to prevent infinite loops)
+     */
+    private void expandUdtInstance(JsonObject tag, JsonObject udtDef,
+                                   Map<String, JsonObject> allDefinitions, int depth) {
+        // Prevent infinite recursion (max 10 levels deep)
+        if (depth > 10) {
+            logger.warn("Maximum UDT nesting depth exceeded");
+            return;
+        }
+
+        if (!udtDef.has("members")) {
+            return;
+        }
+
+        JsonArray members = udtDef.getAsJsonArray("members");
+        JsonArray udtMembers = new JsonArray();
+
+        for (int i = 0; i < members.size(); i++) {
+            JsonObject memberDef = members.get(i).getAsJsonObject();
+            JsonObject member = new JsonObject();
+
+            String memberName = memberDef.get("name").getAsString();
+            String memberType = memberDef.get("data_type").getAsString();
+
+            member.addProperty("name", memberName);
+            member.addProperty("data_type", memberType);
+
+            if (memberDef.has("dimensions")) {
+                member.addProperty("dimensions", memberDef.get("dimensions").getAsString());
+            }
+
+            // Check if this member is itself a UDT/AOI that needs expansion
+            if (allDefinitions.containsKey(memberType)) {
+                // Recursively expand nested UDT/AOI
+                expandUdtInstance(member, allDefinitions.get(memberType), allDefinitions, depth + 1);
+                logger.trace("Expanded nested type member: {} of type {} at depth {}",
+                    memberName, memberType, depth);
+            } else {
+                // Atomic type - set default initial value
+                member.addProperty("initial_value", getDefaultValue(memberType));
+            }
+
+            udtMembers.add(member);
+        }
+
+        tag.add("udt_members", udtMembers);
     }
 
 
@@ -294,16 +344,23 @@ public class L5XParser implements PLCParser {
 
             udt.addProperty("name", name);
             udt.addProperty("family", family);
+            udt.addProperty("type", "UDT");
 
             JsonArray members = new JsonArray();
             NodeList memberElements = udtElement.getElementsByTagName("Member");
 
             for (int i = 0; i < memberElements.getLength(); i++) {
                 Element memberElement = (Element) memberElements.item(i);
-                JsonObject member = new JsonObject();
 
-                member.addProperty("name", memberElement.getAttribute("Name"));
-                member.addProperty("data_type", memberElement.getAttribute("DataType"));  // Fixed: Changed from "type" to "data_type"
+                // Skip hidden/internal members (like ZZZZ padding)
+                String memberName = memberElement.getAttribute("Name");
+                if (memberName.startsWith("ZZZZ")) {
+                    continue;
+                }
+
+                JsonObject member = new JsonObject();
+                member.addProperty("name", memberName);
+                member.addProperty("data_type", memberElement.getAttribute("DataType"));
 
                 String dimensions = memberElement.getAttribute("Dimension");
                 if (dimensions != null && !dimensions.isEmpty()) {
@@ -321,6 +378,139 @@ public class L5XParser implements PLCParser {
             logger.error("Error parsing UDT element", e);
             return null;
         }
+    }
+
+    /**
+     * Parse an Add-On Instruction (AOI) definition.
+     * AOIs are treated similarly to UDTs for expansion purposes.
+     *
+     * L5X AOI structure:
+     * <AddOnInstructionDefinition Name="MyAOI" Revision="1.0">
+     *   <Parameters>
+     *     <Parameter Name="Input1" TagType="Base" DataType="DINT" Usage="Input"/>
+     *     <Parameter Name="Output1" TagType="Base" DataType="DINT" Usage="Output"/>
+     *   </Parameters>
+     *   <LocalTags>
+     *     <LocalTag Name="Internal1" DataType="DINT"/>
+     *   </LocalTags>
+     * </AddOnInstructionDefinition>
+     */
+    private JsonObject parseAOI(Element aoiElement) {
+        try {
+            JsonObject aoi = new JsonObject();
+
+            String name = aoiElement.getAttribute("Name");
+            String revision = aoiElement.getAttribute("Revision");
+            String className = aoiElement.getAttribute("Class");
+
+            aoi.addProperty("name", name);
+            aoi.addProperty("type", "AOI");
+
+            if (revision != null && !revision.isEmpty()) {
+                aoi.addProperty("revision", revision);
+            }
+            if (className != null && !className.isEmpty()) {
+                aoi.addProperty("class", className);
+            }
+
+            JsonArray members = new JsonArray();
+
+            // Parse Parameters (Input, Output, InOut parameters)
+            NodeList paramElements = aoiElement.getElementsByTagName("Parameter");
+            for (int i = 0; i < paramElements.getLength(); i++) {
+                Element paramElement = (Element) paramElements.item(i);
+
+                String paramName = paramElement.getAttribute("Name");
+                String dataType = paramElement.getAttribute("DataType");
+                String usage = paramElement.getAttribute("Usage");
+
+                // Skip EnableIn and EnableOut (standard AOI parameters)
+                if ("EnableIn".equals(paramName) || "EnableOut".equals(paramName)) {
+                    continue;
+                }
+
+                JsonObject member = new JsonObject();
+                member.addProperty("name", paramName);
+                member.addProperty("data_type", dataType);
+
+                if (usage != null && !usage.isEmpty()) {
+                    member.addProperty("usage", usage);
+                }
+
+                String dimensions = paramElement.getAttribute("Dimensions");
+                if (dimensions != null && !dimensions.isEmpty()) {
+                    member.addProperty("dimensions", dimensions);
+                }
+
+                members.add(member);
+            }
+
+            // Parse LocalTags (internal AOI variables)
+            NodeList localTagElements = aoiElement.getElementsByTagName("LocalTag");
+            for (int i = 0; i < localTagElements.getLength(); i++) {
+                Element localTagElement = (Element) localTagElements.item(i);
+
+                String tagName = localTagElement.getAttribute("Name");
+                String dataType = localTagElement.getAttribute("DataType");
+
+                // Skip internal/hidden members
+                if (tagName.startsWith("ZZZZ")) {
+                    continue;
+                }
+
+                JsonObject member = new JsonObject();
+                member.addProperty("name", tagName);
+                member.addProperty("data_type", dataType);
+                member.addProperty("usage", "Local");
+
+                String dimensions = localTagElement.getAttribute("Dimensions");
+                if (dimensions != null && !dimensions.isEmpty()) {
+                    member.addProperty("dimensions", dimensions);
+                }
+
+                members.add(member);
+            }
+
+            aoi.add("members", members);
+
+            logger.debug("Parsed AOI: {} with {} members", name, members.size());
+            return aoi;
+
+        } catch (Exception e) {
+            logger.error("Error parsing AOI element", e);
+            return null;
+        }
+    }
+
+    /**
+     * Add built-in Rockwell types to the definitions map.
+     * These include TIMER, COUNTER, PID, PIDE, AXIS_CIP_DRIVE, etc.
+     */
+    private void addBuiltInTypes(Map<String, JsonObject> definitions) {
+        Map<String, UDTDefinition> builtIns = RockwellBuiltInTypes.createAll();
+
+        for (var entry : builtIns.entrySet()) {
+            String typeName = entry.getKey();
+            UDTDefinition udtDef = entry.getValue();
+
+            // Convert UDTDefinition to JsonObject format matching our parsing structure
+            JsonObject typeJson = new JsonObject();
+            typeJson.addProperty("name", typeName);
+            typeJson.addProperty("type", "BuiltIn");
+
+            JsonArray members = new JsonArray();
+            for (var member : udtDef.getMembers()) {
+                JsonObject memberJson = new JsonObject();
+                memberJson.addProperty("name", member.getName());
+                memberJson.addProperty("data_type", member.getDataType());
+                members.add(memberJson);
+            }
+            typeJson.add("members", members);
+
+            definitions.put(typeName, typeJson);
+        }
+
+        logger.debug("Added {} built-in Rockwell types to definitions", builtIns.size());
     }
 
     /**

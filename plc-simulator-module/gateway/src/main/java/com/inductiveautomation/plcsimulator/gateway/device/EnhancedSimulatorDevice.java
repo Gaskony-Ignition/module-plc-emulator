@@ -688,4 +688,97 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     public void onMonitoringModeChanged(List<MonitoredItem> monitoredItems) {
         subscriptionModel.onMonitoringModeChanged(monitoredItems);
     }
+
+    // =====================================================
+    // Tag Browser API - Real-time read/write support
+    // =====================================================
+
+    /**
+     * Get the root NodeId for this device's OPC-UA address space.
+     * @return The root folder's NodeId
+     */
+    public org.eclipse.milo.opcua.stack.core.types.builtin.NodeId getRootNodeId() {
+        return rootNode != null ? rootNode.getNodeId() : null;
+    }
+
+    /**
+     * Read the current value of a tag from the OPC-UA address space.
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     * @return The current value, or null if not found
+     */
+    public Object readTagValue(String tagPath) {
+        try {
+            // Build the full NodeId for this tag using DeviceContext.nodeId()
+            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId =
+                context.nodeId(tagPath);
+
+            var node = getNodeManager().get(nodeId);
+            if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
+                var dataValue = varNode.getValue();
+                if (dataValue != null && dataValue.getValue() != null) {
+                    return dataValue.getValue().getValue();
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Could not read tag value for path: {}", tagPath, e);
+        }
+        return null;
+    }
+
+    /**
+     * Write a value to a tag in the OPC-UA address space.
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     * @param value The value to write
+     * @return true if successful, false otherwise
+     */
+    public boolean writeTagValue(String tagPath, Object value) {
+        try {
+            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId =
+                context.nodeId(tagPath);
+
+            var node = getNodeManager().get(nodeId);
+            if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
+                var variant = new org.eclipse.milo.opcua.stack.core.types.builtin.Variant(value);
+                var dataValue = new org.eclipse.milo.opcua.stack.core.types.builtin.DataValue(variant);
+                varNode.setValue(dataValue);
+                logger.debug("Wrote value {} to tag {}", value, tagPath);
+                return true;
+            }
+        } catch (Exception e) {
+            logger.error("Could not write tag value for path: {}", tagPath, e);
+        }
+        return false;
+    }
+
+    /**
+     * Get all variable nodes from the address space with their current values.
+     * Used by the tag browser API.
+     * @return Map of tag path to current value
+     */
+    public java.util.Map<String, Object> getAllTagValues() {
+        java.util.Map<String, Object> values = new java.util.HashMap<>();
+
+        try {
+            // Iterate all nodes in the node manager
+            getNodeManager().getNodes().forEach(node -> {
+                if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
+                    String browseName = varNode.getBrowseName().getName();
+                    try {
+                        var dataValue = varNode.getValue();
+                        if (dataValue != null && dataValue.getValue() != null) {
+                            // Use the node ID as key (relative to device)
+                            String nodeIdStr = varNode.getNodeId().getIdentifier().toString();
+                            values.put(nodeIdStr, dataValue.getValue().getValue());
+                        }
+                    } catch (Exception e) {
+                        // Skip nodes that can't be read
+                    }
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Error getting all tag values", e);
+        }
+
+        return values;
+    }
 }

@@ -319,7 +319,9 @@ public class AddressSpaceBuilder {
     }
 
     /**
-     * Adds a UDT member variable as a child of a UDT Object node.
+     * Adds a UDT member as a child of a UDT Object node.
+     * If the member is itself a nested UDT (has udt_members), creates a nested Object node.
+     * Otherwise creates a variable node.
      * Uses DOT notation in NodeId and simple BrowseName to match real Rockwell PLC behavior.
      * Returns the created variable node so it can be synchronized with duplicate nodes.
      *
@@ -328,7 +330,7 @@ public class AddressSpaceBuilder {
      * @param context Device context
      * @param udtNodeId NodeId of parent UDT (e.g., "Controller:Global.Motor1")
      * @param udtName Name of parent UDT (e.g., "Motor1") for logging
-     * @return The UaVariableNode created for this member (for synchronizing with duplicate nodes)
+     * @return The UaVariableNode created for this member (for synchronizing with duplicate nodes), or null for nested UDTs
      */
     private UaVariableNode addUdtMember(
         JsonObject member,
@@ -350,16 +352,41 @@ public class AddressSpaceBuilder {
 
         String memberName = member.get("name").getAsString();
         String dataType = member.get("data_type").getAsString();
-
-        // Map data type to OPC-UA type
-        OpcUaDataType opcType = mapDataType(dataType);
-
-        // Get initial value if present
-        Object initialValue = getInitialValue(member, dataType);
-
-        // Create member variable with DOT notation in NodeId
-        // Example: NodeId = "Controller:Global.Motor1.Speed", BrowseName = "Speed"
         String memberNodeId = udtNodeId + "." + memberName;
+
+        // Check if this member is itself a nested UDT (has udt_members)
+        if (member.has("udt_members")) {
+            JsonArray nestedMembers = member.getAsJsonArray("udt_members");
+            if (nestedMembers.size() > 0) {
+                // Create nested Object node for the nested UDT
+                UaObjectNode nestedObject = UaObjectNode.build(context.nodeContext, b ->
+                    b.setNodeId(context.nodeId(memberNodeId))
+                        .setBrowseName(context.qualifiedName(memberName))
+                        .setDisplayName(new LocalizedText(memberName))
+                        .setTypeDefinition(NodeIds.BaseObjectType)
+                        .build()
+                );
+
+                nodeAdder.accept(nestedObject);
+                udtObject.addComponent(nestedObject);
+
+                // Recursively add nested UDT members
+                for (JsonElement nestedMemberElement : nestedMembers) {
+                    JsonObject nestedMember = nestedMemberElement.getAsJsonObject();
+                    addUdtMember(nestedMember, nestedObject, context, memberNodeId, memberName);
+                }
+
+                logger.debug("Created nested UDT: {}.{} of type {} with {} members",
+                    udtName, memberName, dataType, nestedMembers.size());
+
+                // Return null for nested UDTs (they're Object nodes, not Variable nodes)
+                return null;
+            }
+        }
+
+        // Atomic member - create variable node
+        OpcUaDataType opcType = mapDataType(dataType);
+        Object initialValue = getInitialValue(member, dataType);
 
         UaVariableNode memberVariable = UaVariableNode.build(context.nodeContext, b ->
             b.setNodeId(context.nodeId(memberNodeId))

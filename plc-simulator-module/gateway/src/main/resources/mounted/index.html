@@ -3,54 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced PLC Simulator</title>
+    <title>Enhanced PLC Simulator - Redirecting</title>
     <script>
-        // Auto-redirect to upload page after 3 seconds (or click link immediately)
-        setTimeout(function() {
-            window.location.href = '/res/plcsimulator/simple-upload.html';
-        }, 3000);
+        // Redirect to authenticated upload page
+        window.location.href = '/data/plcsimulator/page';
     </script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            max-width: 900px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
         .container {
             background: white;
             padding: 40px;
             border-radius: 12px;
+            text-align: center;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
         }
-        h1 {
-            color: #2d3748;
-            margin-bottom: 10px;
-        }
-        .subtitle {
-            color: #718096;
-            margin-bottom: 30px;
-            font-size: 1.1em;
-        }
-        .card {
-            background: #f7fafc;
-            padding: 25px;
-            margin: 20px 0;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
-        }
-        .card h2 {
-            color: #2d3748;
-            margin-top: 0;
-            font-size: 1.3em;
-        }
-        .card p {
-            color: #4a5568;
-            line-height: 1.6;
-        }
-        .button {
+        h1 { color: #2d3748; margin-bottom: 10px; }
+        p { color: #718096; margin-bottom: 20px; }
+        a {
             display: inline-block;
             background: #667eea;
             color: white;
@@ -58,136 +35,16 @@
             border-radius: 6px;
             text-decoration: none;
             font-weight: 600;
-            transition: all 0.3s;
-            margin-top: 10px;
         }
-        .button:hover {
-            background: #5a67d8;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin: 30px 0;
-        }
-        .feature {
-            background: #edf2f7;
-            padding: 20px;
-            border-radius: 8px;
-        }
-        .feature h3 {
-            color: #2d3748;
-            margin-top: 0;
-            font-size: 1.1em;
-        }
-        .feature p {
-            color: #4a5568;
-            font-size: 0.95em;
-            line-height: 1.5;
-        }
-        code {
-            background: #2d3748;
-            color: #68d391;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: "Courier New", monospace;
-            font-size: 0.9em;
-        }
-        .workflow {
-            background: #fffaf0;
-            border-left-color: #ed8936;
-            padding: 20px;
-            margin: 20px 0;
-            border-radius: 8px;
-            border-left: 4px solid #ed8936;
-        }
-        .workflow ol {
-            margin: 10px 0;
-            padding-left: 20px;
-        }
-        .workflow li {
-            color: #4a5568;
-            margin: 8px 0;
-            line-height: 1.6;
-        }
+        a:hover { background: #5a67d8; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📡 Enhanced PLC Simulator</h1>
-        <p class="subtitle">Multi-vendor PLC device simulator for Ignition SCADA</p>
-
-        <div class="card">
-            <h2>🚀 Quick Start</h2>
-            <p>Import PLC files and create simulated device connections with our easy-to-use interface.</p>
-            <a href="edit-program.html" class="button">📁 Open Edit Program</a>
-        </div>
-
-        <div class="workflow">
-            <h2>📋 Workflow</h2>
-            <ol>
-                <li>Create a new device connection in <strong>Config → Devices → Create Device Connection</strong></li>
-                <li>Select <strong>"Enhanced PLC Simulator"</strong> from the device type dropdown</li>
-                <li>Configure device name and parser type</li>
-                <li>Click <strong>Create</strong> (file is optional)</li>
-                <li>Use <strong>Edit Program</strong> to import your PLC file</li>
-            </ol>
-        </div>
-
-        <div class="features">
-            <div class="feature">
-                <h3>🏭 Multi-Vendor Support</h3>
-                <p>Rockwell L5K, Siemens, Schneider, Beckhoff, JSON formats</p>
-            </div>
-            <div class="feature">
-                <h3>📊 OPC-UA Integration</h3>
-                <p>Hierarchical tag structure with automatic UDT member expansion</p>
-            </div>
-            <div class="feature">
-                <h3>⚡ Hot Reload</h3>
-                <p>Upload new files without restarting the device connection</p>
-            </div>
-            <div class="feature">
-                <h3>🎯 Drag & Drop</h3>
-                <p>Easy file import with visual feedback</p>
-            </div>
-        </div>
-
-        <div class="card" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); border: 2px solid #60a5fa;">
-            <h2 style="font-size: 32px; margin-bottom: 20px;">⚡ Redirecting to Upload Page...</h2>
-            <p style="font-size: 18px; margin-bottom: 30px;">You'll be automatically redirected in 3 seconds, or click below:</p>
-            <a href="/res/plcsimulator/simple-upload.html" style="display: inline-block; background: #fde047; color: #1e3a8a; padding: 20px 40px; border-radius: 12px; text-decoration: none; font-size: 20px; font-weight: bold; box-shadow: 0 4px 12px rgba(253, 224, 71, 0.4);">
-                📤 Go to Upload Page Now!
-            </a>
-        </div>
-
-        <div class="card">
-            <h2 style="font-size: 24px; margin-bottom: 20px;">🚀 Quick Start Guide</h2>
-            <ol style="margin-left: 20px; line-height: 1.8;">
-                <li><strong>Step 1:</strong> Create device at <code style="background: #374151; padding: 3px 8px; border-radius: 4px;">Config → OPC UA → Device Connections → Create New → Enhanced PLC Simulator</code></li>
-                <li><strong>Step 2:</strong> Upload your PLC file (L5K, JSON, CSV)</li>
-                <li><strong>Step 3:</strong> Copy the file content and paste it into the device's "File Content" field</li>
-                <li><strong>Step 4:</strong> Save the device configuration and connect!</li>
-            </ol>
-        </div>
-
-        <div class="card">
-            <h2>📖 Access URLs</h2>
-            <p>Bookmark these URLs for quick access:</p>
-            <ul>
-                <li><strong>🎯 PLC File Upload:</strong> <a href="/res/plcsimulator/simple-upload.html"><code>/res/plcsimulator/simple-upload.html</code></a> <span style="color: #10b981;">(Start Here!)</span></li>
-                <li><strong>📊 Device Dashboard:</strong> <code>/res/plcsimulator/dashboard.html</code></li>
-                <li><strong>⚙️ Device Config:</strong> <code>/config/devices.devices</code></li>
-            </ul>
-        </div>
-
-        <div class="card">
-            <h2>ℹ️ About</h2>
-            <p>Enhanced PLC Simulator v2.6.0 - PLC device simulator. Currently supports Rockwell L5K files. Planned: Siemens, Schneider, Beckhoff, JSON formats.</p>
-            <p style="color: #a0aec0; font-size: 0.9em; margin-top: 15px;">Vendor: Gaskony | Module ID: com.inductiveautomation.opcua.drivers.plcsimulator</p>
-        </div>
+        <h1>Enhanced PLC Simulator</h1>
+        <p>Redirecting to authenticated upload page...</p>
+        <p>If not redirected automatically, click below:</p>
+        <a href="/data/plcsimulator/page">Go to Upload Page</a>
     </div>
 </body>
 </html>
