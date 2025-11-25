@@ -49,8 +49,11 @@ public class FileUploadRoutes {
         mountProtectedRoute("/devices", this::handleListDevices, null);
         mountProtectedRoute("/device/:name/status", this::handleDeviceStatus, null);
         mountProtectedRoute("/device/:name/tags", this::handleGetTags, null);
+        mountProtectedRoute("/device/:name/tags/children", this::handleGetTagChildren, null);
         mountProtectedRoute("/device/:name/tags/live", this::handleGetLiveTags, null);
+        mountProtectedRoute("/device/:name/tags/simulated", this::handleGetSimulatedTags, null);
         mountProtectedRoute("/device/:name/tag/write", this::handleWriteTag, HttpMethod.POST);
+        mountProtectedRoute("/device/:name/tag/simulate", this::handleToggleTagSimulation, HttpMethod.POST);
         mountProtectedRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
 
         // Authenticated HTML pages (not publicly accessible)
@@ -240,6 +243,15 @@ public class FileUploadRoutes {
             .put("simulationEnabled", config.simulation().enabled());
     }
 
+    /**
+     * Get tags from device with pagination support.
+     * Query parameters:
+     *   - path: Parent path to get children of (default: root)
+     *   - depth: How many levels deep to return (default: 1 for lazy loading, -1 for all)
+     *   - offset: Pagination offset (default: 0)
+     *   - limit: Max items to return (default: 100, max: 500)
+     *   - flat: If true, return flat list for virtual scrolling (default: false)
+     */
     private JSONObject handleGetTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
         String deviceName = ctx.getParameter("name");
@@ -255,105 +267,379 @@ public class FileUploadRoutes {
             return result.put("success", false).put("error", "Device not found: " + deviceName);
         }
 
-        // Get tags from the device's parsed data
+        // Parse pagination parameters
+        String parentPath = ctx.getRequest().getParameter("path");
+        if (parentPath == null || parentPath.isEmpty()) {
+            parentPath = ""; // Root level
+        }
+
+        int depth = parseIntParam(ctx, "depth", 1); // Default to 1 level for lazy loading
+        int offset = parseIntParam(ctx, "offset", 0);
+        int limit = Math.min(parseIntParam(ctx, "limit", 100), 500); // Cap at 500
+        boolean flat = "true".equals(ctx.getRequest().getParameter("flat"));
+
         EnhancedSimulatorDevice device = deviceOpt.get();
-        JSONArray tags = new JSONArray();
-        int[] counters = {0, 0}; // [folderCount, udtCount]
 
         try {
             var parsedDataField = EnhancedSimulatorDevice.class.getDeclaredField("parsedData");
             parsedDataField.setAccessible(true);
             var parsedData = (com.google.gson.JsonObject) parsedDataField.get(device);
 
-            if (parsedData != null) {
-                // Extract global tags with hierarchical UDT expansion
-                if (parsedData.has("global_tags")) {
-                    var globalTags = parsedData.getAsJsonArray("global_tags");
-                    for (var elem : globalTags) {
-                        var tag = elem.getAsJsonObject();
-                        extractTagHierarchy(tag, "Controller:Global", tags, counters);
-                    }
-                    counters[0]++; // Controller:Global folder
+            if (parsedData == null) {
+                return result.put("success", true)
+                    .put("deviceName", deviceName)
+                    .put("tags", new JSONArray())
+                    .put("totalTags", 0)
+                    .put("folders", 0)
+                    .put("udtInstances", 0);
+            }
+
+            // Build the complete tag structure (cached internally)
+            TagTreeBuilder builder = new TagTreeBuilder(parsedData);
+            TagTreeBuilder.TagStats stats = builder.getStats();
+
+            JSONArray tags;
+            int totalAtLevel;
+            boolean hasMore;
+
+            if (flat) {
+                // Flat mode for virtual scrolling - return visible items only
+                tags = builder.getFlatTags(parentPath, offset, limit);
+                totalAtLevel = builder.getTotalFlatCount(parentPath);
+                hasMore = (offset + limit) < totalAtLevel;
+            } else {
+                // Hierarchical mode - return children of path
+                tags = builder.getChildrenOf(parentPath, depth, offset, limit);
+                totalAtLevel = builder.getChildCount(parentPath);
+                hasMore = (offset + limit) < totalAtLevel;
+            }
+
+            return result.put("success", true)
+                .put("deviceName", deviceName)
+                .put("path", parentPath)
+                .put("tags", tags)
+                .put("offset", offset)
+                .put("limit", limit)
+                .put("count", tags.length())
+                .put("totalAtLevel", totalAtLevel)
+                .put("hasMore", hasMore)
+                .put("totalTags", stats.totalTags)
+                .put("folders", stats.folderCount)
+                .put("udtInstances", stats.udtCount);
+
+        } catch (Exception e) {
+            logger.warn("Could not access parsed data for device: {}", deviceName, e);
+            return result.put("success", false).put("error", "Failed to read tag data: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get children of a specific folder path (for lazy loading).
+     * Query parameters:
+     *   - path: Parent path (required)
+     *   - offset: Pagination offset (default: 0)
+     *   - limit: Max items (default: 100)
+     */
+    private JSONObject handleGetTagChildren(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+        String parentPath = ctx.getRequest().getParameter("path");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        if (parentPath == null) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Path parameter required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        int offset = parseIntParam(ctx, "offset", 0);
+        int limit = Math.min(parseIntParam(ctx, "limit", 100), 500);
+
+        EnhancedSimulatorDevice device = deviceOpt.get();
+
+        try {
+            var parsedDataField = EnhancedSimulatorDevice.class.getDeclaredField("parsedData");
+            parsedDataField.setAccessible(true);
+            var parsedData = (com.google.gson.JsonObject) parsedDataField.get(device);
+
+            if (parsedData == null) {
+                return result.put("success", true)
+                    .put("path", parentPath)
+                    .put("children", new JSONArray())
+                    .put("totalChildren", 0);
+            }
+
+            TagTreeBuilder builder = new TagTreeBuilder(parsedData);
+            JSONArray children = builder.getChildrenOf(parentPath, 1, offset, limit);
+            int totalChildren = builder.getChildCount(parentPath);
+
+            return result.put("success", true)
+                .put("path", parentPath)
+                .put("children", children)
+                .put("offset", offset)
+                .put("limit", limit)
+                .put("count", children.length())
+                .put("totalChildren", totalChildren)
+                .put("hasMore", (offset + limit) < totalChildren);
+
+        } catch (Exception e) {
+            logger.warn("Could not get children for path: {} on device: {}", parentPath, deviceName, e);
+            return result.put("success", false).put("error", "Failed to read children: " + e.getMessage());
+        }
+    }
+
+    private int parseIntParam(RequestContext ctx, String name, int defaultValue) {
+        String value = ctx.getRequest().getParameter(name);
+        if (value != null && !value.isEmpty()) {
+            try {
+                return Integer.parseInt(value);
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Helper class to build and navigate the tag tree structure efficiently.
+     * Supports lazy loading and pagination.
+     */
+    private static class TagTreeBuilder {
+        private final java.util.Map<String, java.util.List<JSONObject>> childrenByPath = new java.util.HashMap<>();
+        private final java.util.Map<String, JSONObject> nodesByPath = new java.util.HashMap<>();
+        private final TagStats stats = new TagStats();
+
+        static class TagStats {
+            int totalTags = 0;
+            int folderCount = 0;
+            int udtCount = 0;
+        }
+
+        TagTreeBuilder(com.google.gson.JsonObject parsedData) throws JSONException {
+            // Build index of all tags organized by parent path
+            if (parsedData.has("global_tags")) {
+                var globalTags = parsedData.getAsJsonArray("global_tags");
+
+                // Add Controller:Global as a root folder
+                addFolderNode("", "Controller:Global", "Folder", false);
+                stats.folderCount++;
+
+                for (var elem : globalTags) {
+                    var tag = elem.getAsJsonObject();
+                    indexTag(tag, "Controller:Global");
+                }
+            }
+
+            if (parsedData.has("programs")) {
+                var programs = parsedData.getAsJsonArray("programs");
+
+                // Add Programs as a root folder if there are programs
+                if (programs.size() > 0) {
+                    addFolderNode("", "Programs", "Folder", false);
+                    stats.folderCount++;
                 }
 
-                // Extract program tags with hierarchical UDT expansion
-                if (parsedData.has("programs")) {
-                    var programs = parsedData.getAsJsonArray("programs");
-                    for (var progElem : programs) {
-                        var prog = progElem.getAsJsonObject();
-                        String progName = prog.has("name") ? prog.get("name").getAsString() : "Program";
-                        counters[0]++; // Program folder
+                for (var progElem : programs) {
+                    var prog = progElem.getAsJsonObject();
+                    String progName = prog.has("name") ? prog.get("name").getAsString() : "Program";
 
-                        if (prog.has("tags")) {
-                            var progTags = prog.getAsJsonArray("tags");
-                            for (var tagElem : progTags) {
-                                var tag = tagElem.getAsJsonObject();
-                                extractTagHierarchy(tag, "Programs/" + progName, tags, counters);
-                            }
+                    // Add program as a folder under Programs
+                    addFolderNode("Programs", progName, "Program", false);
+                    stats.folderCount++;
+
+                    if (prog.has("tags")) {
+                        var progTags = prog.getAsJsonArray("tags");
+                        for (var tagElem : progTags) {
+                            var tag = tagElem.getAsJsonObject();
+                            indexTag(tag, "Programs/" + progName);
                         }
                     }
                 }
             }
-        } catch (Exception e) {
-            logger.warn("Could not access parsed data for device: {}", deviceName, e);
         }
 
-        return result.put("success", true)
-            .put("deviceName", deviceName)
-            .put("tags", tags)
-            .put("totalTags", tags.length())
-            .put("folders", counters[0])
-            .put("udtInstances", counters[1]);
-    }
+        private void indexTag(com.google.gson.JsonObject tag, String parentPath) throws JSONException {
+            String tagName = tag.has("name") ? tag.get("name").getAsString() : "unknown";
+            String dataType = tag.has("data_type") ? tag.get("data_type").getAsString() : "STRING";
+            String tagPath = parentPath + "/" + tagName;
 
-    /**
-     * Recursively extracts tags from a hierarchical structure.
-     * For UDT instances, creates folder entries and extracts all member tags with proper paths.
-     * This matches the real PLC structure: UDT_Instance/MemberName
-     *
-     * @param tag The tag JSON object from parsed data
-     * @param parentPath Parent path (e.g., "Controller:Global" or "Controller:Global/Motor1")
-     * @param tags Output array to add extracted tags
-     * @param counters Array of [folderCount, udtCount]
-     */
-    private void extractTagHierarchy(com.google.gson.JsonObject tag, String parentPath, JSONArray tags, int[] counters) throws JSONException {
-        String tagName = tag.has("name") ? tag.get("name").getAsString() : "unknown";
-        String dataType = tag.has("data_type") ? tag.get("data_type").getAsString() : "STRING";
-        String tagPath = parentPath + "/" + tagName;
+            // Check if this is a UDT instance with members
+            if (tag.has("udt_members")) {
+                var members = tag.getAsJsonArray("udt_members");
+                if (members.size() > 0) {
+                    stats.udtCount++;
 
-        // Check if this is a UDT instance with members
-        if (tag.has("udt_members")) {
-            var members = tag.getAsJsonArray("udt_members");
-            if (members.size() > 0) {
-                counters[1]++; // udtCount
+                    // Add UDT instance as a folder
+                    addFolderNode(parentPath, tagName, dataType, true);
+                    stats.folderCount++;
 
-                // Add UDT instance as a folder entry
-                JSONObject udtFolder = new JSONObject();
-                udtFolder.put("name", tagName);
-                udtFolder.put("path", tagPath);
-                udtFolder.put("data_type", dataType);
-                udtFolder.put("isUdt", true);
-                udtFolder.put("isFolder", true);
-                udtFolder.put("memberCount", members.size());
-                tags.put(udtFolder);
-
-                // Recursively extract all members with proper hierarchical paths
-                for (var memberElem : members) {
-                    var member = memberElem.getAsJsonObject();
-                    extractTagHierarchy(member, tagPath, tags, counters);
+                    // Recursively index members
+                    for (var memberElem : members) {
+                        var member = memberElem.getAsJsonObject();
+                        indexTag(member, tagPath);
+                    }
+                    return;
                 }
-                return;
+            }
+
+            // Atomic tag - add as leaf
+            addLeafNode(parentPath, tagName, dataType,
+                tag.has("initial_value") ? tag.get("initial_value").toString() : "", tagPath);
+            stats.totalTags++;
+        }
+
+        private void addFolderNode(String parentPath, String name, String dataType, boolean isUdt) throws JSONException {
+            String path = parentPath.isEmpty() ? name : parentPath + "/" + name;
+
+            JSONObject node = new JSONObject();
+            node.put("name", name);
+            node.put("path", path);
+            node.put("data_type", dataType);
+            node.put("isFolder", true);
+            node.put("isUdt", isUdt);
+
+            childrenByPath.computeIfAbsent(parentPath, k -> new java.util.ArrayList<>()).add(node);
+            nodesByPath.put(path, node);
+        }
+
+        private void addLeafNode(String parentPath, String name, String dataType, String value, String path) throws JSONException {
+            JSONObject node = new JSONObject();
+            node.put("name", name);
+            node.put("path", path);
+            node.put("data_type", dataType);
+            node.put("value", value);
+            node.put("isFolder", false);
+
+            childrenByPath.computeIfAbsent(parentPath, k -> new java.util.ArrayList<>()).add(node);
+            nodesByPath.put(path, node);
+        }
+
+        TagStats getStats() {
+            return stats;
+        }
+
+        int getChildCount(String parentPath) {
+            java.util.List<JSONObject> children = childrenByPath.get(parentPath);
+            return children != null ? children.size() : 0;
+        }
+
+        /**
+         * Get children of a path with pagination.
+         * @param parentPath Parent path (empty string for root)
+         * @param depth How many levels to include (1 = direct children only)
+         * @param offset Pagination offset
+         * @param limit Max items to return
+         */
+        JSONArray getChildrenOf(String parentPath, int depth, int offset, int limit) throws JSONException {
+            JSONArray result = new JSONArray();
+            java.util.List<JSONObject> children = childrenByPath.get(parentPath);
+
+            if (children == null || children.isEmpty()) {
+                return result;
+            }
+
+            // Sort children: folders first, then alphabetically
+            children.sort((a, b) -> {
+                try {
+                    boolean aFolder = a.optBoolean("isFolder", false);
+                    boolean bFolder = b.optBoolean("isFolder", false);
+                    if (aFolder != bFolder) {
+                        return aFolder ? -1 : 1;
+                    }
+                    return a.optString("name", "").compareToIgnoreCase(b.optString("name", ""));
+                } catch (Exception e) {
+                    return 0;
+                }
+            });
+
+            // Apply pagination
+            int end = Math.min(offset + limit, children.size());
+            for (int i = offset; i < end; i++) {
+                JSONObject child = children.get(i);
+                JSONObject copy = new JSONObject(child.toString());
+
+                // Add child count for folders (for UI to show expand arrow)
+                if (child.optBoolean("isFolder", false)) {
+                    String childPath = child.optString("path", "");
+                    int childCount = getChildCount(childPath);
+                    copy.put("childCount", childCount);
+                    copy.put("hasChildren", childCount > 0);
+
+                    // If depth > 1, include nested children
+                    if (depth > 1 || depth == -1) {
+                        JSONArray nested = getChildrenOf(childPath, depth == -1 ? -1 : depth - 1, 0, 500);
+                        if (nested.length() > 0) {
+                            copy.put("children", nested);
+                        }
+                    }
+                }
+
+                result.put(copy);
+            }
+
+            return result;
+        }
+
+        /**
+         * Get flattened list of all visible tags for virtual scrolling.
+         * Only returns tags (not folders) for simpler virtual scroll implementation.
+         */
+        JSONArray getFlatTags(String parentPath, int offset, int limit) throws JSONException {
+            JSONArray result = new JSONArray();
+            java.util.List<JSONObject> allTags = new java.util.ArrayList<>();
+
+            // Collect all leaf tags under the given path
+            collectLeafTags(parentPath.isEmpty() ? null : parentPath, allTags);
+
+            // Sort alphabetically by path
+            allTags.sort((a, b) -> a.optString("path", "").compareToIgnoreCase(b.optString("path", "")));
+
+            // Apply pagination
+            int end = Math.min(offset + limit, allTags.size());
+            for (int i = offset; i < end; i++) {
+                result.put(allTags.get(i));
+            }
+
+            return result;
+        }
+
+        private void collectLeafTags(String parentPath, java.util.List<JSONObject> tags) {
+            for (var entry : childrenByPath.entrySet()) {
+                String path = entry.getKey();
+                // If parentPath is null, collect everything; otherwise filter by prefix
+                if (parentPath == null || path.equals(parentPath) || path.startsWith(parentPath + "/")) {
+                    for (JSONObject node : entry.getValue()) {
+                        if (!node.optBoolean("isFolder", false)) {
+                            tags.add(node);
+                        }
+                    }
+                }
             }
         }
 
-        // Atomic tag or UDT without members - add as leaf variable
-        JSONObject tagJson = new JSONObject();
-        tagJson.put("name", tagName);
-        tagJson.put("path", tagPath);
-        tagJson.put("data_type", dataType);
-        tagJson.put("value", tag.has("initial_value") ? tag.get("initial_value").toString() : "");
-        tagJson.put("isFolder", false);
-        tags.put(tagJson);
+        int getTotalFlatCount(String parentPath) {
+            int count = 0;
+            for (var entry : childrenByPath.entrySet()) {
+                String path = entry.getKey();
+                if (parentPath.isEmpty() || path.equals(parentPath) || path.startsWith(parentPath + "/")) {
+                    for (JSONObject node : entry.getValue()) {
+                        if (!node.optBoolean("isFolder", false)) {
+                            count++;
+                        }
+                    }
+                }
+            }
+            return count;
+        }
     }
 
     /**
@@ -479,6 +765,121 @@ public class FileUploadRoutes {
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             return result.put("success", false).put("error", e.getMessage());
         }
+    }
+
+    /**
+     * Toggle simulation for a specific tag.
+     * Request body: { "tagPath": "Controller:Global/MyTag", "enabled": true, "pattern": "sine" }
+     * If enabled is not specified, it toggles the current state.
+     * Pattern is optional: sine, ramp, random, toggle, static
+     */
+    private JSONObject handleToggleTagSimulation(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        EnhancedSimulatorDevice device = deviceOpt.get();
+
+        // Check if simulation engine is available
+        if (!device.isSimulationEngineAvailable()) {
+            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            return result.put("success", false)
+                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+        }
+
+        try {
+            // Read the request body
+            String body = readRequestContent(ctx, 10 * 1024); // 10KB max
+            JSONObject requestJson = new JSONObject(body);
+
+            String tagPath = requestJson.optString("tagPath", null);
+            if (tagPath == null || tagPath.trim().isEmpty()) {
+                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                return result.put("success", false).put("error", "tagPath required");
+            }
+
+            String pattern = requestJson.optString("pattern", null);
+            boolean enabled;
+
+            // Check if enabled is explicitly set
+            if (requestJson.has("enabled")) {
+                enabled = requestJson.getBoolean("enabled");
+                if (enabled) {
+                    if (pattern != null && !pattern.isEmpty()) {
+                        device.enableTagSimulation(tagPath, pattern);
+                    } else {
+                        device.enableTagSimulation(tagPath);
+                    }
+                } else {
+                    device.disableTagSimulation(tagPath);
+                }
+            } else {
+                // Toggle mode
+                Boolean newState = device.toggleTagSimulation(tagPath);
+                enabled = newState != null && newState;
+
+                // Apply pattern if specified and now enabled
+                if (enabled && pattern != null && !pattern.isEmpty()) {
+                    device.enableTagSimulation(tagPath, pattern);
+                }
+            }
+
+            return result.put("success", true)
+                .put("tagPath", tagPath)
+                .put("simulationEnabled", enabled)
+                .put("pattern", device.getTagSimulationPattern(tagPath))
+                .put("simulatedTagCount", device.getSimulatedTagCount());
+
+        } catch (Exception e) {
+            logger.error("Error toggling tag simulation", e);
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return result.put("success", false).put("error", e.getMessage());
+        }
+    }
+
+    /**
+     * Get list of all tags that have simulation enabled for a device.
+     */
+    private JSONObject handleGetSimulatedTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        EnhancedSimulatorDevice device = deviceOpt.get();
+
+        JSONArray simulatedTags = new JSONArray();
+        for (String tagPath : device.getSimulatedTags()) {
+            JSONObject tagInfo = new JSONObject();
+            tagInfo.put("path", tagPath);
+            tagInfo.put("pattern", device.getTagSimulationPattern(tagPath));
+            simulatedTags.put(tagInfo);
+        }
+
+        return result.put("success", true)
+            .put("deviceName", deviceName)
+            .put("simulationEngineAvailable", device.isSimulationEngineAvailable())
+            .put("simulatedTags", simulatedTags)
+            .put("count", simulatedTags.length());
     }
 
     /**

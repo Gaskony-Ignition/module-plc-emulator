@@ -781,4 +781,116 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
         return values;
     }
+
+    // =====================================================
+    // Per-tag simulation control API
+    // =====================================================
+
+    /**
+     * Enable simulation for a specific tag.
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     * @return true if successful
+     */
+    public boolean enableTagSimulation(String tagPath) {
+        if (simulationEngine != null) {
+            simulationEngine.enableTagSimulation(tagPath);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Enable simulation for a specific tag with a custom pattern.
+     * @param tagPath The tag path
+     * @param pattern The simulation pattern (sine, ramp, random, toggle, static)
+     * @return true if successful
+     */
+    public boolean enableTagSimulation(String tagPath, String pattern) {
+        if (simulationEngine != null) {
+            try {
+                EnhancedSimulatorConfig.SimulationPattern simPattern =
+                    EnhancedSimulatorConfig.SimulationPattern.fromKey(pattern);
+                simulationEngine.enableTagSimulation(tagPath, simPattern);
+                return true;
+            } catch (Exception e) {
+                logger.warn("Invalid simulation pattern: {}", pattern);
+                simulationEngine.enableTagSimulation(tagPath);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Disable simulation for a specific tag.
+     * @param tagPath The tag path
+     * @return true if successful
+     */
+    public boolean disableTagSimulation(String tagPath) {
+        if (simulationEngine != null) {
+            simulationEngine.disableTagSimulation(tagPath);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Toggle simulation for a specific tag.
+     * @param tagPath The tag path
+     * @return true if simulation is now enabled, false if disabled, null if engine not available
+     */
+    public Boolean toggleTagSimulation(String tagPath) {
+        if (simulationEngine != null) {
+            return simulationEngine.toggleTagSimulation(tagPath);
+        }
+        return null;
+    }
+
+    /**
+     * Check if a specific tag has simulation enabled.
+     * @param tagPath The tag path
+     * @return true if simulation is enabled for this tag
+     */
+    public boolean isTagSimulated(String tagPath) {
+        return simulationEngine != null && simulationEngine.isTagSimulated(tagPath);
+    }
+
+    /**
+     * Get all tags that have simulation enabled.
+     * @return Set of tag paths with simulation enabled
+     */
+    public java.util.Set<String> getSimulatedTags() {
+        if (simulationEngine != null) {
+            return simulationEngine.getSimulatedTags();
+        }
+        return java.util.Collections.emptySet();
+    }
+
+    /**
+     * Get the simulation pattern for a specific tag.
+     * @param tagPath The tag path
+     * @return The pattern name (e.g., "sine", "ramp")
+     */
+    public String getTagSimulationPattern(String tagPath) {
+        if (simulationEngine != null) {
+            return simulationEngine.getTagPattern(tagPath).getKey();
+        }
+        return "static";
+    }
+
+    /**
+     * Check if the simulation engine is running and available.
+     * @return true if simulation engine is active
+     */
+    public boolean isSimulationEngineAvailable() {
+        return simulationEngine != null && simulationEngine.isRunning();
+    }
+
+    /**
+     * Get the count of tags with simulation enabled.
+     * @return Number of simulated tags
+     */
+    public int getSimulatedTagCount() {
+        return simulationEngine != null ? simulationEngine.getSimulatedTagCount() : 0;
+    }
 }

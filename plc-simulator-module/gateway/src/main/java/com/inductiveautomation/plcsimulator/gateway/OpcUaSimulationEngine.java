@@ -13,8 +13,12 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -24,6 +28,8 @@ import java.util.function.Function;
 /**
  * Simulation engine adapted for OPC-UA address space.
  * Updates DataItem values according to configured simulation patterns.
+ *
+ * By default, NO tags are simulated. Tags must be explicitly enabled for simulation.
  */
 public class OpcUaSimulationEngine {
 
@@ -37,6 +43,11 @@ public class OpcUaSimulationEngine {
     private ScheduledFuture<?> simulationTask;
     private volatile boolean running = false;
     private long startTime;
+
+    // Per-tag simulation state - tags NOT in this set will NOT be simulated
+    private final Set<String> simulatedTags = ConcurrentHashMap.newKeySet();
+    // Per-tag simulation pattern override (optional)
+    private final Map<String, EnhancedSimulatorConfig.SimulationPattern> tagPatterns = new ConcurrentHashMap<>();
 
     public OpcUaSimulationEngine(
         EnhancedSimulatorConfig.SimulationPattern defaultPattern,
@@ -105,12 +116,18 @@ public class OpcUaSimulationEngine {
     }
 
     /**
-     * Update all simulated values.
+     * Update simulated values for tags that have simulation enabled.
+     * Only tags in the simulatedTags set are updated.
      * Retrieves nodes from the address space, calculates new values based on simulation patterns,
      * and updates node values to trigger OPC-UA subscription notifications.
      */
     private void updateSimulatedValues(List<DataItem> dataItems) {
         if (!running || dataItems == null || nodeLookup == null) {
+            return;
+        }
+
+        // If no tags are enabled for simulation, skip entirely
+        if (simulatedTags.isEmpty()) {
             return;
         }
 
@@ -123,6 +140,14 @@ public class OpcUaSimulationEngine {
                 // Get the NodeId for this data item
                 NodeId nodeId = item.getReadValueId().getNodeId();
 
+                // Get tag path from NodeId identifier
+                String tagPath = nodeId.getIdentifier().toString();
+
+                // Skip tags that don't have simulation enabled
+                if (!isTagSimulated(tagPath)) {
+                    continue;
+                }
+
                 // Look up the actual node in the address space
                 UaNode node = nodeLookup.apply(nodeId);
 
@@ -133,8 +158,9 @@ public class OpcUaSimulationEngine {
                     DataValue currentDataValue = variableNode.getValue();
                     Object currentValue = currentDataValue.getValue().getValue();
 
-                    // Calculate new simulated value
-                    Object newValue = calculateValue(currentValue, elapsedSeconds);
+                    // Calculate new simulated value using tag-specific or default pattern
+                    EnhancedSimulatorConfig.SimulationPattern pattern = tagPatterns.getOrDefault(tagPath, defaultPattern);
+                    Object newValue = calculateValue(currentValue, elapsedSeconds, pattern);
 
                     // Create new DataValue with current timestamp
                     DataValue newDataValue = new DataValue(
@@ -160,25 +186,27 @@ public class OpcUaSimulationEngine {
             }
         }
 
-        logger.trace("Simulation tick complete - updated {}/{} values ({} errors)",
-                    updateCount, dataItems.size(), errorCount);
+        if (updateCount > 0) {
+            logger.trace("Simulation tick complete - updated {}/{} values ({} errors)",
+                        updateCount, simulatedTags.size(), errorCount);
+        }
     }
 
     /**
      * Calculate new simulated value based on pattern and type.
      */
-    private Object calculateValue(Object currentValue, double elapsedSeconds) {
+    private Object calculateValue(Object currentValue, double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
         // Determine data type
         if (currentValue instanceof Boolean) {
-            return calculateBooleanValue(elapsedSeconds);
+            return calculateBooleanValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Integer) {
-            return calculateIntegerValue(elapsedSeconds);
+            return calculateIntegerValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Long) {
-            return calculateLongValue(elapsedSeconds);
+            return calculateLongValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Float) {
-            return calculateFloatValue(elapsedSeconds);
+            return calculateFloatValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Double) {
-            return calculateDoubleValue(elapsedSeconds);
+            return calculateDoubleValue(elapsedSeconds, pattern);
         } else {
             // For unsupported types, return current value unchanged
             return currentValue;
@@ -188,7 +216,7 @@ public class OpcUaSimulationEngine {
     /**
      * Calculate boolean value (TOGGLE pattern).
      */
-    private Boolean calculateBooleanValue(double elapsedSeconds) {
+    private Boolean calculateBooleanValue(double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
         double period = 2.0; // Toggle every 2 seconds
         return (elapsedSeconds % period) < (period / 2.0);
     }
@@ -196,38 +224,38 @@ public class OpcUaSimulationEngine {
     /**
      * Calculate integer value based on pattern.
      */
-    private Integer calculateIntegerValue(double elapsedSeconds) {
-        return (int) calculateNumericValue(elapsedSeconds, 0, 100);
+    private Integer calculateIntegerValue(double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        return (int) calculateNumericValue(elapsedSeconds, 0, 100, pattern);
     }
 
     /**
      * Calculate long value based on pattern.
      */
-    private Long calculateLongValue(double elapsedSeconds) {
-        return (long) calculateNumericValue(elapsedSeconds, 0, 10000);
+    private Long calculateLongValue(double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        return (long) calculateNumericValue(elapsedSeconds, 0, 10000, pattern);
     }
 
     /**
      * Calculate float value based on pattern.
      */
-    private Float calculateFloatValue(double elapsedSeconds) {
-        return (float) calculateNumericValue(elapsedSeconds, 0.0, 100.0);
+    private Float calculateFloatValue(double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        return (float) calculateNumericValue(elapsedSeconds, 0.0, 100.0, pattern);
     }
 
     /**
      * Calculate double value based on pattern.
      */
-    private Double calculateDoubleValue(double elapsedSeconds) {
-        return calculateNumericValue(elapsedSeconds, 0.0, 100.0);
+    private Double calculateDoubleValue(double elapsedSeconds, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        return calculateNumericValue(elapsedSeconds, 0.0, 100.0, pattern);
     }
 
     /**
-     * Calculate numeric value based on configured pattern.
+     * Calculate numeric value based on specified pattern.
      */
-    private double calculateNumericValue(double elapsedSeconds, double min, double max) {
+    private double calculateNumericValue(double elapsedSeconds, double min, double max, EnhancedSimulatorConfig.SimulationPattern pattern) {
         double range = max - min;
 
-        switch (defaultPattern) {
+        switch (pattern) {
             case STATIC:
                 return (min + max) / 2.0;
 
@@ -271,5 +299,120 @@ public class OpcUaSimulationEngine {
             return 0.0;
         }
         return (System.currentTimeMillis() - startTime) / 1000.0;
+    }
+
+    // =====================================================
+    // Per-tag simulation control API
+    // =====================================================
+
+    /**
+     * Enable simulation for a specific tag.
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     */
+    public void enableTagSimulation(String tagPath) {
+        if (tagPath != null && !tagPath.isEmpty()) {
+            simulatedTags.add(tagPath);
+            logger.debug("Enabled simulation for tag: {}", tagPath);
+        }
+    }
+
+    /**
+     * Enable simulation for a specific tag with a custom pattern.
+     * @param tagPath The tag path
+     * @param pattern The simulation pattern to use for this tag
+     */
+    public void enableTagSimulation(String tagPath, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        if (tagPath != null && !tagPath.isEmpty()) {
+            simulatedTags.add(tagPath);
+            if (pattern != null) {
+                tagPatterns.put(tagPath, pattern);
+            }
+            logger.debug("Enabled simulation for tag: {} with pattern: {}", tagPath, pattern);
+        }
+    }
+
+    /**
+     * Disable simulation for a specific tag.
+     * @param tagPath The tag path
+     */
+    public void disableTagSimulation(String tagPath) {
+        if (tagPath != null) {
+            simulatedTags.remove(tagPath);
+            tagPatterns.remove(tagPath);
+            logger.debug("Disabled simulation for tag: {}", tagPath);
+        }
+    }
+
+    /**
+     * Toggle simulation for a specific tag.
+     * @param tagPath The tag path
+     * @return true if simulation is now enabled, false if disabled
+     */
+    public boolean toggleTagSimulation(String tagPath) {
+        if (tagPath == null || tagPath.isEmpty()) {
+            return false;
+        }
+
+        if (simulatedTags.contains(tagPath)) {
+            disableTagSimulation(tagPath);
+            return false;
+        } else {
+            enableTagSimulation(tagPath);
+            return true;
+        }
+    }
+
+    /**
+     * Check if a specific tag has simulation enabled.
+     * @param tagPath The tag path
+     * @return true if simulation is enabled for this tag
+     */
+    public boolean isTagSimulated(String tagPath) {
+        return tagPath != null && simulatedTags.contains(tagPath);
+    }
+
+    /**
+     * Get all tags that have simulation enabled.
+     * @return Set of tag paths with simulation enabled
+     */
+    public Set<String> getSimulatedTags() {
+        return new HashSet<>(simulatedTags);
+    }
+
+    /**
+     * Get the simulation pattern for a specific tag.
+     * @param tagPath The tag path
+     * @return The pattern for this tag, or the default pattern if not set
+     */
+    public EnhancedSimulatorConfig.SimulationPattern getTagPattern(String tagPath) {
+        return tagPatterns.getOrDefault(tagPath, defaultPattern);
+    }
+
+    /**
+     * Set the simulation pattern for a specific tag.
+     * @param tagPath The tag path
+     * @param pattern The pattern to use
+     */
+    public void setTagPattern(String tagPath, EnhancedSimulatorConfig.SimulationPattern pattern) {
+        if (tagPath != null && pattern != null) {
+            tagPatterns.put(tagPath, pattern);
+        }
+    }
+
+    /**
+     * Disable simulation for all tags.
+     */
+    public void disableAllSimulation() {
+        simulatedTags.clear();
+        tagPatterns.clear();
+        logger.info("Disabled simulation for all tags");
+    }
+
+    /**
+     * Get the count of tags with simulation enabled.
+     * @return Number of simulated tags
+     */
+    public int getSimulatedTagCount() {
+        return simulatedTags.size();
     }
 }
