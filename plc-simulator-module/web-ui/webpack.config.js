@@ -19,9 +19,13 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
       tagBrowser: [path.join(__dirname, "src/pages/TagBrowser/index.ts")],
     },
     output: {
-      library: "[name]",
-      libraryTarget: "umd",
-      umdNamedDefine: true,
+      // Export as a global variable that Ignition can find
+      library: {
+        name: "[name]",
+        type: "umd",
+        export: "default",  // Export the default export directly
+      },
+      globalObject: "this",
       filename: "[name].js",
       publicPath: "",
       path: path.resolve(__dirname, "build/generated-resources/mounted/"),
