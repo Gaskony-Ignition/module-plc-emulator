@@ -38,10 +38,15 @@ public class FileUploadRoutes {
 
     private final GatewayContext context;
     private final RouteGroup routes;
+    private final RateLimiter rateLimiter;
 
     public FileUploadRoutes(GatewayContext context, RouteGroup routes) {
         this.context = context;
         this.routes = routes;
+        // Initialize rate limiter with default limits:
+        // - 100 uploads/hour per user
+        // - 1000 uploads/hour per IP
+        this.rateLimiter = new RateLimiter();
     }
 
     /**
@@ -138,6 +143,37 @@ public class FileUploadRoutes {
         JSONObject result = new JSONObject();
 
         try {
+            // SECURITY: Rate limiting check FIRST to prevent DoS attacks
+            String username = getUserIdentifier(context);
+            String ipAddress = getClientIP(context);
+
+            RateLimiter.RateLimitResult rateLimitResult = rateLimiter.checkRequest(username, ipAddress);
+
+            if (!rateLimitResult.isAllowed()) {
+                response.setStatus(429); // Too Many Requests
+                response.setHeader("X-RateLimit-Limit", String.valueOf(rateLimitResult.getLimit()));
+                response.setHeader("X-RateLimit-Remaining", "0");
+                response.setHeader("X-RateLimit-Reset", String.valueOf(rateLimitResult.getResetTimeMs()));
+                response.setHeader("Retry-After", String.valueOf(
+                    (rateLimitResult.getResetTimeMs() - System.currentTimeMillis()) / 1000
+                ));
+
+                result.put("success", false);
+                result.put("error", String.format(
+                    "Rate limit exceeded: %s limit of %d uploads per hour. Try again later.",
+                    rateLimitResult.getLimitType(),
+                    rateLimitResult.getLimit()
+                ));
+                result.put("retryAfter", (rateLimitResult.getResetTimeMs() - System.currentTimeMillis()) / 1000);
+
+                logger.warn("Rate limit exceeded for user {} from IP {}", username, ipAddress);
+                return result;
+            }
+
+            // Add rate limit headers to successful requests too
+            response.setHeader("X-RateLimit-Limit", String.valueOf(rateLimitResult.getLimit()));
+            response.setHeader("X-RateLimit-Remaining", String.valueOf(rateLimitResult.getRemaining()));
+
             String deviceName = context.getRequest().getParameter("device");
 
             // SECURITY: Check Content-Length BEFORE reading to prevent DoS
@@ -968,5 +1004,64 @@ public class FileUploadRoutes {
             logger.error("Failed to access currentFilePath field", e);
             throw e;
         }
+    }
+
+    /**
+     * Get user identifier for rate limiting.
+     * Tries multiple sources to identify the user.
+     */
+    private String getUserIdentifier(RequestContext context) {
+        jakarta.servlet.http.HttpServletRequest request = context.getRequest();
+
+        // Try to get authenticated username
+        String username = request.getRemoteUser();
+        if (username != null && !username.isEmpty()) {
+            return username;
+        }
+
+        // Try user principal
+        if (request.getUserPrincipal() != null) {
+            username = request.getUserPrincipal().getName();
+            if (username != null && !username.isEmpty()) {
+                return username;
+            }
+        }
+
+        // Fall back to session ID if user is not authenticated
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            return "session:" + session.getId();
+        }
+
+        // Last resort: use IP address as identifier
+        return "ip:" + getClientIP(context);
+    }
+
+    /**
+     * Get client IP address, accounting for proxies and load balancers.
+     */
+    private String getClientIP(RequestContext context) {
+        jakarta.servlet.http.HttpServletRequest request = context.getRequest();
+
+        // Check X-Forwarded-For header (set by proxies/load balancers)
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2)
+            // Take the first one (original client)
+            String[] ips = xForwardedFor.split(",");
+            if (ips.length > 0) {
+                return ips[0].trim();
+            }
+        }
+
+        // Check X-Real-IP header (common with Nginx)
+        String xRealIP = request.getHeader("X-Real-IP");
+        if (xRealIP != null && !xRealIP.isEmpty()) {
+            return xRealIP;
+        }
+
+        // Fall back to remote address
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 }

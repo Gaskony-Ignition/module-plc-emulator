@@ -19,10 +19,16 @@ public class ParserFactory {
         // Register all available parsers
         availableParsers.add(new L5KParser());  // Add L5K parser FIRST for .l5k files
         availableParsers.add(new L5XParser());  // L5X parser for .l5x XML files
+        availableParsers.add(new SiemensParser());  // Siemens TIA Portal (S7-1200/1500)
+        availableParsers.add(new SchneiderParser());  // Schneider Electric Unity Pro/EcoStruxure
+        availableParsers.add(new BeckhoffParser());  // Beckhoff TwinCAT 2/3
+        availableParsers.add(new ABBParser());  // ABB Automation Builder / Control Builder Plus
+        availableParsers.add(new MitsubishiParser());  // Mitsubishi GX Works 2/3
         availableParsers.add(new JsonPLCParser());
         availableParsers.add(new CsvParser());
 
-        logger.info("Registered {} PLC parsers: L5K, L5X, JSON, CSV", availableParsers.size());
+        logger.info("Registered {} PLC parsers: L5K, L5X, Siemens, Schneider, Beckhoff, ABB, Mitsubishi, JSON, CSV",
+                    availableParsers.size());
     }
 
     /**

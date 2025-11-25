@@ -543,7 +543,12 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             EnhancedSimulatorConfig.SimulationPattern pattern = config.simulation().defaultPattern();
             int updateInterval = config.simulation().updateInterval();
 
-            simulationEngine = new OpcUaSimulationEngine(pattern, updateInterval);
+            // Pass node lookup function so simulation engine can update node values
+            simulationEngine = new OpcUaSimulationEngine(
+                pattern,
+                updateInterval,
+                nodeId -> getNodeManager().get(nodeId)
+            );
 
             // Start the engine
             simulationEngine.start(dataItems);

@@ -2,9 +2,12 @@ package com.inductiveautomation.plcsimulator.gateway;
 
 import com.inductiveautomation.plcsimulator.gateway.device.EnhancedSimulatorConfig;
 import org.eclipse.milo.opcua.sdk.server.items.DataItem;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
+import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
@@ -16,6 +19,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 /**
  * Simulation engine adapted for OPC-UA address space.
@@ -27,15 +31,20 @@ public class OpcUaSimulationEngine {
     private final Random random = new Random();
     private final EnhancedSimulatorConfig.SimulationPattern defaultPattern;
     private final int updateIntervalMs;
+    private final Function<NodeId, UaNode> nodeLookup;
 
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> simulationTask;
     private volatile boolean running = false;
     private long startTime;
 
-    public OpcUaSimulationEngine(EnhancedSimulatorConfig.SimulationPattern defaultPattern, int updateIntervalMs) {
+    public OpcUaSimulationEngine(
+        EnhancedSimulatorConfig.SimulationPattern defaultPattern,
+        int updateIntervalMs,
+        Function<NodeId, UaNode> nodeLookup) {
         this.defaultPattern = defaultPattern;
         this.updateIntervalMs = Math.max(100, updateIntervalMs); // Minimum 100ms
+        this.nodeLookup = nodeLookup;
     }
 
     /**
@@ -97,24 +106,62 @@ public class OpcUaSimulationEngine {
 
     /**
      * Update all simulated values.
-     *
-     * TODO: This requires deeper integration with the address space to update node values.
-     * For now, simulation is disabled to allow module compilation.
-     * Future implementation should use ManagedAddressSpace to update node values directly.
+     * Retrieves nodes from the address space, calculates new values based on simulation patterns,
+     * and updates node values to trigger OPC-UA subscription notifications.
      */
     private void updateSimulatedValues(List<DataItem> dataItems) {
-        if (!running || dataItems == null) {
+        if (!running || dataItems == null || nodeLookup == null) {
             return;
         }
 
-        // Simulation temporarily disabled - requires address space integration
-        logger.trace("Simulation tick - {} items monitored", dataItems.size());
+        double elapsedSeconds = getElapsedSeconds();
+        int updateCount = 0;
+        int errorCount = 0;
 
-        // TODO: Implement node value updates through address space:
-        // 1. Get UaVariableNode from addressSpace using item.getReadValueId().getNodeId()
-        // 2. Calculate new value based on simulation pattern using calculateValue()
-        // 3. Update node.setValue(new DataValue(...))
-        // 4. Fire value change events to notify subscribers
+        for (DataItem item : dataItems) {
+            try {
+                // Get the NodeId for this data item
+                NodeId nodeId = item.getReadValueId().getNodeId();
+
+                // Look up the actual node in the address space
+                UaNode node = nodeLookup.apply(nodeId);
+
+                if (node instanceof UaVariableNode) {
+                    UaVariableNode variableNode = (UaVariableNode) node;
+
+                    // Get current value
+                    DataValue currentDataValue = variableNode.getValue();
+                    Object currentValue = currentDataValue.getValue().getValue();
+
+                    // Calculate new simulated value
+                    Object newValue = calculateValue(currentValue, elapsedSeconds);
+
+                    // Create new DataValue with current timestamp
+                    DataValue newDataValue = new DataValue(
+                        new Variant(newValue),
+                        StatusCode.GOOD,
+                        DateTime.now()
+                    );
+
+                    // Update the node value (this automatically notifies subscribers)
+                    variableNode.setValue(newDataValue);
+
+                    updateCount++;
+
+                } else {
+                    logger.trace("Node is not a variable node: {}", nodeId);
+                }
+
+            } catch (Exception e) {
+                errorCount++;
+                if (errorCount < 5) { // Only log first few errors to avoid spam
+                    logger.warn("Error updating simulated value for node: {}", item.getReadValueId().getNodeId(), e);
+                }
+            }
+        }
+
+        logger.trace("Simulation tick complete - updated {}/{} values ({} errors)",
+                    updateCount, dataItems.size(), errorCount);
     }
 
     /**
