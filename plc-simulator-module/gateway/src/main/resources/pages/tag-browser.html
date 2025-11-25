@@ -389,7 +389,7 @@
         <div class="header">
             <div>
                 <h1>🏷️ Tag Browser</h1>
-                <div class="subtitle">Enhanced PLC Simulator v7.3.2 - View and monitor OPC-UA tags</div>
+                <div class="subtitle">Enhanced PLC Simulator v7.3.4 - View and monitor OPC-UA tags</div>
             </div>
             <div class="nav-links">
                 <a href="/web/config/plcsimulator.plc-file-upload" class="nav-link" target="_top">📤 Upload</a>
@@ -587,7 +587,29 @@
             const tree = { folders: {}, tags: [] };
 
             tags.forEach(tag => {
-                const parts = tag.path ? tag.path.split('/') : [tag.name];
+                // Convert slash path to dot notation to match Designer/OPC-UA
+                // API returns: Controller:Global/Motor1/Speed
+                // We display: Controller:Global.Motor1.Speed
+                let dotPath = tag.path ? tag.path : tag.name;
+
+                // Convert slashes to dots, but preserve "Controller:Global" and "Programs" prefixes
+                if (dotPath.startsWith('Controller:Global/')) {
+                    dotPath = 'Controller:Global.' + dotPath.substring('Controller:Global/'.length).replace(/\//g, '.');
+                } else if (dotPath.startsWith('Programs/')) {
+                    dotPath = dotPath.replace(/\//g, '.');
+                }
+
+                // Split path for tree building - use dots as separator
+                // But keep "Controller:Global" as a single unit
+                let parts;
+                if (dotPath.startsWith('Controller:Global.')) {
+                    parts = ['Controller:Global', ...dotPath.substring('Controller:Global.'.length).split('.')];
+                } else if (dotPath.startsWith('Programs.')) {
+                    parts = dotPath.split('.');
+                } else {
+                    parts = dotPath.split('.');
+                }
+
                 let current = tree;
 
                 for (let i = 0; i < parts.length - 1; i++) {
@@ -600,7 +622,8 @@
 
                 current.tags.push({
                     ...tag,
-                    displayName: parts[parts.length - 1]
+                    displayName: parts[parts.length - 1],
+                    dotPath: dotPath  // Store the dot-notation path for copying
                 });
             });
 
@@ -634,11 +657,13 @@
             node.tags.forEach(tag => {
                 const icon = getTagIcon(tag.data_type);
                 const valueClass = getValueClass(tag.data_type, tag.value);
-                const tagId = (tag.path || tag.name).replace(/[^a-zA-Z0-9]/g, '_');
+                // Use dotPath for IDs and display (matches Designer/OPC-UA)
+                const displayPath = tag.dotPath || tag.path || tag.name;
+                const tagId = displayPath.replace(/[^a-zA-Z0-9]/g, '_');
                 const isWritable = !tag.isUdt; // UDTs are not directly writable
 
                 html += `
-                    <div class="tag-item indent-${depth}" data-tag-path="${tag.path || tag.name}">
+                    <div class="tag-item indent-${depth}" data-tag-path="${displayPath}">
                         <div class="tag-name">
                             <span class="tag-icon ${icon.class}">${icon.emoji}</span>
                             <span>${tag.displayName || tag.name}</span>
@@ -651,7 +676,7 @@
                                     ✏️ Write
                                 </button>
                             ` : ''}
-                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${tag.path || tag.name}')">
+                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${escapeHtml(displayPath)}')">
                                 📋 Copy
                             </button>
                         </div>
@@ -708,10 +733,20 @@
         }
 
         function copyTagPath(path) {
+            // Format matches Designer OPC-UA tag path: [DeviceName]Controller:Global.TagName
             const fullPath = `[${selectedDevice}]${path}`;
             navigator.clipboard.writeText(fullPath).then(() => {
-                alert(`Copied: ${fullPath}`);
+                // Show brief toast instead of alert
+                showToast(`Copied: ${fullPath}`);
             });
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#10b981;color:white;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
         }
 
         function filterTags() {
@@ -721,11 +756,19 @@
                 return;
             }
 
-            const filtered = allTags.filter(tag =>
-                (tag.name && tag.name.toLowerCase().includes(query)) ||
-                (tag.path && tag.path.toLowerCase().includes(query)) ||
-                (tag.data_type && tag.data_type.toLowerCase().includes(query))
-            );
+            const filtered = allTags.filter(tag => {
+                // Convert path to dot notation for searching
+                let dotPath = tag.path || tag.name;
+                if (dotPath.startsWith('Controller:Global/')) {
+                    dotPath = 'Controller:Global.' + dotPath.substring('Controller:Global/'.length).replace(/\//g, '.');
+                } else if (dotPath.startsWith('Programs/')) {
+                    dotPath = dotPath.replace(/\//g, '.');
+                }
+
+                return (tag.name && tag.name.toLowerCase().includes(query)) ||
+                    (dotPath && dotPath.toLowerCase().includes(query)) ||
+                    (tag.data_type && tag.data_type.toLowerCase().includes(query));
+            });
 
             renderTags(filtered);
         }
@@ -779,7 +822,15 @@
                     if (data.values) {
                         // Update displayed values
                         Object.entries(data.values).forEach(([path, value]) => {
-                            const tagId = path.replace(/[^a-zA-Z0-9]/g, '_');
+                            // Convert API slash notation to dot notation for element ID matching
+                            let dotPath = path;
+                            if (dotPath.startsWith('Controller:Global/')) {
+                                dotPath = 'Controller:Global.' + dotPath.substring('Controller:Global/'.length).replace(/\//g, '.');
+                            } else if (dotPath.startsWith('Programs/')) {
+                                dotPath = dotPath.replace(/\//g, '.');
+                            }
+
+                            const tagId = dotPath.replace(/[^a-zA-Z0-9]/g, '_');
                             const valueEl = document.getElementById(`value-${tagId}`);
                             if (valueEl) {
                                 const oldValue = valueEl.textContent;
