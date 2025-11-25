@@ -19,13 +19,10 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
       tagBrowser: [path.join(__dirname, "src/pages/TagBrowser/index.ts")],
     },
     output: {
-      // Export as a global variable that Ignition can find
+      // Export as SystemJS module for Ignition gateway
       library: {
-        name: "[name]",
-        type: "umd",
-        export: "default",  // Export the default export directly
+        type: "system",
       },
-      globalObject: "this",
       filename: "[name].js",
       publicPath: "",
       path: path.resolve(__dirname, "build/generated-resources/mounted/"),
@@ -41,6 +38,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
           test: /\.[tj]sx?$|\.d\.ts$/,
           use: ["ts-loader", "babel-loader"],
           exclude: /node_modules/,
+          parser: { system: false },
         },
       ],
     },
