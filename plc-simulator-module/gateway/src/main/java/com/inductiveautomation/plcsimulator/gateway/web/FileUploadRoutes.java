@@ -19,18 +19,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.util.Collection;
-import java.util.Map;
 import java.util.Optional;
 
 /**
  * Routes for handling PLC file uploads in the Enhanced Simulator device configuration.
- * Provides endpoint for uploading PLC files (L5K, JSON, CSV, XML) via browser.
+ * Provides endpoints for uploading PLC files (L5K, JSON, CSV, XML) via browser.
  */
 public class FileUploadRoutes {
 
@@ -39,1029 +33,356 @@ public class FileUploadRoutes {
     private final GatewayContext context;
     private final RouteGroup routes;
     private final RateLimiter rateLimiter;
+    private final DeviceFileManager deviceManager;
 
     public FileUploadRoutes(GatewayContext context, RouteGroup routes) {
         this.context = context;
         this.routes = routes;
-        // Initialize rate limiter with default limits:
-        // - 100 uploads/hour per user
-        // - 1000 uploads/hour per IP
         this.rateLimiter = new RateLimiter();
+        this.deviceManager = new DeviceFileManager(context);
     }
 
-    /**
-     * Mount the file upload routes.
-     * Routes will be available at /data/plcsimulator/*
-     */
     public void mountRoutes() {
-        try {
-            logger.info("Mounting /upload route...");
-            routes.newRoute("/upload")
-                .handler(this::handleFileUpload)
-                .method(HttpMethod.POST)
-                .accessControl(this::checkAuthenticated)
-                .mount();
-            logger.info("✓ /upload route mounted (POST, requires authentication)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /upload route", e);
-        }
-
-        try {
-            logger.info("Mounting /devices route...");
-            routes.newRoute("/devices")
-                .handler(this::handleListDevices)
-                .accessControl(this::checkAuthenticated)
-                .mount();
-            logger.info("✓ /devices route mounted (requires authentication)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /devices route", e);
-        }
-
-        try {
-            logger.info("Mounting /device/:name/status route...");
-            routes.newRoute("/device/:name/status")
-                .handler(this::handleDeviceStatus)
-                .accessControl(this::checkAuthenticated)
-                .mount();
-            logger.info("✓ /device/:name/status route mounted (requires authentication)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /device/:name/status route", e);
-        }
-
-        try {
-            logger.info("Mounting /device/:name/delete route...");
-            routes.newRoute("/device/:name/delete")
-                .handler(this::handleDeleteFile)
-                .method(HttpMethod.DELETE)
-                .accessControl(this::checkAuthenticated)
-                .mount();
-            logger.info("✓ /device/:name/delete route mounted (DELETE, requires authentication)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /device/:name/delete route", e);
-        }
-
-        try {
-            logger.info("Mounting /health route...");
-            routes.newRoute("/health")
-                .handler(this::handleHealthCheck)
-                .accessControl(req -> RouteAccess.GRANTED)  // Health check can remain public
-                .mount();
-            logger.info("✓ /health route mounted (public)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /health route", e);
-        }
-
-        try {
-            logger.info("Mounting /auth/status route...");
-            routes.newRoute("/auth/status")
-                .handler(this::handleAuthStatus)
-                .accessControl(req -> RouteAccess.GRANTED)  // Public endpoint - returns auth status
-                .mount();
-            logger.info("✓ /auth/status route mounted (public)");
-        } catch (Exception e) {
-            logger.error("Failed to mount /auth/status route", e);
-        }
-
-        try {
-            logger.info("Mounting /page route (authenticated HTML page)...");
-            routes.newRoute("/page")
-                .handler(this::handleUploadPage)
-                .accessControl(this::checkAuthenticated)  // Requires authentication
-                .mount();
-            logger.info("✓ /page route mounted (requires authentication) - accessible at /data/plcsimulator/page");
-        } catch (Exception e) {
-            logger.error("Failed to mount /page route", e);
-        }
-
-        logger.info("File upload routes mounting complete at /data/plcsimulator/");
+        mountRoute("/upload", this::handleFileUpload, HttpMethod.POST, true);
+        mountRoute("/devices", this::handleListDevices, null, true);
+        mountRoute("/device/:name/status", this::handleDeviceStatus, null, true);
+        mountRoute("/device/:name/tags", this::handleGetTags, null, true);
+        mountRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE, true);
+        mountRoute("/health", this::handleHealthCheck, null, false);
+        mountRoute("/auth/status", this::handleAuthStatus, null, false);
+        mountRoute("/page", this::handleUploadPage, null, true);
+        logger.info("File upload routes mounted at /data/plcsimulator/");
     }
 
-    /**
-     * Handle file upload requests with device update.
-     */
-    private JSONObject handleFileUpload(RequestContext context, HttpServletResponse response) throws JSONException {
+    private void mountRoute(String path, RouteHandler handler, HttpMethod method, boolean requiresAuth) {
+        try {
+            var builder = routes.newRoute(path).handler(handler::handle);
+            if (method != null) builder.method(method);
+            builder.accessControl(requiresAuth ? AuthenticationHelper::checkAuthenticated : req -> RouteAccess.GRANTED);
+            builder.mount();
+            logger.debug("Mounted route: {}", path);
+        } catch (Exception e) {
+            logger.error("Failed to mount route: {}", path, e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface RouteHandler {
+        Object handle(RequestContext ctx, HttpServletResponse resp) throws JSONException;
+    }
+
+    private JSONObject handleFileUpload(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
 
+        // Rate limiting
+        String username = AuthenticationHelper.getUserIdentifier(ctx);
+        String ip = AuthenticationHelper.getClientIP(ctx);
+        RateLimiter.RateLimitResult rateResult = rateLimiter.checkRequest(username, ip);
+
+        if (!rateResult.isAllowed()) {
+            return rateLimitResponse(resp, result, rateResult, username, ip);
+        }
+
+        // Content size check
+        long contentLength = ctx.getRequest().getContentLengthLong();
+        long maxSize = FileValidator.getMaxFileSizeMB() * 1024 * 1024;
+
+        if (contentLength > maxSize) {
+            resp.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
+            return result.put("success", false)
+                .put("error", String.format("File too large: %d MB exceeds max %d MB",
+                    contentLength / (1024 * 1024), FileValidator.getMaxFileSizeMB()));
+        }
+
         try {
-            // SECURITY: Rate limiting check FIRST to prevent DoS attacks
-            String username = getUserIdentifier(context);
-            String ipAddress = getClientIP(context);
-
-            RateLimiter.RateLimitResult rateLimitResult = rateLimiter.checkRequest(username, ipAddress);
-
-            if (!rateLimitResult.isAllowed()) {
-                response.setStatus(429); // Too Many Requests
-                response.setHeader("X-RateLimit-Limit", String.valueOf(rateLimitResult.getLimit()));
-                response.setHeader("X-RateLimit-Remaining", "0");
-                response.setHeader("X-RateLimit-Reset", String.valueOf(rateLimitResult.getResetTimeMs()));
-                response.setHeader("Retry-After", String.valueOf(
-                    (rateLimitResult.getResetTimeMs() - System.currentTimeMillis()) / 1000
-                ));
-
-                result.put("success", false);
-                result.put("error", String.format(
-                    "Rate limit exceeded: %s limit of %d uploads per hour. Try again later.",
-                    rateLimitResult.getLimitType(),
-                    rateLimitResult.getLimit()
-                ));
-                result.put("retryAfter", (rateLimitResult.getResetTimeMs() - System.currentTimeMillis()) / 1000);
-
-                logger.warn("Rate limit exceeded for user {} from IP {}", username, ipAddress);
-                return result;
-            }
-
-            // Add rate limit headers to successful requests too
-            response.setHeader("X-RateLimit-Limit", String.valueOf(rateLimitResult.getLimit()));
-            response.setHeader("X-RateLimit-Remaining", String.valueOf(rateLimitResult.getRemaining()));
-
-            String deviceName = context.getRequest().getParameter("device");
-
-            // SECURITY: Check Content-Length BEFORE reading to prevent DoS
-            long contentLength = context.getRequest().getContentLengthLong();
-            long maxSize = FileValidator.getMaxFileSizeMB() * 1024 * 1024; // Convert MB to bytes
-
-            if (contentLength > maxSize) {
-                response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
-                result.put("success", false);
-                result.put("error", String.format(
-                    "File too large: %d MB exceeds maximum %d MB",
-                    contentLength / (1024 * 1024),
-                    FileValidator.getMaxFileSizeMB()
-                ));
-                logger.warn("Rejected oversized upload: {} bytes (max {} bytes)",
-                    contentLength, maxSize);
-                return result;
-            }
-
-            if (contentLength < 0) {
-                // Content-Length header not provided - will check during read
-                logger.debug("Content-Length not provided, will enforce limit during read");
-            }
-
-            // Read file content from request body with size enforcement
-            String fileContent;
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(context.getRequest().getInputStream(), StandardCharsets.UTF_8))) {
-                StringBuilder content = new StringBuilder();
-                char[] buffer = new char[8192];
-                int charsRead;
-                long totalRead = 0;
-
-                while ((charsRead = reader.read(buffer)) != -1) {
-                    totalRead += charsRead;
-
-                    // Enforce limit during read (in case Content-Length was not provided)
-                    if (totalRead > maxSize) {
-                        response.setStatus(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
-                        result.put("success", false);
-                        result.put("error", String.format(
-                            "File size exceeds maximum allowed: %d MB",
-                            FileValidator.getMaxFileSizeMB()
-                        ));
-                        logger.warn("Upload exceeded size limit during read: {} bytes", totalRead);
-                        return result;
-                    }
-
-                    content.append(buffer, 0, charsRead);
-                }
-                fileContent = content.toString();
-            }
-
+            String fileContent = readRequestContent(ctx, maxSize);
             if (fileContent.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                result.put("success", false);
-                result.put("error", "No file content provided");
-                return result;
+                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                return result.put("success", false).put("error", "No file content provided");
             }
 
-            String filename = context.getRequest().getHeader("X-Filename");
-            if (filename == null || filename.isEmpty()) {
-                filename = "uploaded_file.txt";
-            }
+            String filename = Optional.ofNullable(ctx.getRequest().getHeader("X-Filename"))
+                .filter(s -> !s.isEmpty()).orElse("uploaded_file.txt");
 
-            logger.info("Received file upload: {} ({} bytes)", filename, fileContent.length());
-
-            // Validate file content (additional validation beyond size)
             FileValidator.ValidationResult validation = FileValidator.validateContent(fileContent, filename);
             if (!validation.isValid()) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                result.put("success", false);
-                result.put("error", validation.getErrorMessage());
-                logger.warn("File validation failed: {}", validation.getErrorMessage());
-                return result;
+                resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                return result.put("success", false).put("error", validation.getErrorMessage());
             }
 
-            // If device name provided, update the device automatically
+            String deviceName = ctx.getRequest().getParameter("device");
             if (deviceName != null && !deviceName.trim().isEmpty()) {
-                logger.info("Applying file to device: {}", deviceName);
-
-                try {
-                    // Find the device
-                    Optional<EnhancedSimulatorDevice> deviceOpt = findDeviceByName(deviceName);
-
-                    if (deviceOpt.isEmpty()) {
-                        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                        result.put("success", false);
-                        result.put("error", "Device not found: " + deviceName);
-                        result.put("hint", "Create the device in Config → OPC UA → Device Connections first");
-                        return result;
-                    }
-
-                    EnhancedSimulatorDevice device = deviceOpt.get();
-
-                    // Update device configuration
-                    boolean updated = updateDeviceConfig(device, fileContent, filename);
-
-                    if (updated) {
-                        // Reload device to apply new configuration
-                        reloadDevice(device);
-
-                        response.setStatus(HttpServletResponse.SC_OK);
-                        result.put("success", true);
-                        result.put("filename", filename);
-                        result.put("size", fileContent.length());
-                        result.put("device", deviceName);
-                        result.put("message", "File uploaded and applied to device successfully");
-                        result.put("status", device.getStatus());
-                        logger.info("✓ File successfully applied to device: {}", deviceName);
-                    } else {
-                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                        result.put("success", false);
-                        result.put("error", "Failed to update device configuration");
-                    }
-
-                } catch (Exception e) {
-                    logger.error("Error updating device: {}", deviceName, e);
-                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                    result.put("success", false);
-                    result.put("error", "Device update failed: " + e.getMessage());
-                }
-            } else {
-                // No device specified - just return the content for manual paste
-                response.setStatus(HttpServletResponse.SC_OK);
-                result.put("success", true);
-                result.put("filename", filename);
-                result.put("size", fileContent.length());
-                result.put("content", fileContent);
-                result.put("message", "File uploaded - apply to device by specifying device parameter");
+                return processDeviceUpload(resp, result, deviceName, fileContent, filename);
             }
 
-            return result;
+            return result.put("success", true).put("filename", filename)
+                .put("size", fileContent.length()).put("content", fileContent)
+                .put("message", "File uploaded - apply to device by specifying device parameter");
 
         } catch (Exception e) {
             logger.error("Error handling file upload", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-            return result;
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return result.put("success", false).put("error", e.getMessage());
         }
     }
 
-    /**
-     * Handle device list requests.
-     */
-    private JSONObject handleListDevices(RequestContext requestContext, HttpServletResponse response) throws JSONException {
-        JSONObject result = new JSONObject();
-
-        try {
-            JSONArray devices = new JSONArray();
-
-            // Get devices from our registry (only Enhanced Simulator devices)
-            Collection<EnhancedSimulatorDevice> allDevices = SimulatorModuleHook.getRegisteredDevices();
-
-            logger.info("Device list requested - found {} Enhanced Simulator devices", allDevices.size());
-
-            // Debug logging to help troubleshoot empty device lists
-            if (allDevices.isEmpty()) {
-                logger.warn("No Enhanced PLC Simulator devices found in registry!");
-                logger.warn("Devices must call SimulatorModuleHook.registerDevice() during onStartup()");
-                logger.warn("Check that devices are configured at: Config → OPC UA → Device Connections");
-            } else {
-                logger.debug("Registered device names: {}",
-                    allDevices.stream()
-                        .map(EnhancedSimulatorDevice::getName)
-                        .collect(java.util.stream.Collectors.toList()));
-            }
-
-            // All devices in registry are Enhanced Simulator devices
-            for (EnhancedSimulatorDevice device : allDevices) {
-                EnhancedSimulatorConfig simConfig = device.getConfiguration();
-
-                JSONObject deviceInfo = new JSONObject();
-                deviceInfo.put("name", device.getName());
-                deviceInfo.put("status", device.getStatus());
-                deviceInfo.put("enabled", simConfig.general().enabled());
-                deviceInfo.put("fileName", simConfig.parser().fileName());
-                deviceInfo.put("parserType", simConfig.parser().parserType().getDisplayName());
-                deviceInfo.put("simulationEnabled", simConfig.simulation().enabled());
-
-                devices.put(deviceInfo);
-            }
-
-            response.setStatus(HttpServletResponse.SC_OK);
-            result.put("success", true);
-            result.put("devices", devices);
-            result.put("count", devices.length());
-
-            logger.info("Returning {} Enhanced Simulator devices", devices.length());
-            return result;
-
-        } catch (Exception e) {
-            logger.error("Error listing devices", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-            return result;
+    private JSONObject processDeviceUpload(HttpServletResponse resp, JSONObject result,
+                                            String deviceName, String fileContent, String filename) throws JSONException {
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName)
+                .put("hint", "Create the device in Config → OPC UA → Device Connections first");
         }
+
+        EnhancedSimulatorDevice device = deviceOpt.get();
+        if (deviceManager.saveFileToDevice(device, fileContent, filename)) {
+            deviceManager.reloadDevice(device);
+            return result.put("success", true).put("filename", filename)
+                .put("size", fileContent.length()).put("device", deviceName)
+                .put("message", "File uploaded and applied to device successfully")
+                .put("status", device.getStatus());
+        }
+
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        return result.put("success", false).put("error", "Failed to update device configuration");
     }
 
-    /**
-     * Handle health check requests.
-     */
-    private JSONObject handleHealthCheck(RequestContext context, HttpServletResponse response) throws JSONException {
+    private JSONObject handleListDevices(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
-        result.put("status", "ok");
-        result.put("service", "plc-file-upload");
-        return result;
+        JSONArray devices = new JSONArray();
+
+        for (EnhancedSimulatorDevice device : SimulatorModuleHook.getRegisteredDevices()) {
+            EnhancedSimulatorConfig config = device.getConfiguration();
+            devices.put(new JSONObject()
+                .put("name", device.getName())
+                .put("status", device.getStatus())
+                .put("enabled", config.general().enabled())
+                .put("fileName", config.parser().fileName())
+                .put("parserType", config.parser().parserType().getDisplayName())
+                .put("simulationEnabled", config.simulation().enabled()));
+        }
+
+        return result.put("success", true).put("devices", devices).put("count", devices.length());
     }
 
-    /**
-     * Handle authentication status check.
-     * Returns whether the current user is authenticated.
-     * This is a public endpoint so JavaScript can check auth status.
-     *
-     * IMPROVED: Instead of just checking session existence, we verify the session
-     * is valid by checking if the REQUEST would pass our authentication check.
-     */
-    private JSONObject handleAuthStatus(RequestContext context, HttpServletResponse response) throws JSONException {
+    private JSONObject handleDeviceStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        EnhancedSimulatorDevice device = deviceOpt.get();
+        EnhancedSimulatorConfig config = device.getConfiguration();
+
+        String filePath = deviceManager.getDeviceFilePath(device);
+        File file = filePath != null ? new File(filePath) : null;
+        boolean hasFile = file != null && file.exists();
+
+        return result.put("success", true)
+            .put("deviceName", deviceName)
+            .put("status", device.getStatus())
+            .put("fileName", config.parser().fileName())
+            .put("hasFile", hasFile)
+            .put("fileSize", hasFile ? file.length() : 0)
+            .put("lastModified", hasFile ? file.lastModified() : 0)
+            .put("filePath", filePath)
+            .put("parserType", config.parser().parserType().getDisplayName())
+            .put("enabled", config.general().enabled())
+            .put("simulationEnabled", config.simulation().enabled());
+    }
+
+    private JSONObject handleGetTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        // Get tags from the device's parsed data
+        EnhancedSimulatorDevice device = deviceOpt.get();
+        JSONArray tags = new JSONArray();
+        int folderCount = 0;
+        int udtCount = 0;
 
         try {
-            // Use the ACTUAL checkAuthenticated logic to see if they're really authenticated
-            RouteAccess access = checkAuthenticated(context);
-            boolean isAuthenticated = (access == RouteAccess.GRANTED);
+            var parsedDataField = EnhancedSimulatorDevice.class.getDeclaredField("parsedData");
+            parsedDataField.setAccessible(true);
+            var parsedData = (com.google.gson.JsonObject) parsedDataField.get(device);
 
-            String username = "";
-            if (isAuthenticated) {
-                jakarta.servlet.http.HttpServletRequest httpRequest = context.getRequest();
-                // Try to get username from various sources
-                if (httpRequest.getRemoteUser() != null) {
-                    username = httpRequest.getRemoteUser();
-                } else if (httpRequest.getUserPrincipal() != null) {
-                    username = httpRequest.getUserPrincipal().getName();
-                } else {
-                    username = "gateway-user";
+            if (parsedData != null) {
+                // Extract global tags
+                if (parsedData.has("global_tags")) {
+                    var globalTags = parsedData.getAsJsonArray("global_tags");
+                    for (var elem : globalTags) {
+                        var tag = elem.getAsJsonObject();
+                        JSONObject tagJson = new JSONObject();
+                        tagJson.put("name", tag.has("name") ? tag.get("name").getAsString() : "unknown");
+                        tagJson.put("path", "Controller:Global/" + (tag.has("name") ? tag.get("name").getAsString() : "unknown"));
+                        tagJson.put("data_type", tag.has("data_type") ? tag.get("data_type").getAsString() : "STRING");
+                        tagJson.put("value", tag.has("value") ? tag.get("value").toString() : "");
+
+                        if (tag.has("udt_members")) {
+                            tagJson.put("isUdt", true);
+                            udtCount++;
+                        }
+
+                        tags.put(tagJson);
+                    }
+                    folderCount++; // Controller:Global folder
                 }
-                logger.debug("Auth status: authenticated, user: {}", username);
-            } else {
-                logger.debug("Auth status: not authenticated");
-            }
 
-            response.setStatus(HttpServletResponse.SC_OK);
-            result.put("authenticated", isAuthenticated);
-            result.put("username", username);
-            result.put("loginUrl", "/app/home");
+                // Extract program tags
+                if (parsedData.has("programs")) {
+                    var programs = parsedData.getAsJsonArray("programs");
+                    for (var progElem : programs) {
+                        var prog = progElem.getAsJsonObject();
+                        String progName = prog.has("name") ? prog.get("name").getAsString() : "Program";
+                        folderCount++; // Program folder
 
-        } catch (Exception e) {
-            logger.error("Error checking auth status", e);
-            response.setStatus(HttpServletResponse.SC_OK);
-            result.put("authenticated", false);
-            result.put("username", "");
-            result.put("error", e.getMessage());
-        }
-
-        return result;
-    }
-
-    /**
-     * Serve the upload HTML page with authentication.
-     * This replaces the public /res/plcsimulator/simple-upload.html resource.
-     * Accessible at /data/plcsimulator/page (requires Gateway login).
-     */
-    private Object handleUploadPage(RequestContext context, HttpServletResponse response) {
-        try {
-            // Read the HTML file from resources
-            String htmlContent = readResourceFile("/mounted/simple-upload.html");
-
-            if (htmlContent == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.setContentType("text/plain");
-                response.getWriter().write("Upload page not found");
-                return null;
-            }
-
-            // Update the HTML to work from this new path
-            // Replace API endpoint references to use correct paths
-            htmlContent = htmlContent
-                .replace("/data/plcsimulator/devices", "/data/plcsimulator/devices")
-                .replace("/data/plcsimulator/upload", "/data/plcsimulator/upload");
-
-            // Serve the HTML
-            response.setStatus(HttpServletResponse.SC_OK);
-            response.setContentType("text/html; charset=UTF-8");
-            response.setCharacterEncoding("UTF-8");
-            response.getWriter().write(htmlContent);
-
-            logger.debug("Served upload page to authenticated user");
-
-        } catch (Exception e) {
-            logger.error("Error serving upload page", e);
-            try {
-                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                response.setContentType("text/plain");
-                response.getWriter().write("Error loading upload page: " + e.getMessage());
-            } catch (Exception ex) {
-                logger.error("Error writing error response", ex);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Read a resource file from the classpath.
-     */
-    private String readResourceFile(String resourcePath) {
-        try {
-            var inputStream = getClass().getResourceAsStream(resourcePath);
-            if (inputStream == null) {
-                logger.error("Resource not found: {}", resourcePath);
-                return null;
-            }
-
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-                StringBuilder content = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    content.append(line).append("\n");
-                }
-                return content.toString();
-            }
-        } catch (Exception e) {
-            logger.error("Error reading resource file: {}", resourcePath, e);
-            return null;
-        }
-    }
-
-    /**
-     * Handle device status requests.
-     */
-    private JSONObject handleDeviceStatus(RequestContext requestContext, HttpServletResponse response) throws JSONException {
-        JSONObject result = new JSONObject();
-
-        try {
-            // Get device name from route path parameter
-            // Route: /device/:name/status
-            String deviceName = requestContext.getParameter("name");
-
-            if (deviceName == null || deviceName.trim().isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                result.put("success", false);
-                result.put("error", "Device name required");
-                return result;
-            }
-
-            Optional<EnhancedSimulatorDevice> deviceOpt = findDeviceByName(deviceName);
-
-            if (deviceOpt.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                result.put("success", false);
-                result.put("error", "Device not found: " + deviceName);
-                return result;
-            }
-
-            EnhancedSimulatorDevice device = deviceOpt.get();
-            EnhancedSimulatorConfig simConfig = device.getConfiguration();
-
-            // Check if file exists on disk
-            // IMPORTANT: Use the device's internal currentFilePath instead of config fileName
-            // because the fileName config field may not be populated after file upload
-            String fileName = simConfig.parser().fileName();
-            boolean hasFile = false;
-            long fileSize = 0;
-            long lastModified = 0;
-            String filePath = null;
-
-            try {
-                // Access the device's currentFilePath field via reflection
-                Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
-                filePathField.setAccessible(true);
-                String currentFilePath = (String) filePathField.get(device);
-
-                if (currentFilePath != null && !currentFilePath.isEmpty()) {
-                    File currentFile = new File(currentFilePath);
-                    if (currentFile.exists()) {
-                        hasFile = true;
-                        fileSize = currentFile.length();
-                        lastModified = currentFile.lastModified();
-                        filePath = currentFile.getAbsolutePath();
-
-                        // Extract actual filename from path if config fileName is not set
-                        if (fileName == null || fileName.isEmpty()) {
-                            fileName = currentFile.getName();
-                            // Remove device-specific prefix if present (format: DeviceName_filename)
-                            String prefix = deviceName + "_";
-                            if (fileName.startsWith(prefix)) {
-                                fileName = fileName.substring(prefix.length());
+                        if (prog.has("tags")) {
+                            var progTags = prog.getAsJsonArray("tags");
+                            for (var tagElem : progTags) {
+                                var tag = tagElem.getAsJsonObject();
+                                JSONObject tagJson = new JSONObject();
+                                tagJson.put("name", tag.has("name") ? tag.get("name").getAsString() : "unknown");
+                                tagJson.put("path", "Programs/" + progName + "/" + (tag.has("name") ? tag.get("name").getAsString() : "unknown"));
+                                tagJson.put("data_type", tag.has("data_type") ? tag.get("data_type").getAsString() : "STRING");
+                                tagJson.put("value", tag.has("value") ? tag.get("value").toString() : "");
+                                tags.put(tagJson);
                             }
                         }
                     }
                 }
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                logger.warn("Could not access currentFilePath field, falling back to config fileName", e);
-
-                // Fall back to old logic using config fileName
-                if (fileName != null && !fileName.isEmpty()) {
-                    try {
-                        File dataDir = context.getSystemManager().getDataDir();
-                        File storageDir = new File(dataDir, "plc-simulator");
-
-                        // Use secure path validation
-                        File deviceFile = validateFilePath(storageDir, deviceName, fileName);
-
-                        if (deviceFile.exists()) {
-                            hasFile = true;
-                            fileSize = deviceFile.length();
-                            lastModified = deviceFile.lastModified();
-                            filePath = deviceFile.getAbsolutePath();
-                        }
-                    } catch (SecurityException secEx) {
-                        logger.error("Invalid file path for device {}: {}", deviceName, secEx.getMessage());
-                    }
-                }
             }
-
-            response.setStatus(HttpServletResponse.SC_OK);
-            result.put("success", true);
-            result.put("deviceName", deviceName);
-            result.put("status", device.getStatus());
-            result.put("fileName", fileName != null ? fileName : "");
-            result.put("hasFile", hasFile);
-            result.put("fileSize", fileSize);
-            result.put("lastModified", lastModified);
-            result.put("filePath", filePath);
-            result.put("parserType", simConfig.parser().parserType().getDisplayName());
-            result.put("enabled", simConfig.general().enabled());
-            result.put("simulationEnabled", simConfig.simulation().enabled());
-
-            return result;
-
         } catch (Exception e) {
-            logger.error("Error getting device status", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-            return result;
+            logger.warn("Could not access parsed data for device: {}", deviceName, e);
         }
+
+        return result.put("success", true)
+            .put("deviceName", deviceName)
+            .put("tags", tags)
+            .put("totalTags", tags.length())
+            .put("folders", folderCount)
+            .put("udtInstances", udtCount);
     }
 
-    /**
-     * Handle delete file requests.
-     */
-    private JSONObject handleDeleteFile(RequestContext requestContext, HttpServletResponse response) throws JSONException {
+    private JSONObject handleDeleteFile(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+        String deviceName = ctx.getParameter("name");
+
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return result.put("success", false).put("error", "Device name required");
+        }
+
+        Optional<EnhancedSimulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
+        if (deviceOpt.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "Device not found: " + deviceName);
+        }
+
+        String fileName = deviceOpt.get().getConfiguration().parser().fileName();
+        if (fileName == null || fileName.isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "No file configured for device: " + deviceName);
+        }
 
         try {
-            // Get device name from route path parameter
-            // Route: /device/:name/delete
-            String deviceName = requestContext.getParameter("name");
-
-            if (deviceName == null || deviceName.trim().isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                result.put("success", false);
-                result.put("error", "Device name required");
-                return result;
+            File deviceFile = PathSecurity.validateFilePath(deviceManager.getStorageDirectory(), deviceName, fileName);
+            if (deviceFile.exists() && deviceFile.delete()) {
+                logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
+                return result.put("success", true).put("message", "File deleted successfully").put("fileName", fileName);
             }
+            resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            return result.put("success", false).put("error", "File not found on disk: " + fileName);
+        } catch (SecurityException se) {
+            logger.error("Security violation: attempt to delete file outside allowed directory", se);
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return result.put("success", false).put("error", "Invalid file path");
+        }
+    }
 
-            Optional<EnhancedSimulatorDevice> deviceOpt = findDeviceByName(deviceName);
+    private JSONObject handleHealthCheck(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        return new JSONObject().put("status", "ok").put("service", "plc-file-upload");
+    }
 
-            if (deviceOpt.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                result.put("success", false);
-                result.put("error", "Device not found: " + deviceName);
-                return result;
+    private JSONObject handleAuthStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        RouteAccess access = AuthenticationHelper.checkAuthenticated(ctx);
+        boolean isAuth = (access == RouteAccess.GRANTED);
+        String username = isAuth ? getUsername(ctx) : "";
+        return new JSONObject().put("authenticated", isAuth).put("username", username).put("loginUrl", "/app/home");
+    }
+
+    private Object handleUploadPage(RequestContext ctx, HttpServletResponse resp) {
+        try {
+            var stream = getClass().getResourceAsStream("/mounted/simple-upload.html");
+            if (stream == null) {
+                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                resp.getWriter().write("Upload page not found");
+                return null;
             }
-
-            EnhancedSimulatorDevice device = deviceOpt.get();
-            EnhancedSimulatorConfig simConfig = device.getConfiguration();
-            String fileName = simConfig.parser().fileName();
-
-            if (fileName == null || fileName.isEmpty()) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                result.put("success", false);
-                result.put("error", "No file configured for device: " + deviceName);
-                return result;
-            }
-
-            // Find and delete the file with secure path validation
-            File dataDir = context.getSystemManager().getDataDir();
-            File storageDir = new File(dataDir, "plc-simulator");
-
-            try {
-                // Use secure path validation to prevent directory traversal
-                File deviceFile = validateFilePath(storageDir, deviceName, fileName);
-
-                if (deviceFile.exists()) {
-                    boolean deleted = deviceFile.delete();
-                    if (deleted) {
-                    logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
-
-                    response.setStatus(HttpServletResponse.SC_OK);
-                    result.put("success", true);
-                    result.put("message", "File deleted successfully");
-                    result.put("fileName", fileName);
-                } else {
-                        response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                        result.put("success", false);
-                        result.put("error", "Failed to delete file");
-                    }
-                } else {
-                    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                    result.put("success", false);
-                    result.put("error", "File not found on disk: " + fileName);
-                }
-            } catch (SecurityException se) {
-                logger.error("Security violation: attempt to delete file outside allowed directory", se);
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                result.put("success", false);
-                result.put("error", "Invalid file path");
-            }
-
-            return result;
-
+            String html = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            resp.setContentType("text/html; charset=UTF-8");
+            resp.getWriter().write(html);
         } catch (Exception e) {
-            logger.error("Error deleting file", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            result.put("success", false);
-            result.put("error", e.getMessage());
-            return result;
+            logger.error("Error serving upload page", e);
         }
+        return null;
     }
 
-    /**
-     * Find a device by name in our device registry.
-     */
-    private Optional<EnhancedSimulatorDevice> findDeviceByName(String name) {
-        try {
-            return SimulatorModuleHook.findDeviceByName(name);
-        } catch (Exception e) {
-            logger.error("Error finding device: {}", name, e);
-            return Optional.empty();
+    private String readRequestContent(RequestContext ctx, long maxSize) throws Exception {
+        StringBuilder content = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(ctx.getRequest().getInputStream(), StandardCharsets.UTF_8))) {
+            char[] buffer = new char[8192];
+            int read;
+            long total = 0;
+            while ((read = reader.read(buffer)) != -1) {
+                total += read;
+                if (total > maxSize) throw new IllegalStateException("File size exceeds maximum");
+                content.append(buffer, 0, read);
+            }
         }
+        return content.toString();
     }
 
-    /**
-     * Update a device's configuration with new file content.
-     * Saves file to disk and updates device's internal file path.
-     */
-    private boolean updateDeviceConfig(EnhancedSimulatorDevice device, String fileContent, String filename) {
-        try {
-            // Get the storage directory (same location as EnhancedSimulatorDevice.prepareFile() uses)
-            File dataDir = context.getSystemManager().getDataDir();
-            File storageDir = new File(dataDir, "plc-simulator");
-
-            if (!storageDir.exists()) {
-                boolean created = storageDir.mkdirs();
-                if (!created) {
-                    logger.error("Failed to create storage directory: {}", storageDir.getAbsolutePath());
-                    return false;
-                }
-                logger.info("Created storage directory: {}", storageDir.getAbsolutePath());
-            }
-
-            // Sanitize filename to prevent directory traversal attacks
-            String sanitizedFileName = sanitizeFileName(filename);
-
-            // Save with device-specific name to prevent conflicts between devices
-            // Format: {DeviceName}_{originalFilename}
-            String deviceSpecificName = device.getName() + "_" + sanitizedFileName;
-            File targetFile = new File(storageDir, deviceSpecificName);
-
-            // Write file content to disk
-            Files.writeString(
-                targetFile.toPath(),
-                fileContent,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING
-            );
-
-            logger.info("Saved file to disk: {} ({} bytes)", targetFile.getAbsolutePath(), fileContent.length());
-
-            // Update device's internal file path using reflection
-            updateDeviceFilePath(device, targetFile.getAbsolutePath());
-
-            logger.info("Device configuration updated successfully: {}", device.getName());
-            return true;
-
-        } catch (Exception e) {
-            logger.error("Error updating device configuration", e);
-            return false;
-        }
+    private JSONObject rateLimitResponse(HttpServletResponse resp, JSONObject result,
+                                          RateLimiter.RateLimitResult rateResult, String user, String ip) throws JSONException {
+        resp.setStatus(429);
+        resp.setHeader("X-RateLimit-Limit", String.valueOf(rateResult.getLimit()));
+        resp.setHeader("X-RateLimit-Remaining", "0");
+        resp.setHeader("X-RateLimit-Reset", String.valueOf(rateResult.getResetTimeMs()));
+        long retryAfter = (rateResult.getResetTimeMs() - System.currentTimeMillis()) / 1000;
+        resp.setHeader("Retry-After", String.valueOf(retryAfter));
+        logger.warn("Rate limit exceeded for user {} from IP {}", user, ip);
+        return result.put("success", false)
+            .put("error", String.format("Rate limit exceeded: %s limit of %d uploads per hour",
+                rateResult.getLimitType(), rateResult.getLimit()))
+            .put("retryAfter", retryAfter);
     }
 
-    /**
-     * Reload a device to apply new configuration.
-     * Uses reflection to trigger the existing handleFileChange() method.
-     */
-    private void reloadDevice(EnhancedSimulatorDevice device) {
-        try {
-            logger.info("Triggering device reload: {}", device.getName());
-
-            // Get the device's current file path (we just updated it via reflection)
-            Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
-            filePathField.setAccessible(true);
-            String filePath = (String) filePathField.get(device);
-
-            if (filePath == null || filePath.isEmpty()) {
-                logger.warn("No file path set for device: {}", device.getName());
-                return;
-            }
-
-            File deviceFile = new File(filePath);
-            if (!deviceFile.exists()) {
-                logger.error("Device file does not exist: {}", filePath);
-                return;
-            }
-
-            // Trigger hot-reload using the existing handleFileChange() method
-            Method handleFileChangeMethod = EnhancedSimulatorDevice.class.getDeclaredMethod("handleFileChange", File.class);
-            handleFileChangeMethod.setAccessible(true);
-            handleFileChangeMethod.invoke(device, deviceFile);
-
-            logger.info("✓ Device reloaded successfully: {}", device.getName());
-
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
-            logger.error("Reflection error - device class structure may have changed", e);
-        } catch (Exception e) {
-            logger.error("Error during device reload: {}", device.getName(), e);
-        }
-    }
-
-    /**
-     * Check if the user is authenticated.
-     * Uses Ignition's SecurityContext to verify proper authentication.
-     *
-     * SECURITY: This method implements proper authentication checking.
-     * It does NOT rely on session age or other insecure fallbacks.
-     */
-    private RouteAccess checkAuthenticated(RequestContext req) {
-        try {
-            jakarta.servlet.http.HttpServletRequest httpRequest = req.getRequest();
-
-            if (logger.isDebugEnabled()) {
-                logger.debug("Authentication check for URI: {}", httpRequest.getRequestURI());
-            }
-
-            // Method 1: Check for Ignition SecurityContext (preferred)
-            Object securityContext = httpRequest.getAttribute("com.inductiveautomation.ignition.gateway.security.SecurityContext");
-            if (securityContext != null) {
-                // Use reflection to check authentication (SecurityContext is internal API)
-                Class<?> secContextClass = securityContext.getClass();
-                try {
-                    java.lang.reflect.Method isAuthMethod = secContextClass.getMethod("isAuthenticated");
-                    Boolean isAuth = (Boolean) isAuthMethod.invoke(securityContext);
-
-                    if (Boolean.TRUE.equals(isAuth)) {
-                        logger.debug("Authentication granted via SecurityContext");
-                        return RouteAccess.GRANTED;
-                    } else {
-                        logger.debug("Authentication denied - not authenticated");
-                        return RouteAccess.UNAUTHORIZED;
-                    }
-                } catch (NoSuchMethodException e) {
-                    // Try alternate method: check for user object
-                    try {
-                        java.lang.reflect.Method getUserMethod = secContextClass.getMethod("getUser");
-                        Object user = getUserMethod.invoke(securityContext);
-
-                        if (user != null) {
-                            logger.debug("Authentication granted - user exists");
-                            return RouteAccess.GRANTED;
-                        }
-                    } catch (Exception getUserEx) {
-                        logger.warn("Could not determine authentication from SecurityContext", getUserEx);
-                    }
-                }
-            }
-
-            // Method 2: Check standard servlet authentication
-            String remoteUser = httpRequest.getRemoteUser();
-            java.security.Principal userPrincipal = httpRequest.getUserPrincipal();
-
-            if (remoteUser != null || userPrincipal != null) {
-                logger.debug("Authentication granted via servlet principal");
-                return RouteAccess.GRANTED;
-            }
-
-            // Method 3: Check session for authenticated user marker
-            jakarta.servlet.http.HttpSession session = httpRequest.getSession(false);
-            if (session != null) {
-                // Check for Ignition's authentication marker in session
-                Object authMarker = session.getAttribute("web-auth-request-collection");
-                if (authMarker != null) {
-                    try {
-                        // Check if authenticated via session attribute
-                        Class<?> collectionClass = authMarker.getClass();
-                        java.lang.reflect.Method isAuthMethod = collectionClass.getMethod("isAuthenticated");
-                        Boolean isAuth = (Boolean) isAuthMethod.invoke(authMarker);
-
-                        if (Boolean.TRUE.equals(isAuth)) {
-                            logger.debug("Authentication granted via session auth collection");
-                            return RouteAccess.GRANTED;
-                        }
-                    } catch (Exception e) {
-                        logger.debug("Could not check session auth collection", e);
-                    }
-                }
-            }
-
-            // No authentication found
-            logger.debug("Authentication denied - no valid authentication found");
-            return RouteAccess.UNAUTHORIZED;
-
-        } catch (Exception e) {
-            logger.error("Error checking authentication", e);
-            // Fail closed - deny access on error
-            return RouteAccess.UNAUTHORIZED;
-        }
-    }
-
-    /**
-     * Sanitize filename to prevent directory traversal attacks.
-     * Removes path separators and keeps only safe characters.
-     *
-     * SECURITY: Prevents path traversal attacks like "../../../etc/passwd"
-     */
-    private String sanitizeFileName(String filename) {
-        if (filename == null || filename.isEmpty()) {
-            throw new IllegalArgumentException("File name cannot be empty");
-        }
-
-        // Reject path traversal attempts
-        if (filename.contains("..") || filename.contains("/") || filename.contains("\\")) {
-            throw new SecurityException("Invalid filename: path traversal attempt detected");
-        }
-
-        // Reject null bytes (null byte injection attack)
-        if (filename.contains("\0")) {
-            throw new SecurityException("Invalid filename: null byte detected");
-        }
-
-        // Enforce length limit (255 is typical filesystem limit)
-        if (filename.length() > 255) {
-            throw new SecurityException("Invalid filename: too long (max 255 characters)");
-        }
-
-        // Extract just the filename (remove any path components using Paths API)
-        String sanitized = java.nio.file.Paths.get(filename).getFileName().toString();
-
-        // Verify no path separators remain after extraction
-        if (sanitized.contains("/") || sanitized.contains("\\")) {
-            throw new SecurityException("Invalid filename: contains path separators");
-        }
-
-        return sanitized;
-    }
-
-    /**
-     * Sanitize device name to prevent directory traversal attacks.
-     * Only allows alphanumeric characters, underscores, and hyphens.
-     *
-     * SECURITY: Device names are used in file paths and must be strictly validated.
-     */
-    private String sanitizeDeviceName(String deviceName) {
-        if (deviceName == null || deviceName.isEmpty()) {
-            throw new IllegalArgumentException("Device name cannot be empty");
-        }
-
-        // Reject path traversal attempts
-        if (deviceName.contains("..") || deviceName.contains("/") ||
-            deviceName.contains("\\") || deviceName.contains("\0")) {
-            throw new SecurityException("Invalid device name: contains illegal characters");
-        }
-
-        // Only allow alphanumeric, underscore, hyphen
-        if (!deviceName.matches("^[a-zA-Z0-9_-]+$")) {
-            throw new SecurityException("Invalid device name: must contain only letters, numbers, underscores, and hyphens");
-        }
-
-        // Length limit
-        if (deviceName.length() > 100) {
-            throw new SecurityException("Invalid device name: too long (max 100 characters)");
-        }
-
-        return deviceName;
-    }
-
-    /**
-     * Validate that a file path is within the allowed storage directory.
-     * Prevents path traversal attacks by checking canonical paths.
-     *
-     * SECURITY: Critical check to prevent accessing files outside storage directory.
-     */
-    private File validateFilePath(File storageDir, String deviceName, String fileName) throws SecurityException {
-        try {
-            // Sanitize inputs
-            String safeDeviceName = sanitizeDeviceName(deviceName);
-            String safeFileName = sanitizeFileName(fileName);
-
-            // Construct file path
-            File deviceFile = new File(storageDir, safeDeviceName + "_" + safeFileName);
-
-            // Get canonical paths to resolve any symlinks or relative paths
-            String canonicalFilePath = deviceFile.getCanonicalPath();
-            String canonicalStorageDir = storageDir.getCanonicalPath();
-
-            // Verify the file is within the storage directory
-            if (!canonicalFilePath.startsWith(canonicalStorageDir + File.separator)) {
-                logger.error("Path traversal attempt detected: device={}, file={}, resolved={}",
-                    deviceName, fileName, canonicalFilePath);
-                throw new SecurityException("Invalid file path: outside storage directory");
-            }
-
-            return deviceFile;
-
-        } catch (java.io.IOException e) {
-            logger.error("Error validating file path", e);
-            throw new SecurityException("Invalid file path", e);
-        }
-    }
-
-    /**
-     * Update a device's internal currentFilePath field using reflection.
-     * This allows the device to know where the uploaded file is stored.
-     */
-    private void updateDeviceFilePath(EnhancedSimulatorDevice device, String filePath) throws Exception {
-        try {
-            Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
-            filePathField.setAccessible(true);
-            filePathField.set(device, filePath);
-            logger.info("Updated device file path to: {}", filePath);
-        } catch (NoSuchFieldException e) {
-            logger.error("Failed to find currentFilePath field in EnhancedSimulatorDevice", e);
-            throw e;
-        } catch (IllegalAccessException e) {
-            logger.error("Failed to access currentFilePath field", e);
-            throw e;
-        }
-    }
-
-    /**
-     * Get user identifier for rate limiting.
-     * Tries multiple sources to identify the user.
-     */
-    private String getUserIdentifier(RequestContext context) {
-        jakarta.servlet.http.HttpServletRequest request = context.getRequest();
-
-        // Try to get authenticated username
-        String username = request.getRemoteUser();
-        if (username != null && !username.isEmpty()) {
-            return username;
-        }
-
-        // Try user principal
-        if (request.getUserPrincipal() != null) {
-            username = request.getUserPrincipal().getName();
-            if (username != null && !username.isEmpty()) {
-                return username;
-            }
-        }
-
-        // Fall back to session ID if user is not authenticated
-        jakarta.servlet.http.HttpSession session = request.getSession(false);
-        if (session != null) {
-            return "session:" + session.getId();
-        }
-
-        // Last resort: use IP address as identifier
-        return "ip:" + getClientIP(context);
-    }
-
-    /**
-     * Get client IP address, accounting for proxies and load balancers.
-     */
-    private String getClientIP(RequestContext context) {
-        jakarta.servlet.http.HttpServletRequest request = context.getRequest();
-
-        // Check X-Forwarded-For header (set by proxies/load balancers)
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2)
-            // Take the first one (original client)
-            String[] ips = xForwardedFor.split(",");
-            if (ips.length > 0) {
-                return ips[0].trim();
-            }
-        }
-
-        // Check X-Real-IP header (common with Nginx)
-        String xRealIP = request.getHeader("X-Real-IP");
-        if (xRealIP != null && !xRealIP.isEmpty()) {
-            return xRealIP;
-        }
-
-        // Fall back to remote address
-        String remoteAddr = request.getRemoteAddr();
-        return remoteAddr != null ? remoteAddr : "unknown";
+    private String getUsername(RequestContext ctx) {
+        var req = ctx.getRequest();
+        if (req.getRemoteUser() != null) return req.getRemoteUser();
+        if (req.getUserPrincipal() != null) return req.getUserPrincipal().getName();
+        return "gateway-user";
     }
 }

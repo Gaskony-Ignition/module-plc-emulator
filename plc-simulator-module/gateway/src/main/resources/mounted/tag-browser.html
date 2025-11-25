@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag Browser - Enhanced PLC Simulator</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 16px;
+            line-height: 1.6;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .header {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            padding: 20px 24px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { font-size: 24px; margin-bottom: 6px; }
+        .subtitle { color: #cbd5e1; font-size: 14px; }
+
+        .nav-links { display: flex; gap: 12px; }
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        .nav-link:hover { background: rgba(255,255,255,0.2); }
+
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .device-selector {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        select, input {
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        select:hover, input:hover { border-color: #3b82f6; }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .search-box {
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover { background: #2563eb; }
+        .btn-secondary { background: #475569; }
+        .btn-secondary:hover { background: #64748b; }
+
+        .stats-bar {
+            display: flex;
+            gap: 24px;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #0f172a;
+            border-radius: 6px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-label { color: #94a3b8; font-size: 13px; }
+        .stat-value { color: #3b82f6; font-weight: 600; font-size: 16px; }
+
+        .tag-tree {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .tree-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 150px;
+            gap: 16px;
+            padding: 12px 16px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            font-weight: 600;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .tag-item {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 150px;
+            gap: 16px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #1e293b;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .tag-item:hover { background: #1e293b; }
+        .tag-item:last-child { border-bottom: none; }
+
+        .tag-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+
+        .tag-icon { font-size: 14px; }
+
+        .folder-icon { color: #fbbf24; }
+        .bool-icon { color: #10b981; }
+        .int-icon { color: #3b82f6; }
+        .real-icon { color: #8b5cf6; }
+        .string-icon { color: #ec4899; }
+        .udt-icon { color: #f97316; }
+
+        .tag-type {
+            color: #94a3b8;
+            font-size: 12px;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .tag-value {
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+        }
+
+        .value-bool-true { color: #10b981; }
+        .value-bool-false { color: #ef4444; }
+        .value-number { color: #3b82f6; }
+        .value-string { color: #ec4899; }
+
+        .tag-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            font-size: 12px;
+            border-radius: 4px;
+        }
+
+        .folder-row {
+            background: #1e3a5f;
+            cursor: pointer;
+        }
+
+        .folder-row:hover { background: #1e4a7f; }
+
+        .indent-1 { padding-left: 32px; }
+        .indent-2 { padding-left: 48px; }
+        .indent-3 { padding-left: 64px; }
+
+        .expand-icon {
+            display: inline-block;
+            width: 16px;
+            transition: transform 0.2s;
+        }
+
+        .expanded .expand-icon { transform: rotate(90deg); }
+
+        .hidden { display: none; }
+
+        .no-tags {
+            padding: 40px;
+            text-align: center;
+            color: #64748b;
+        }
+
+        .loading {
+            padding: 40px;
+            text-align: center;
+            color: #94a3b8;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #475569;
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #7f1d1d;
+            border: 1px solid #dc2626;
+            border-radius: 6px;
+            padding: 16px;
+            color: #fecaca;
+        }
+
+        .refresh-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #065f46;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #a7f3d0;
+        }
+
+        .auto-refresh-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 20px;
+            background: #475569;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .toggle-switch.active { background: #10b981; }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: left 0.2s;
+        }
+
+        .toggle-switch.active::after { left: 22px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>🏷️ Tag Browser</h1>
+                <div class="subtitle">Enhanced PLC Simulator - View and monitor OPC-UA tags</div>
+            </div>
+            <div class="nav-links">
+                <a href="simple-upload.html" class="nav-link">📤 Upload</a>
+                <a href="index.html" class="nav-link">🏠 Home</a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="device-selector">
+                <label for="deviceSelect" style="color: #94a3b8;">Device:</label>
+                <select id="deviceSelect" style="min-width: 250px;">
+                    <option value="">Select a device...</option>
+                </select>
+                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search tags..." />
+                <button class="btn btn-secondary" onclick="loadTags()">🔄 Refresh</button>
+                <div class="auto-refresh-toggle">
+                    <span style="color: #94a3b8; font-size: 13px;">Auto-refresh</span>
+                    <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
+                </div>
+            </div>
+
+            <div class="stats-bar" id="statsBar" style="display: none;">
+                <div class="stat">
+                    <span class="stat-label">Total Tags:</span>
+                    <span class="stat-value" id="totalTags">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Folders:</span>
+                    <span class="stat-value" id="totalFolders">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">UDT Instances:</span>
+                    <span class="stat-value" id="totalUdts">0</span>
+                </div>
+                <div class="stat" id="refreshIndicator" style="display: none;">
+                    <span class="refresh-badge">
+                        <span class="loading-spinner" style="width: 12px; height: 12px; border-width: 2px;"></span>
+                        Refreshing...
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="tag-tree" id="tagTree">
+                <div class="tree-header">
+                    <span>Tag Name</span>
+                    <span>Data Type</span>
+                    <span>Value</span>
+                    <span>Actions</span>
+                </div>
+                <div id="tagContent">
+                    <div class="no-tags">
+                        <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
+                        <p>Select a device to browse its tags</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedDevice = null;
+        let autoRefreshInterval = null;
+        let allTags = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadDeviceList();
+
+            document.getElementById('deviceSelect').addEventListener('change', (e) => {
+                selectedDevice = e.target.value;
+                if (selectedDevice) {
+                    loadTags();
+                } else {
+                    showNoDevice();
+                }
+            });
+
+            document.getElementById('searchBox').addEventListener('input', filterTags);
+        });
+
+        async function loadDeviceList() {
+            try {
+                const response = await fetch('/data/plcsimulator/devices', { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const select = document.getElementById('deviceSelect');
+                    select.innerHTML = '<option value="">Select a device...</option>';
+
+                    (data.devices || []).forEach(device => {
+                        const option = document.createElement('option');
+                        option.value = device.name;
+                        option.textContent = `${device.name} - ${device.status}`;
+                        select.appendChild(option);
+                    });
+
+                    // Auto-select from URL parameter
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const deviceParam = urlParams.get('device');
+                    if (deviceParam) {
+                        select.value = deviceParam;
+                        selectedDevice = deviceParam;
+                        loadTags();
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading devices:', error);
+            }
+        }
+
+        async function loadTags() {
+            if (!selectedDevice) return;
+
+            const content = document.getElementById('tagContent');
+            content.innerHTML = '<div class="loading"><span class="loading-spinner"></span>Loading tags...</div>';
+
+            try {
+                const response = await fetch(`/data/plcsimulator/device/${encodeURIComponent(selectedDevice)}/tags`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    allTags = data.tags || [];
+                    renderTags(allTags);
+                    updateStats(data);
+                    document.getElementById('statsBar').style.display = 'flex';
+                } else {
+                    // If tags endpoint doesn't exist, show a placeholder
+                    content.innerHTML = `
+                        <div class="no-tags">
+                            <p style="font-size: 48px; margin-bottom: 16px;">🏗️</p>
+                            <p style="margin-bottom: 12px;">Tag browsing API coming soon!</p>
+                            <p style="color: #64748b; font-size: 13px;">
+                                For now, use Ignition Designer's OPC Browser to view tags.<br>
+                                Path format: [${selectedDevice}]/Controller:Global/TagName
+                            </p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading tags:', error);
+                document.getElementById('tagContent').innerHTML = `
+                    <div class="error-message">
+                        <p><strong>Error loading tags:</strong> ${error.message}</p>
+                        <p style="margin-top: 8px; font-size: 13px;">Check that the device is running and has tags configured.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderTags(tags) {
+            const content = document.getElementById('tagContent');
+
+            if (!tags || tags.length === 0) {
+                content.innerHTML = `
+                    <div class="no-tags">
+                        <p style="font-size: 48px; margin-bottom: 16px;">📭</p>
+                        <p>No tags found for this device</p>
+                        <p style="color: #64748b; font-size: 13px; margin-top: 8px;">
+                            Upload a PLC file to create tags
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group tags by folder
+            const tree = buildTagTree(tags);
+            content.innerHTML = renderTree(tree, 0);
+        }
+
+        function buildTagTree(tags) {
+            const tree = { folders: {}, tags: [] };
+
+            tags.forEach(tag => {
+                const parts = tag.path ? tag.path.split('/') : [tag.name];
+                let current = tree;
+
+                for (let i = 0; i < parts.length - 1; i++) {
+                    const part = parts[i];
+                    if (!current.folders[part]) {
+                        current.folders[part] = { folders: {}, tags: [] };
+                    }
+                    current = current.folders[part];
+                }
+
+                current.tags.push({
+                    ...tag,
+                    displayName: parts[parts.length - 1]
+                });
+            });
+
+            return tree;
+        }
+
+        function renderTree(node, depth) {
+            let html = '';
+
+            // Render folders first
+            Object.entries(node.folders).forEach(([name, folder]) => {
+                const folderId = `folder-${name}-${depth}`;
+                html += `
+                    <div class="tag-item folder-row indent-${depth}" onclick="toggleFolder('${folderId}')">
+                        <div class="tag-name">
+                            <span class="expand-icon">▶</span>
+                            <span class="tag-icon folder-icon">📁</span>
+                            <span>${name}</span>
+                        </div>
+                        <div class="tag-type">Folder</div>
+                        <div class="tag-value">-</div>
+                        <div class="tag-actions">-</div>
+                    </div>
+                    <div id="${folderId}" class="folder-contents hidden">
+                        ${renderTree(folder, depth + 1)}
+                    </div>
+                `;
+            });
+
+            // Render tags
+            node.tags.forEach(tag => {
+                const icon = getTagIcon(tag.data_type);
+                const valueClass = getValueClass(tag.data_type, tag.value);
+
+                html += `
+                    <div class="tag-item indent-${depth}">
+                        <div class="tag-name">
+                            <span class="tag-icon ${icon.class}">${icon.emoji}</span>
+                            <span>${tag.displayName || tag.name}</span>
+                        </div>
+                        <div class="tag-type">${tag.data_type || 'Unknown'}</div>
+                        <div class="tag-value ${valueClass}">${formatValue(tag.value, tag.data_type)}</div>
+                        <div class="tag-actions">
+                            <button class="btn btn-small btn-secondary" onclick="copyTagPath('${tag.path || tag.name}')">
+                                📋 Copy Path
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            return html;
+        }
+
+        function getTagIcon(dataType) {
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') return { emoji: '🔘', class: 'bool-icon' };
+            if (['INT', 'DINT', 'SINT', 'LINT'].includes(type)) return { emoji: '🔢', class: 'int-icon' };
+            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) return { emoji: '📊', class: 'real-icon' };
+            if (type === 'STRING') return { emoji: '📝', class: 'string-icon' };
+            return { emoji: '📦', class: 'udt-icon' };
+        }
+
+        function getValueClass(dataType, value) {
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') {
+                return value === true || value === 'true' ? 'value-bool-true' : 'value-bool-false';
+            }
+            if (['INT', 'DINT', 'SINT', 'LINT', 'REAL', 'LREAL', 'FLOAT'].includes(type)) {
+                return 'value-number';
+            }
+            return 'value-string';
+        }
+
+        function formatValue(value, dataType) {
+            if (value === undefined || value === null) return '-';
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') {
+                return value === true || value === 'true' ? 'TRUE' : 'FALSE';
+            }
+            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) {
+                return parseFloat(value).toFixed(2);
+            }
+            return String(value);
+        }
+
+        function toggleFolder(folderId) {
+            const folder = document.getElementById(folderId);
+            const row = folder.previousElementSibling;
+
+            folder.classList.toggle('hidden');
+            row.classList.toggle('expanded');
+        }
+
+        function copyTagPath(path) {
+            const fullPath = `[${selectedDevice}]${path}`;
+            navigator.clipboard.writeText(fullPath).then(() => {
+                alert(`Copied: ${fullPath}`);
+            });
+        }
+
+        function filterTags() {
+            const query = document.getElementById('searchBox').value.toLowerCase();
+            if (!query) {
+                renderTags(allTags);
+                return;
+            }
+
+            const filtered = allTags.filter(tag =>
+                (tag.name && tag.name.toLowerCase().includes(query)) ||
+                (tag.path && tag.path.toLowerCase().includes(query)) ||
+                (tag.data_type && tag.data_type.toLowerCase().includes(query))
+            );
+
+            renderTags(filtered);
+        }
+
+        function updateStats(data) {
+            document.getElementById('totalTags').textContent = data.totalTags || allTags.length;
+            document.getElementById('totalFolders').textContent = data.folders || 0;
+            document.getElementById('totalUdts').textContent = data.udtInstances || 0;
+        }
+
+        function showNoDevice() {
+            document.getElementById('tagContent').innerHTML = `
+                <div class="no-tags">
+                    <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
+                    <p>Select a device to browse its tags</p>
+                </div>
+            `;
+            document.getElementById('statsBar').style.display = 'none';
+        }
+
+        function toggleAutoRefresh() {
+            const toggle = document.getElementById('autoRefreshToggle');
+            const indicator = document.getElementById('refreshIndicator');
+
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                toggle.classList.remove('active');
+                indicator.style.display = 'none';
+            } else {
+                toggle.classList.add('active');
+                indicator.style.display = 'flex';
+                autoRefreshInterval = setInterval(() => {
+                    if (selectedDevice) loadTags();
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
