@@ -35,9 +35,9 @@
         iframe.style.cssText = 'width: 100%; height: calc(100vh - 120px); border: none; min-height: 600px;';
         iframe.title = 'PLC File Upload';
 
-        // Clear the container and add iframe
+        // Add iframe to container without clearing (to preserve Gateway menu)
         if (container !== document.body) {
-            container.innerHTML = '';
+            // Don't clear innerHTML to preserve existing Gateway navigation
             container.appendChild(iframe);
         } else {
             // Fallback: append to body
