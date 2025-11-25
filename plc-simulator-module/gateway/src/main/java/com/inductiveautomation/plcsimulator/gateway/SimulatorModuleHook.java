@@ -46,7 +46,13 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
                 "/res/plcsimulator/plcUpload.js"
             );
 
-            // Add navigation menu item in the Connections section
+            // Create SystemJsModule for Tag Browser
+            SystemJsModule tagBrowserModule = new SystemJsModule(
+                "com.inductiveautomation.plcsimulator.TagBrowser",
+                "/res/plcsimulator/tagBrowser.js"
+            );
+
+            // Add navigation menu items in the Connections section
             context.getWebResourceManager().getNavigationModel().getConnections()
                 .addCategory("plcsimulator", cat -> cat
                     .label("PLC Simulator")
@@ -54,9 +60,15 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
                         .position(10)
                         .mount("/plc-file-upload", "PLCUpload", plcUploadModule)
                     )
+                    .addPage("Tag Browser", page -> page
+                        .position(20)
+                        .mount("/plc-tag-browser", "TagBrowser", tagBrowserModule)
+                    )
                 );
 
-            logger.info("Added 'PLC Simulator > File Upload' menu item to Gateway Config (React WebUI component)");
+            logger.info("Added 'PLC Simulator' menu items to Gateway Config:");
+            logger.info("  - File Upload:  /app/plc-file-upload");
+            logger.info("  - Tag Browser:  /app/plc-tag-browser");
         } catch (Exception e) {
             logger.error("Failed to add WebUI navigation menu item", e);
         }
@@ -182,21 +194,20 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
      * Return the mount path alias for web resources.
      * This alias determines the URL prefix for BOTH resources and data routes.
      *
-     * Resources (from getMountedResourceFolder) will be accessible at:
-     *   /res/plcsimulator/*
-     *
-     * Data routes (from mountRouteHandlers) will be accessible at:
-     *   /data/plcsimulator/*
-     *
-     * Available resources:
-     * - /res/plcsimulator/index.html - Landing page
-     * - /res/plcsimulator/simple-upload.html - Simple file upload UI
-     * - /res/plcsimulator/edit-program.html - File upload UI (vanilla JS)
+     * Public resources (from getMountedResourceFolder) at /res/plcsimulator/*:
+     * - /res/plcsimulator/index.html - Redirect page to authenticated upload
      * - /res/plcsimulator/plc-file-upload.js - Form enhancement script
      *
-     * NOTE: Resources at /res/* are served by Ignition's resource servlet and are
-     * publicly accessible (not subject to data route authentication).
-     * Data routes at /data/* use the authentication configured in mountRouteHandlers.
+     * Authenticated data routes (from mountRouteHandlers) at /data/plcsimulator/*:
+     * - /data/plcsimulator/page - File upload page (requires login)
+     * - /data/plcsimulator/edit-program - Edit program page (requires login)
+     * - /data/plcsimulator/tag-browser - Tag browser page (requires login)
+     * - /data/plcsimulator/upload - File upload endpoint (requires login)
+     * - /data/plcsimulator/devices - List devices (requires login)
+     * - /data/plcsimulator/health - Health check (public)
+     *
+     * SECURITY: HTML pages are served through authenticated routes (/data/*)
+     * to ensure only logged-in users can access the upload functionality.
      */
     @Override
     public Optional<String> getMountPathAlias() {

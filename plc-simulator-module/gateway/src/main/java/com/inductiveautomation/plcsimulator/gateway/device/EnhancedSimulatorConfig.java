@@ -104,18 +104,9 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
 
     /**
      * Parser and file settings.
-     *
-     * Upload PLC files using the file upload interface accessed via the link below.
-     * Files are automatically saved to the Gateway and loaded by the device.
+     * Upload PLC files via Gateway menu: Config → PLC Simulator → File Upload
      */
     public record ParserSettings(
-        @FormCategory("PARSER")
-        @Label("📤 Upload PLC Program")
-        @FormField(FormFieldType.TEXT)
-        @Description("COPY THIS URL AND OPEN IN NEW TAB: http://[your-gateway-address]:8088/res/plcsimulator/simple-upload.html (Replace [your-gateway-address] with your Gateway IP/hostname. Example: http://192.168.1.100:8088/res/plcsimulator/simple-upload.html)")
-        @DefaultValue("/res/plcsimulator/simple-upload.html")
-        String programManagerUrl,
-
         // Internal fields - stored but not displayed in form
         String fileName,
         String fileContent,
@@ -123,7 +114,7 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormCategory("PARSER")
         @Label("Parser Type")
         @FormField(FormFieldType.SELECT)
-        @Description("Select PLC file format. Currently: Rockwell L5K only. Planned future support: Siemens TIA Portal, Schneider Electric, Beckhoff TwinCAT, and JSON formats.")
+        @Description("Select PLC file format: Rockwell, Siemens, Schneider, Beckhoff, Mitsubishi, ABB, Omron, JSON, or CSV")
         @DefaultValue("ROCKWELL")
         @Required
         ParserType parserType,

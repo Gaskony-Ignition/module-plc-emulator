@@ -294,4 +294,136 @@ class L5KParserTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("Should expand nested UDTs recursively")
+    void testNestedUdtExpansion() {
+        String content = """
+            CONTROLLER TestController (
+            )
+            DATATYPE InnerType
+                Value : DINT
+                Status : BOOL
+            END_DATATYPE
+            DATATYPE OuterType
+                Name : STRING
+                Inner : InnerType
+                Count : DINT
+            END_DATATYPE
+            TAG
+                MyOuter : OuterType
+            END_TAG
+            """;
+
+        JsonObject result = parser.parseContent(content, "nested_udt.l5k");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).isNotNull();
+        assertThat(tags.size()).isGreaterThan(0);
+
+        // Find the MyOuter tag
+        JsonObject outerTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            if ("MyOuter".equals(tag.get("name").getAsString())) {
+                outerTag = tag;
+                break;
+            }
+        }
+
+        assertThat(outerTag).isNotNull();
+        assertThat(outerTag.has("udt_members")).isTrue();
+
+        // Find the Inner member which should itself have udt_members
+        JsonArray outerMembers = outerTag.getAsJsonArray("udt_members");
+        JsonObject innerMember = null;
+        for (var elem : outerMembers) {
+            JsonObject member = elem.getAsJsonObject();
+            if ("Inner".equals(member.get("name").getAsString())) {
+                innerMember = member;
+                break;
+            }
+        }
+
+        assertThat(innerMember).isNotNull();
+        assertThat(innerMember.get("data_type").getAsString()).isEqualTo("InnerType");
+        // The Inner member should have its own udt_members (nested expansion)
+        assertThat(innerMember.has("udt_members")).isTrue();
+
+        JsonArray innerMembers = innerMember.getAsJsonArray("udt_members");
+        assertThat(innerMembers.size()).isEqualTo(2); // Value and Status
+    }
+
+    @Test
+    @DisplayName("Should expand deeply nested UDTs (3 levels)")
+    void testDeeplyNestedUdtExpansion() {
+        String content = """
+            CONTROLLER TestController (
+            )
+            DATATYPE Level3
+                DeepValue : REAL
+            END_DATATYPE
+            DATATYPE Level2
+                MidValue : DINT
+                Deep : Level3
+            END_DATATYPE
+            DATATYPE Level1
+                TopValue : BOOL
+                Mid : Level2
+            END_DATATYPE
+            TAG
+                TopLevel : Level1
+            END_TAG
+            """;
+
+        JsonObject result = parser.parseContent(content, "deep_nested.l5k");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+
+        // Find TopLevel tag
+        JsonObject topTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            if ("TopLevel".equals(tag.get("name").getAsString())) {
+                topTag = tag;
+                break;
+            }
+        }
+
+        assertThat(topTag).isNotNull();
+        assertThat(topTag.has("udt_members")).isTrue();
+
+        // Navigate to Level1 -> Mid (Level2) -> Deep (Level3) -> DeepValue
+        JsonArray level1Members = topTag.getAsJsonArray("udt_members");
+        JsonObject midMember = null;
+        for (var elem : level1Members) {
+            JsonObject m = elem.getAsJsonObject();
+            if ("Mid".equals(m.get("name").getAsString())) {
+                midMember = m;
+                break;
+            }
+        }
+
+        assertThat(midMember).isNotNull();
+        assertThat(midMember.has("udt_members")).isTrue();
+
+        JsonArray level2Members = midMember.getAsJsonArray("udt_members");
+        JsonObject deepMember = null;
+        for (var elem : level2Members) {
+            JsonObject m = elem.getAsJsonObject();
+            if ("Deep".equals(m.get("name").getAsString())) {
+                deepMember = m;
+                break;
+            }
+        }
+
+        assertThat(deepMember).isNotNull();
+        assertThat(deepMember.has("udt_members")).isTrue();
+
+        JsonArray level3Members = deepMember.getAsJsonArray("udt_members");
+        assertThat(level3Members.size()).isEqualTo(1);
+        assertThat(level3Members.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("DeepValue");
+    }
 }

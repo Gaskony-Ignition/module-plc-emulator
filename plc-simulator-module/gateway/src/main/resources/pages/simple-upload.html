@@ -456,9 +456,14 @@
     <div id="statusAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="container" id="mainContent">
-        <div class="header">
-            <h1>🏭 PLC File Upload</h1>
-            <div class="subtitle">Enhanced PLC Simulator v5.4.9 - Upload your PLC program file</div>
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>🏭 PLC File Upload</h1>
+                <div class="subtitle">Enhanced PLC Simulator v7.3.2 - Upload your PLC program file</div>
+            </div>
+            <div>
+                <a href="/web/config/plcsimulator.plc-tag-browser" target="_top" style="color: white; text-decoration: none; padding: 8px 16px; background: rgba(255,255,255,0.1); border-radius: 6px; font-size: 14px;">🏷️ Tag Browser</a>
+            </div>
         </div>
 
         <div class="card device-selector-card">
@@ -658,9 +663,15 @@
         function displayFileStatus(statusData) {
             const container = document.getElementById('fileStatusContainer');
 
-            if (statusData.hasFile && statusData.fileName) {
+            if (statusData.hasFile) {
                 const fileSize = (statusData.fileSize / 1024 / 1024).toFixed(2);
                 const uploadDate = new Date(statusData.lastModified).toLocaleString();
+                // Get filename from fileName config, or extract from filePath
+                let displayName = statusData.fileName;
+                if (!displayName && statusData.filePath) {
+                    displayName = statusData.filePath.split('/').pop().split('\\').pop();
+                }
+                displayName = displayName || 'Unknown file';
 
                 container.innerHTML = `
                     <div class="file-status">
@@ -672,7 +683,7 @@
                         </div>
                         <div style="margin-bottom: 4px;">
                             <span class="file-status-label">Name:</span>
-                            <span class="file-status-value">${statusData.fileName}</span>
+                            <span class="file-status-value">${displayName}</span>
                         </div>
                         <div style="margin-bottom: 4px;">
                             <span class="file-status-label">Size:</span>

@@ -248,4 +248,155 @@ class L5XParserTest {
             }
         }
     }
+
+    @Test
+    @DisplayName("Should parse AOI definitions")
+    void testParseAOI() {
+        String contentWithAoi = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstructionDefinition Name="MyAOI" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="Input1" TagType="Base" DataType="DINT" Usage="Input"/>
+                                <Parameter Name="Output1" TagType="Base" DataType="REAL" Usage="Output"/>
+                            </Parameters>
+                            <LocalTags>
+                                <LocalTag Name="InternalVar" DataType="DINT"/>
+                            </LocalTags>
+                        </AddOnInstructionDefinition>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="MyAOI_Instance" DataType="MyAOI"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithAoi, "test_aoi.l5x");
+
+        assertThat(result).isNotNull();
+
+        // Check that AOIs are parsed
+        assertThat(result.has("aois")).isTrue();
+        JsonArray aois = result.getAsJsonArray("aois");
+        assertThat(aois.size()).isEqualTo(1);
+
+        JsonObject aoi = aois.get(0).getAsJsonObject();
+        assertThat(aoi.get("name").getAsString()).isEqualTo("MyAOI");
+        assertThat(aoi.get("type").getAsString()).isEqualTo("AOI");
+
+        // Check that EnableIn/EnableOut are skipped
+        JsonArray members = aoi.getAsJsonArray("members");
+        for (var elem : members) {
+            JsonObject member = elem.getAsJsonObject();
+            String memberName = member.get("name").getAsString();
+            assertThat(memberName).isNotEqualTo("EnableIn");
+            assertThat(memberName).isNotEqualTo("EnableOut");
+        }
+
+        // Check that AOI instance tag is expanded
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject aoiInstance = tags.get(0).getAsJsonObject();
+        assertThat(aoiInstance.get("name").getAsString()).isEqualTo("MyAOI_Instance");
+        assertThat(aoiInstance.has("udt_members")).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should expand nested UDTs in L5X")
+    void testNestedUdtExpansion() {
+        String contentWithNestedUdt = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <DataTypes>
+                        <DataType Name="InnerType" Family="NoFamily">
+                            <Members>
+                                <Member Name="InnerValue" DataType="DINT"/>
+                                <Member Name="InnerStatus" DataType="BOOL"/>
+                            </Members>
+                        </DataType>
+                        <DataType Name="OuterType" Family="NoFamily">
+                            <Members>
+                                <Member Name="Name" DataType="STRING"/>
+                                <Member Name="Inner" DataType="InnerType"/>
+                                <Member Name="Count" DataType="DINT"/>
+                            </Members>
+                        </DataType>
+                    </DataTypes>
+                    <Tags>
+                        <Tag Name="MyOuter" DataType="OuterType"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithNestedUdt, "nested_udt.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject outerTag = tags.get(0).getAsJsonObject();
+        assertThat(outerTag.get("name").getAsString()).isEqualTo("MyOuter");
+        assertThat(outerTag.has("udt_members")).isTrue();
+
+        // Find the Inner member
+        JsonArray outerMembers = outerTag.getAsJsonArray("udt_members");
+        JsonObject innerMember = null;
+        for (var elem : outerMembers) {
+            JsonObject member = elem.getAsJsonObject();
+            if ("Inner".equals(member.get("name").getAsString())) {
+                innerMember = member;
+                break;
+            }
+        }
+
+        assertThat(innerMember).isNotNull();
+        assertThat(innerMember.get("data_type").getAsString()).isEqualTo("InnerType");
+        // The Inner member should have its own udt_members (nested expansion)
+        assertThat(innerMember.has("udt_members")).isTrue();
+
+        JsonArray innerMembers = innerMember.getAsJsonArray("udt_members");
+        assertThat(innerMembers.size()).isEqualTo(2); // InnerValue and InnerStatus
+    }
+
+    @Test
+    @DisplayName("Should expand built-in TIMER type in L5X")
+    void testBuiltInTimerExpansion() {
+        String contentWithTimer = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyTimer" DataType="TIMER"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithTimer, "timer.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject timerTag = tags.get(0).getAsJsonObject();
+        assertThat(timerTag.get("name").getAsString()).isEqualTo("MyTimer");
+        assertThat(timerTag.get("data_type").getAsString()).isEqualTo("TIMER");
+        assertThat(timerTag.has("udt_members")).isTrue();
+
+        // Check for standard TIMER members
+        JsonArray members = timerTag.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(memberNames).contains("PRE", "ACC", "DN", "EN");
+    }
 }
