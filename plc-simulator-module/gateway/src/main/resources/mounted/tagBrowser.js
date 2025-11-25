@@ -8,47 +8,40 @@
 (function() {
     'use strict';
 
-    console.log('PLC Simulator Tag Browser: Loading...');
-
     // Only run on the correct page
     if (!window.location.pathname.includes('/plc-tag-browser')) {
         return;
     }
 
+    console.log('PLC Simulator Tag Browser: Loading...');
+
     // Find the main content area and embed our page in an iframe
     function embedPage() {
-        // Wait for the page to be ready
-        var container = document.querySelector('.main-content') ||
-                        document.querySelector('#main-content') ||
-                        document.querySelector('[class*="content"]') ||
-                        document.body;
-
         // Check if we already embedded
         if (document.getElementById('plc-tagbrowser-iframe')) {
             return;
         }
 
+        // Find the Gateway's main content container - be specific to avoid matching wrong elements
+        var container = document.querySelector('.main-content') ||
+                        document.querySelector('#main-content') ||
+                        document.querySelector('.gateway-page-content') ||
+                        document.querySelector('[data-component="page-content"]');
+
         // Create iframe to embed our page
         var iframe = document.createElement('iframe');
         iframe.id = 'plc-tagbrowser-iframe';
         iframe.src = '/data/plcsimulator/tag-browser';
-        iframe.style.cssText = 'width: 100%; height: calc(100vh - 120px); border: none; min-height: 600px;';
         iframe.title = 'PLC Tag Browser';
 
-        // Add iframe to container without clearing (to preserve Gateway menu)
-        if (container !== document.body) {
-            // Don't clear innerHTML to preserve existing Gateway navigation
+        if (container) {
+            // Clear container and add iframe
+            container.innerHTML = '';
+            iframe.style.cssText = 'width: 100%; height: calc(100vh - 120px); border: none; min-height: 600px; background: #0f172a;';
             container.appendChild(iframe);
         } else {
-            // Fallback: append to body
-            iframe.style.position = 'fixed';
-            iframe.style.top = '50px';
-            iframe.style.left = '0';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.height = 'calc(100vh - 50px)';
-            iframe.style.zIndex = '1000';
-            iframe.style.backgroundColor = '#0f172a';
+            // Fallback: use fixed positioning over the page
+            iframe.style.cssText = 'position: fixed; top: 60px; left: 0; right: 0; bottom: 0; width: 100%; height: calc(100vh - 60px); border: none; z-index: 1000; background: #0f172a;';
             document.body.appendChild(iframe);
         }
 
