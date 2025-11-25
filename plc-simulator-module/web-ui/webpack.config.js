@@ -15,7 +15,8 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
   return {
     mode,
     entry: {
-      plcUpload: [path.join(__dirname, "src/index.ts")],
+      plcUpload: [path.join(__dirname, "src/pages/PLCUpload/index.ts")],
+      tagBrowser: [path.join(__dirname, "src/pages/TagBrowser/index.ts")],
     },
     output: {
       library: "[name]",
