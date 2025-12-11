@@ -37,10 +37,10 @@ jobs:
       run: |
         echo "# CI/CD signing configuration" > gradle.properties
         echo "ignition.signing.keystoreFile=keystore.jks" >> gradle.properties
-        echo "ignition.signing.keystorePassword=ci-build-password" >> gradle.properties
+        echo "ignition.signing.keystorePassword=REDACTED-DEV-PASSWORD" >> gradle.properties
         echo "ignition.signing.certFile=certificate.der" >> gradle.properties
         echo "ignition.signing.certAlias=plcsimulator" >> gradle.properties
-        echo "ignition.signing.certPassword=ci-build-password" >> gradle.properties
+        echo "ignition.signing.certPassword=REDACTED-DEV-PASSWORD" >> gradle.properties
         cat gradle.properties
 
     - name: Build with Gradle
