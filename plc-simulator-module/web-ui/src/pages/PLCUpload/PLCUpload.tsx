@@ -12,6 +12,8 @@ const PLCUploadPage = () => {
         src="/data/plcsimulator/page"
         className="plc-upload-iframe"
         title="PLC File Upload"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   );

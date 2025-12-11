@@ -131,8 +131,24 @@ public record EnhancedSimulatorConfig(General general, ParserSettings parser, Si
         @FormField(FormFieldType.NUMBER)
         @Description("How often to check for file changes (if hot reload is enabled)")
         @DefaultValue("5")
-        int reloadInterval
-    ) {}
+        int reloadInterval,
+
+        @FormCategory("PARSER")
+        @Label("Max File Size (MB)")
+        @FormField(FormFieldType.NUMBER)
+        @Description("Maximum allowed file size for uploads (1-500 MB)")
+        @DefaultValue("50")
+        int maxFileSizeMB
+    ) {
+        /**
+         * Returns the max file size, clamped to valid range (1-500 MB).
+         */
+        public int getValidatedMaxFileSizeMB() {
+            if (maxFileSizeMB < 1) return 1;
+            if (maxFileSizeMB > 500) return 500;
+            return maxFileSizeMB;
+        }
+    }
 
     /**
      * Simulation settings.

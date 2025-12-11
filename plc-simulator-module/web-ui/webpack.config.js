@@ -5,6 +5,7 @@ const ESLintPlugin = require("eslint-webpack-plugin");
 
 module.exports = (webpackConfigEnv = {}, argv = {}) => {
   const { mode = "development" } = argv;
+  const isProduction = mode === "production";
 
   // Do not include these packages in the bundle as they will be provided by the gateway
   const externals = [
@@ -42,12 +43,15 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
         },
       ],
     },
-    devtool: "source-map",
+    // Disable source maps in production to avoid exposing source code
+    devtool: isProduction ? false : "source-map",
     plugins: [
       new ForkTsCheckerWebpackPlugin(),
       new ESLintPlugin({
         files: "./src/**/*.{ts,tsx,js,jsx}",
-        failOnError: false,
+        // Fail on errors in production builds to catch security issues
+        failOnError: isProduction,
+        failOnWarning: false,
       }),
     ],
     resolve: {

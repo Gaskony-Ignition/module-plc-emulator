@@ -131,9 +131,19 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
             parsedData = parseFile(currentFilePath);
 
             if (parsedData == null) {
-                deviceStatus = "Error: Failed to parse file";
-                logger.error("Failed to parse PLC file");
+                String parserType = config.parser().parserType().getDisplayName();
+                deviceStatus = String.format("Error: %s parser failed to parse file. Check gateway logs for details.", parserType);
+                logger.error("[{}] Failed to parse PLC file: {} - parser returned null",
+                    config.parser().parserType().getKey().toUpperCase(),
+                    currentFilePath);
                 return;
+            }
+
+            // Check if parser encountered errors but returned fallback structure
+            if (parsedData.has("parse_error")) {
+                String parseError = parsedData.get("parse_error").getAsString();
+                deviceStatus = "Warning: Parse errors - " + parseError;
+                logger.warn("Parser encountered errors: {}", parseError);
             }
 
             // Create root folder node for this device
