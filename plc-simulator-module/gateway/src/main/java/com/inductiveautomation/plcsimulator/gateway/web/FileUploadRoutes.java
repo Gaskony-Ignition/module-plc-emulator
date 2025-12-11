@@ -74,23 +74,45 @@ public class FileUploadRoutes {
     }
 
     /**
-     * Mount a route. All routes use OPEN_ROUTE access control since
-     * Ignition 8.3's data routes require login by default for the Gateway web interface.
-     * The /data/ prefix already provides session-based authentication.
+     * Mount a route with defense-in-depth authentication.
+     * While Ignition 8.3's data routes require login by default, we add explicit
+     * authentication checks as a security best practice.
      */
     private void mountProtectedRoute(String path, RouteHandler handler, HttpMethod method) {
         try {
             var builder = routes.newRoute(path)
-                .handler(handler::handle)
+                .handler((ctx, resp) -> {
+                    // Defense-in-depth: Explicit authentication check
+                    if (!isAuthenticated(ctx)) {
+                        logger.warn("Unauthenticated access attempt to protected route: {}", path);
+                        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                        return new JSONObject()
+                            .put("success", false)
+                            .put("error", "Authentication required")
+                            .put("loginUrl", "/web/login");
+                    }
+                    return handler.handle(ctx, resp);
+                })
                 .accessControl(AccessControlStrategy.OPEN_ROUTE);
             if (method != null) {
                 builder.method(method);
             }
             builder.mount();
-            logger.info("Mounted route: {} {}", method != null ? method : "GET", path);
+            logger.info("Mounted protected route: {} {}", method != null ? method : "GET", path);
         } catch (Exception e) {
             logger.error("Failed to mount route: {} - {}", path, e.getMessage(), e);
         }
+    }
+
+    /**
+     * Check if the current request is from an authenticated user.
+     * Returns true if the user has a valid session and is not anonymous.
+     */
+    private boolean isAuthenticated(RequestContext ctx) {
+        String username = getUsername(ctx);
+        // "gateway-user" is our fallback, consider it authenticated if we get here via /data/ routes
+        // which already require authentication
+        return username != null && !username.isEmpty() && !username.equals("anonymous");
     }
 
     /**
@@ -1053,25 +1075,59 @@ public class FileUploadRoutes {
     }
 
     /**
+     * Trusted proxy IP addresses. Only trust X-Forwarded-For from these sources.
+     * Add your reverse proxy IPs here if needed.
+     */
+    private static final java.util.Set<String> TRUSTED_PROXIES = java.util.Set.of(
+        "127.0.0.1",
+        "::1",
+        "0:0:0:0:0:0:0:1"  // IPv6 localhost
+    );
+
+    /**
      * Get client IP address, accounting for proxies.
+     * Only trusts X-Forwarded-For header from known trusted proxy IPs
+     * to prevent IP spoofing attacks on rate limiting.
      */
     private String getClientIP(RequestContext ctx) {
         var request = ctx.getRequest();
+        String remoteAddr = request.getRemoteAddr();
 
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            String[] ips = xForwardedFor.split(",");
-            if (ips.length > 0) {
-                return ips[0].trim();
+        // Only trust X-Forwarded-For if request came from a trusted proxy
+        if (remoteAddr != null && TRUSTED_PROXIES.contains(remoteAddr)) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+                String[] ips = xForwardedFor.split(",");
+                if (ips.length > 0) {
+                    String clientIP = ips[0].trim();
+                    // Validate IP format to prevent header injection
+                    if (isValidIPAddress(clientIP)) {
+                        return clientIP;
+                    }
+                }
+            }
+
+            String xRealIP = request.getHeader("X-Real-IP");
+            if (xRealIP != null && !xRealIP.isEmpty() && isValidIPAddress(xRealIP)) {
+                return xRealIP;
             }
         }
 
-        String xRealIP = request.getHeader("X-Real-IP");
-        if (xRealIP != null && !xRealIP.isEmpty()) {
-            return xRealIP;
-        }
-
-        String remoteAddr = request.getRemoteAddr();
         return remoteAddr != null ? remoteAddr : "unknown";
+    }
+
+    /**
+     * Basic IP address validation to prevent header injection attacks.
+     */
+    private boolean isValidIPAddress(String ip) {
+        if (ip == null || ip.isEmpty() || ip.length() > 45) {
+            return false;
+        }
+        try {
+            java.net.InetAddress.getByName(ip);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

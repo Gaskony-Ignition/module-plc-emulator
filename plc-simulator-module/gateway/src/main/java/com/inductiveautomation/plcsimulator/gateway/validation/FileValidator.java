@@ -15,9 +15,10 @@ public class FileValidator {
 
     private static final Logger logger = LoggerFactory.getLogger(FileValidator.class);
 
-    // Default limits
+    // Default limits (can be overridden per-device)
     private static final long DEFAULT_MAX_SIZE_MB = 50;
-    private static final long MAX_SIZE_BYTES = DEFAULT_MAX_SIZE_MB * 1024 * 1024;
+    private static final long MIN_MAX_SIZE_MB = 1;
+    private static final long MAX_MAX_SIZE_MB = 500;
 
     // Supported extensions - only .l5k files are currently tested and supported
     // Future extensions reserved for development: .l5x, .json, .csv, .txt, .xml
@@ -55,9 +56,22 @@ public class FileValidator {
     }
 
     /**
-     * Validate a file for processing.
+     * Validate a file for processing using default max size.
      */
     public static ValidationResult validateFile(File file) {
+        return validateFile(file, DEFAULT_MAX_SIZE_MB);
+    }
+
+    /**
+     * Validate a file for processing with configurable max size.
+     * @param file The file to validate
+     * @param maxSizeMB Maximum allowed file size in MB (clamped to 1-500 range)
+     */
+    public static ValidationResult validateFile(File file, long maxSizeMB) {
+        // Clamp maxSizeMB to valid range
+        long effectiveMaxSizeMB = Math.max(MIN_MAX_SIZE_MB, Math.min(MAX_MAX_SIZE_MB, maxSizeMB));
+        long maxSizeBytes = effectiveMaxSizeMB * 1024 * 1024;
+
         // Check if file exists
         if (!file.exists()) {
             return ValidationResult.failure("File does not exist: " + file.getAbsolutePath());
@@ -79,11 +93,11 @@ public class FileValidator {
             return ValidationResult.failure("File is empty: " + file.getAbsolutePath());
         }
 
-        if (fileSize > MAX_SIZE_BYTES) {
+        if (fileSize > maxSizeBytes) {
             return ValidationResult.failure(String.format(
                 "File size (%d MB) exceeds maximum allowed size (%d MB)",
                 fileSize / (1024 * 1024),
-                DEFAULT_MAX_SIZE_MB
+                effectiveMaxSizeMB
             ));
         }
 
@@ -103,20 +117,34 @@ public class FileValidator {
     }
 
     /**
-     * Validate file content (string).
+     * Validate file content (string) using default max size.
      */
     public static ValidationResult validateContent(String content, String fileName) {
+        return validateContent(content, fileName, DEFAULT_MAX_SIZE_MB);
+    }
+
+    /**
+     * Validate file content (string) with configurable max size.
+     * @param content The file content to validate
+     * @param fileName The filename (used for format detection)
+     * @param maxSizeMB Maximum allowed content size in MB (clamped to 1-500 range)
+     */
+    public static ValidationResult validateContent(String content, String fileName, long maxSizeMB) {
+        // Clamp maxSizeMB to valid range
+        long effectiveMaxSizeMB = Math.max(MIN_MAX_SIZE_MB, Math.min(MAX_MAX_SIZE_MB, maxSizeMB));
+        long maxSizeBytes = effectiveMaxSizeMB * 1024 * 1024;
+
         if (content == null || content.trim().isEmpty()) {
             return ValidationResult.failure("File content is empty");
         }
 
         // Check content size
         long contentSize = content.getBytes().length;
-        if (contentSize > MAX_SIZE_BYTES) {
+        if (contentSize > maxSizeBytes) {
             return ValidationResult.failure(String.format(
                 "Content size (%d MB) exceeds maximum allowed size (%d MB)",
                 contentSize / (1024 * 1024),
-                DEFAULT_MAX_SIZE_MB
+                effectiveMaxSizeMB
             ));
         }
 

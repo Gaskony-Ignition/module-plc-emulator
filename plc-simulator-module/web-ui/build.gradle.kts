@@ -12,8 +12,8 @@ java {
     }
 }
 
-// Output path for generated resources
-val projectOutput: String by extra("$buildDir/generated-resources/")
+// Output path for generated resources (using layout.buildDirectory for Gradle 9.0 compatibility)
+val projectOutput: String by extra("${layout.buildDirectory.get().asFile}/generated-resources/")
 
 // Node.js configuration
 node {

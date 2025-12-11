@@ -12,6 +12,8 @@ const TagBrowserPage = () => {
         src="/data/plcsimulator/tag-browser"
         className="tag-browser-iframe"
         title="PLC Tag Browser"
+        sandbox="allow-same-origin allow-scripts allow-forms"
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   );

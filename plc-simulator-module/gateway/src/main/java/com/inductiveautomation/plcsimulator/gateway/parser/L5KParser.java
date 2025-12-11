@@ -67,8 +67,11 @@ public class L5KParser implements PLCParser {
         try {
             String content = Files.readString(Paths.get(filePath));
             return parseContent(content, filePath);
+        } catch (java.io.IOException e) {
+            logger.error("[L5K Parser] Failed to read file: {} - {}", filePath, e.getMessage(), e);
+            return null;
         } catch (Exception e) {
-            logger.error("Error reading L5K file: {}", filePath, e);
+            logger.error("[L5K Parser] Error processing file: {} - {}", filePath, e.getMessage(), e);
             return null;
         }
     }
@@ -122,8 +125,19 @@ public class L5KParser implements PLCParser {
             return totalTags > 0 ? result : createDemoStructure();
 
         } catch (Exception e) {
-            logger.error("Error parsing L5K content", e);
-            return createDemoStructure();
+            logger.error("[L5K Parser] Error parsing file '{}': {} - {}",
+                fileName,
+                e.getClass().getSimpleName(),
+                e.getMessage(),
+                e);
+            // Return demo structure but log detailed error for debugging
+            JsonObject errorResult = createDemoStructure();
+            errorResult.addProperty("parse_error", String.format(
+                "L5K parsing failed for '%s': %s",
+                fileName,
+                e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()
+            ));
+            return errorResult;
         }
     }
 
