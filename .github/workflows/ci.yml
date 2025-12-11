@@ -32,13 +32,20 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x plc-simulator-module/gradlew
 
+    - name: Create signing configuration
+      working-directory: plc-simulator-module
+      run: |
+        echo "# CI/CD signing configuration" > gradle.properties
+        echo "ignition.signing.keystoreFile=keystore.jks" >> gradle.properties
+        echo "ignition.signing.keystorePassword=ci-build-password" >> gradle.properties
+        echo "ignition.signing.certFile=certificate.der" >> gradle.properties
+        echo "ignition.signing.certAlias=plcsimulator" >> gradle.properties
+        echo "ignition.signing.certPassword=ci-build-password" >> gradle.properties
+        cat gradle.properties
+
     - name: Build with Gradle
       working-directory: plc-simulator-module
       run: ./gradlew build --no-daemon --console=plain
-      env:
-        # Use development credentials for CI builds
-        IGNITION_KEYSTORE_PASSWORD: ci-build-password
-        IGNITION_CERT_PASSWORD: ci-build-password
 
     - name: Run tests
       working-directory: plc-simulator-module
