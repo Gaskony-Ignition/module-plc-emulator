@@ -83,8 +83,8 @@ jobs:
         echo "=== Security Scan ==="
         echo "Checking for hardcoded secrets..."
 
-        # Check for potential hardcoded passwords (excluding gradle.properties.template)
-        if grep -r "password\s*=\s*['\"]" plc-simulator-module --exclude="*.template" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules"; then
+        # Check for potential hardcoded passwords (excluding templates, binaries, and build artifacts)
+        if grep -rI "password\s*=\s*['\"]" plc-simulator-module --exclude="*.template" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
           echo "WARNING: Found potential hardcoded passwords"
           exit 1
         else
