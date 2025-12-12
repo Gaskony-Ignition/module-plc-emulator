@@ -46,8 +46,8 @@
         .card {
             background: #1e293b;
             border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 16px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
@@ -99,10 +99,10 @@
 
         .device-info-banner {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: flex-start;
-            margin-top: 12px;
-            padding: 12px;
+            margin-top: 10px;
+            padding: 10px;
             background: #1e293b;
             border: 1px solid #334155;
             border-left: 3px solid #3b82f6;
@@ -461,19 +461,15 @@
     <div id="statusAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="container" id="mainContent">
-        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h1>🏭 PLC File Upload</h1>
-                <div class="subtitle">Upload your PLC program file</div>
-            </div>
-            <a href="tag-browser.html" class="nav-link" style="color: white; text-decoration: none; padding: 8px 16px; background: rgba(255,255,255,0.1); border-radius: 6px; font-size: 14px;">🏷️ Tag Browser</a>
+        <div class="header">
+            <h1>🏭 PLC File Upload</h1>
+            <div class="subtitle">Upload your PLC program file</div>
         </div>
 
         <div class="card device-selector-card">
-            <h2 style="margin-bottom: 12px;"><span class="step-number">1</span> Select Target Device <span style="color: #ef4444; font-size: 14px;">(Required)</span></h2>
-            <p style="color: #94a3b8; font-size: 14px; margin-bottom: 12px;">
-                Choose which Enhanced PLC Simulator device will receive this file.
-                <span style="color: #fbbf24;">File will be uploaded directly to the selected device.</span>
+            <h2 style="margin-bottom: 8px;"><span class="step-number">1</span> Select Target Device <span style="color: #ef4444; font-size: 14px;">(Required)</span></h2>
+            <p style="color: #94a3b8; font-size: 13px; margin-bottom: 10px;">
+                Choose device to receive this file. <span style="color: #fbbf24;">File uploads directly to selected device.</span>
             </p>
 
             <div class="device-selector">
