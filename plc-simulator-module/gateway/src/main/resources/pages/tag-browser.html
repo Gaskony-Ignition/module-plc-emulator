@@ -22,7 +22,7 @@
             background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
             padding: 10px 24px;
             border-radius: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             display: flex;
             justify-content: space-between;
@@ -32,23 +32,31 @@
         h1 { font-size: 18px; margin-bottom: 2px; }
         .subtitle { color: #cbd5e1; font-size: 12px; }
 
-        .nav-links { display: flex; gap: 12px; }
-        .nav-link {
-            color: white;
-            text-decoration: none;
-            padding: 8px 16px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 6px;
-            font-size: 14px;
-            transition: background 0.2s;
+        .sim-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 16px;
+            font-size: 12px;
+            color: #fcd34d;
         }
-        .nav-link:hover { background: rgba(255,255,255,0.2); }
+
+        .sim-dot {
+            width: 8px;
+            height: 8px;
+            background: #f59e0b;
+            border-radius: 50%;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
 
         .card {
             background: #1e293b;
             border-radius: 8px;
             padding: 12px 16px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
@@ -137,12 +145,8 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            min-height: 200px;
-            max-height: calc(100vh - 340px);
-        }
-
-        .tag-tree.has-content {
-            min-height: 400px;
+            height: calc(100vh - 280px);
+            min-height: 250px;
         }
 
         .tree-header {
@@ -510,26 +514,6 @@
         }
         .btn-sim.active:hover { background: #d97706; }
 
-        /* Simulation status in header */
-        .sim-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid #f59e0b;
-            border-radius: 16px;
-            font-size: 12px;
-            color: #fcd34d;
-        }
-        .sim-dot {
-            width: 8px;
-            height: 8px;
-            background: #f59e0b;
-            border-radius: 50%;
-            animation: pulse 1.5s ease-in-out infinite;
-        }
-
         /* Simulation pattern dropdown */
         .sim-pattern-select {
             background: #1e293b;
@@ -549,12 +533,10 @@
                 <h1>🏷️ Tag Browser</h1>
                 <div class="subtitle">Browse and interact with PLC tags</div>
             </div>
-            <div class="nav-links">
-                <span id="simEngineStatus" class="sim-status" style="display:none;">
-                    <span class="sim-dot"></span>
-                    <span id="simTagCount">0</span> simulating
-                </span>
-            </div>
+            <span id="simEngineStatus" class="sim-status" style="display:none;">
+                <span class="sim-dot"></span>
+                <span id="simTagCount">0</span> simulating
+            </span>
         </div>
 
         <div class="card">
@@ -944,14 +926,12 @@
                         </div>
                     </div>
                 `;
-                document.getElementById('tagTree').classList.remove('has-content');
                 return;
             }
 
             content.innerHTML = items.map(item => renderTagRow(item)).join('');
             updateBreadcrumb();
             document.getElementById('statsBar').style.display = 'flex';
-            document.getElementById('tagTree').classList.add('has-content');
         }
 
         function buildVisibleItems(parentPath, depth) {
@@ -1025,7 +1005,6 @@
                         </div>
                     </div>
                 `;
-                document.getElementById('tagTree').classList.remove('has-content');
                 return;
             }
 
@@ -1042,7 +1021,6 @@
 
             content.innerHTML = html;
             document.getElementById('statsBar').style.display = 'flex';
-            document.getElementById('tagTree').classList.add('has-content');
         }
 
         function loadMoreFlatTags() {
@@ -1186,7 +1164,6 @@
                 </div>
             `;
             document.getElementById('statsBar').style.display = 'none';
-            document.getElementById('tagTree').classList.remove('has-content');
         }
 
         function showError(message) {
@@ -1208,7 +1185,6 @@
                 </div>
             `;
             document.getElementById('statsBar').style.display = 'none';
-            document.getElementById('tagTree').classList.remove('has-content');
         }
 
         // Helper functions

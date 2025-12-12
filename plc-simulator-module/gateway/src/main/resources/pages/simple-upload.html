@@ -29,7 +29,7 @@
             background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
             padding: 10px 24px;
             border-radius: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         }
 
@@ -46,8 +46,8 @@
         .card {
             background: #1e293b;
             border-radius: 8px;
-            padding: 14px 16px;
-            margin-bottom: 12px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
@@ -132,8 +132,8 @@
         }
 
         .file-status {
-            background: #1e40af;
-            border: 1px solid #3b82f6;
+            background: #0f172a;
+            border: 1px solid #334155;
             padding: 10px 12px;
             border-radius: 4px;
             margin-top: 8px;
@@ -148,12 +148,12 @@
         }
 
         .file-status-label {
-            color: #93c5fd;
+            color: #94a3b8;
             font-weight: 600;
         }
 
         .file-status-value {
-            color: #e0e7ff;
+            color: #e2e8f0;
             font-family: 'Courier New', monospace;
         }
 
@@ -437,9 +437,6 @@
                 <button class="btn btn-refresh" onclick="loadDeviceList()" title="Refresh device list" aria-label="Refresh device list">
                     🔄
                 </button>
-                <button class="btn btn-secondary" onclick="testHealthEndpoint()" title="Test API connectivity" aria-label="Test API connectivity" style="min-width: auto;">
-                    🩺
-                </button>
             </div>
 
             <div id="deviceInfo" class="device-info-banner" style="display: none;">
@@ -468,11 +465,7 @@
                     <div style="color: #94a3b8; font-weight: 600; margin-bottom: 8px; font-size: 11px; text-transform: uppercase;">Supported Formats</div>
                     <div style="display: flex; flex-direction: column; gap: 6px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #e2e8f0;">Rockwell L5K</span>
-                            <span style="background: #10b981; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Production</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #e2e8f0;">Rockwell L5X</span>
+                            <span style="color: #e2e8f0;">Rockwell L5K & L5X</span>
                             <span style="background: #10b981; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Production</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
