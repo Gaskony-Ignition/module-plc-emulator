@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.5.0"
 }
 
-version = "7.3.16"
+version = "7.3.17"
 group = "com.gaskony"
 
 ignitionModule {
