@@ -181,11 +181,16 @@
         .upload-zone {
             border: 2px dashed #475569;
             border-radius: 8px;
-            padding: 24px;
+            padding: 16px;
             text-align: center;
             background: #0f172a;
             cursor: pointer;
             transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .upload-zone:hover {
@@ -373,53 +378,6 @@
             line-height: 1.3;
         }
 
-        .tips-section {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            margin-top: 16px;
-        }
-
-        .tips-header {
-            padding: 14px 16px;
-            cursor: pointer;
-            user-select: none;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: 500;
-            color: #cbd5e1;
-            transition: background 0.2s;
-        }
-
-        .tips-header:hover {
-            background: #1e293b;
-        }
-
-        .chevron {
-            font-size: 12px;
-            transition: transform 0.2s;
-        }
-
-        details[open] .chevron {
-            transform: rotate(180deg);
-        }
-
-        .tips-content {
-            padding: 0 16px 16px 16px;
-            border-top: 1px solid #334155;
-        }
-
-        .tips-content ul {
-            margin: 12px 0 0 20px;
-            font-size: 14px;
-            line-height: 1.8;
-        }
-
-        .tips-content li {
-            color: #cbd5e1;
-            margin: 6px 0;
-        }
 
         .skip-link {
             position: absolute;
@@ -495,24 +453,40 @@
         </div>
 
         <div class="card">
-            <h2 style="margin-bottom: 16px;"><span class="step-number">2</span> Select Your PLC File</h2>
-
-            <div class="upload-zone" id="uploadZone"
-                 role="button"
-                 tabindex="0"
-                 aria-label="Drag and drop file upload zone, or click to browse files"
-                 onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('fileInput').click(); }">
-                <div class="upload-icon">📤</div>
-                <h3 style="font-size: 16px; margin-bottom: 6px;">Drag & Drop File Here</h3>
-                <p style="color: #94a3b8; margin: 6px 0; font-size: 13px;">or</p>
-                <button class="btn" onclick="document.getElementById('fileInput').click()">Browse Files</button>
-                <p style="color: #64748b; font-size: 12px; margin-top: 8px;">
-                    Currently supported: Rockwell L5K files (.l5k)<br>
-                    <span style="color: #475569; font-size: 11px;">Future: Siemens, Schneider, Beckhoff, JSON</span>
-                </p>
+            <h2 style="margin-bottom: 10px;"><span class="step-number">2</span> Select Your PLC File</h2>
+            <div style="display: flex; gap: 16px; align-items: stretch;">
+                <div class="upload-zone" id="uploadZone" style="flex: 1;"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Drag and drop file upload zone, or click to browse files"
+                     onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('fileInput').click(); }">
+                    <div class="upload-icon">📤</div>
+                    <h3 style="font-size: 15px; margin-bottom: 4px;">Drag & Drop or Browse</h3>
+                    <button class="btn" style="padding: 8px 16px; font-size: 13px;" onclick="document.getElementById('fileInput').click()">Browse Files</button>
+                </div>
+                <div class="format-support" style="flex: 1; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-size: 12px;">
+                    <div style="color: #94a3b8; font-weight: 600; margin-bottom: 8px; font-size: 11px; text-transform: uppercase;">Supported Formats</div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #e2e8f0;">Rockwell L5K</span>
+                            <span style="background: #10b981; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Production</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #e2e8f0;">Rockwell L5X</span>
+                            <span style="background: #10b981; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Production</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #e2e8f0;">JSON</span>
+                            <span style="background: #3b82f6; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Tested</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="color: #94a3b8;">Siemens, Schneider, Beckhoff</span>
+                            <span style="background: #475569; color: #94a3b8; padding: 2px 6px; border-radius: 4px; font-size: 10px;">Planned</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-
-            <input type="file" id="fileInput" class="file-input" accept=".l5k,.L5K" aria-label="Select Rockwell L5K file to upload">
+            <input type="file" id="fileInput" class="file-input" accept=".l5k,.L5K,.l5x,.L5X,.json,.JSON" aria-label="Select PLC file to upload">
         </div>
 
         <div id="result" class="card">
@@ -553,21 +527,6 @@
             </div>
         </div>
 
-        <details class="tips-section">
-            <summary class="tips-header">
-                <span>💡 Quick Tips & Supported Formats</span>
-                <span class="chevron">▼</span>
-            </summary>
-            <div class="tips-content">
-                <ul>
-                    <li><strong>Workflow:</strong> Select device → Upload file → File automatically applied to device</li>
-                    <li><strong>Formats:</strong> Rockwell L5K/L5X, JSON, CSV, XML</li>
-                    <li><strong>Tag Structure:</strong> [DeviceName]/Controller:Global/TagName</li>
-                    <li><strong>UDT Support:</strong> Instances appear as folders with members</li>
-                    <li><strong>Auto-reload:</strong> Device automatically reloads and parses uploaded files</li>
-                </ul>
-            </div>
-        </details>
     </div>
 
     <script>
