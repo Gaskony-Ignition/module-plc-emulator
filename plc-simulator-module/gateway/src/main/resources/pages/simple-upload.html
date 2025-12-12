@@ -52,8 +52,9 @@
         }
 
         .device-selector-card {
-            border: 1px solid #3b82f6;
-            background: linear-gradient(135deg, #1e293b 0%, #1e3a8a 100%);
+            border: 1px solid #334155;
+            border-left: 3px solid #3b82f6;
+            background: #1e293b;
         }
 
         .device-selector {
@@ -102,8 +103,9 @@
             align-items: flex-start;
             margin-top: 12px;
             padding: 12px;
-            background: #065f46;
-            border: 1px solid #10b981;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-left: 3px solid #3b82f6;
             border-radius: 6px;
         }
 
@@ -117,13 +119,13 @@
         }
 
         .info-content strong {
-            color: #d1fae5;
+            color: #e2e8f0;
             display: block;
             font-size: 14px;
         }
 
         .info-content p {
-            color: #a7f3d0;
+            color: #94a3b8;
             font-size: 13px;
             margin-top: 4px;
             margin-bottom: 0;
@@ -179,7 +181,7 @@
         .upload-zone {
             border: 2px dashed #475569;
             border-radius: 8px;
-            padding: 16px 20px;
+            padding: 24px;
             text-align: center;
             background: #0f172a;
             cursor: pointer;
@@ -281,7 +283,7 @@
             border-radius: 6px;
             padding: 12px;
             margin: 16px 0;
-            max-height: 250px;
+            max-height: 180px;
             overflow: auto;
             font-family: 'Courier New', monospace;
             font-size: 12px;
@@ -289,8 +291,9 @@
         }
 
         .instructions {
-            background: #1e40af;
-            border-left: 4px solid #3b82f6;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-left: 3px solid #3b82f6;
             padding: 16px;
             border-radius: 6px;
             margin: 16px 0;
@@ -313,8 +316,9 @@
         }
 
         .success-message {
-            background: #065f46;
-            border: 1px solid #10b981;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-left: 3px solid #10b981;
             border-radius: 6px;
             padding: 12px;
             margin: 16px 0;
@@ -324,7 +328,7 @@
         }
 
         .success-message strong {
-            color: #d1fae5;
+            color: #e2e8f0;
         }
 
         .filename {
@@ -457,9 +461,12 @@
     <div id="statusAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="container" id="mainContent">
-        <div class="header">
-            <h1>🏭 PLC File Upload</h1>
-            <div class="subtitle">Upload your PLC program file</div>
+        <div class="header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>🏭 PLC File Upload</h1>
+                <div class="subtitle">Upload your PLC program file</div>
+            </div>
+            <a href="tag-browser.html" class="nav-link" style="color: white; text-decoration: none; padding: 8px 16px; background: rgba(255,255,255,0.1); border-radius: 6px; font-size: 14px;">🏷️ Tag Browser</a>
         </div>
 
         <div class="card device-selector-card">
@@ -523,7 +530,7 @@
                 <span style="font-size: 24px;">✅</span>
                 <div>
                     <strong>Uploaded successfully to <span id="uploadedDeviceName"></span>!</strong>
-                    <p style="color: #a7f3d0; font-size: 13px; margin-top: 4px;">The device will reload and parse your PLC file.</p>
+                    <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">The device will reload and parse your PLC file.</p>
                 </div>
             </div>
 

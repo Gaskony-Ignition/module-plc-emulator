@@ -60,6 +60,19 @@
             flex-wrap: wrap;
         }
 
+        .toolbar-divider {
+            width: 1px;
+            height: 24px;
+            background: rgba(71, 85, 105, 0.5);
+            margin: 0 4px;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
         select, input {
             background: #0f172a;
             color: #e2e8f0;
@@ -124,7 +137,11 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 340px);
+            min-height: 200px;
+            max-height: calc(100vh - 340px);
+        }
+
+        .tag-tree.has-content {
             min-height: 400px;
         }
 
@@ -165,13 +182,21 @@
             grid-template-columns: minmax(300px, 2fr) 120px minmax(100px, 1fr) 160px;
             gap: 16px;
             padding: 8px 16px;
-            border-bottom: 1px solid #1e293b;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
             align-items: center;
             transition: background 0.15s;
             height: 40px;
         }
 
-        .tag-item:hover { background: #1e293b; }
+        /* Row striping */
+        .tag-item:nth-child(even) {
+            background: rgba(30, 41, 59, 0.3);
+        }
+
+        .tag-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.2);
+        }
 
         .tag-name {
             display: flex;
@@ -255,9 +280,45 @@
         .indent { padding-left: 24px; }
 
         .no-tags, .loading-indicator {
-            padding: 40px;
+            padding: 32px 24px;
             text-align: center;
             color: #64748b;
+            max-height: 200px;
+        }
+
+        .no-tags-compact {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .no-tags-icon {
+            font-size: 40px;
+            opacity: 0.7;
+        }
+
+        .no-tags-title {
+            font-size: 15px;
+            color: #94a3b8;
+            margin: 0;
+        }
+
+        .no-tags-subtitle {
+            font-size: 13px;
+            color: #64748b;
+            margin: 4px 0 0 0;
+        }
+
+        .no-tags-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+
+        .no-tags-actions .btn {
+            padding: 8px 16px;
+            font-size: 13px;
         }
 
         .loading-spinner {
@@ -493,24 +554,36 @@
                     <span class="sim-dot"></span>
                     <span id="simTagCount">0</span> simulating
                 </span>
+                <a href="simple-upload.html" class="nav-link">📤 Upload File</a>
             </div>
         </div>
 
         <div class="card">
             <div class="device-selector">
-                <label for="deviceSelect" style="color: #94a3b8;">Device:</label>
-                <select id="deviceSelect" style="min-width: 250px;">
-                    <option value="">Select a device...</option>
-                </select>
-                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search tags..." />
-                <div class="view-toggle">
-                    <button id="viewTree" class="active" onclick="setViewMode('tree')">🌳 Tree</button>
-                    <button id="viewFlat" onclick="setViewMode('flat')">📋 Flat</button>
+                <div class="toolbar-group">
+                    <label for="deviceSelect" style="color: #94a3b8;">Device:</label>
+                    <select id="deviceSelect" style="min-width: 250px;">
+                        <option value="">Select a device...</option>
+                    </select>
                 </div>
-                <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Refresh</button>
-                <div class="auto-refresh-toggle">
-                    <span style="color: #94a3b8; font-size: 13px;">Live</span>
-                    <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-group">
+                    <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search tags..." />
+                </div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-group">
+                    <div class="view-toggle">
+                        <button id="viewTree" class="active" onclick="setViewMode('tree')">🌳 Tree</button>
+                        <button id="viewFlat" onclick="setViewMode('flat')">📋 Flat</button>
+                    </div>
+                </div>
+                <div class="toolbar-divider"></div>
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Refresh</button>
+                    <div class="auto-refresh-toggle">
+                        <span style="color: #94a3b8; font-size: 13px;">Live</span>
+                        <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
+                    </div>
                 </div>
             </div>
 
@@ -549,8 +622,11 @@
                 <div class="tree-body" id="treeBody">
                     <div id="tagContent">
                         <div class="no-tags">
-                            <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
-                            <p>Select a device to browse its tags</p>
+                            <div class="no-tags-compact">
+                                <span class="no-tags-icon">🏭</span>
+                                <p class="no-tags-title">Select a device to browse its tags</p>
+                                <p class="no-tags-subtitle">Choose a device from the dropdown above to view its tag structure</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -859,16 +935,24 @@
             if (items.length === 0) {
                 content.innerHTML = `
                     <div class="no-tags">
-                        <p style="font-size: 48px; margin-bottom: 16px;">📭</p>
-                        <p>No tags found</p>
+                        <div class="no-tags-compact">
+                            <span class="no-tags-icon">📭</span>
+                            <p class="no-tags-title">No tags found</p>
+                            <p class="no-tags-subtitle">This device has no tags configured yet</p>
+                            <div class="no-tags-actions">
+                                <a href="simple-upload.html?device=${encodeURIComponent(selectedDevice)}" class="btn btn-secondary">📤 Upload PLC File</a>
+                            </div>
+                        </div>
                     </div>
                 `;
+                document.getElementById('tagTree').classList.remove('has-content');
                 return;
             }
 
             content.innerHTML = items.map(item => renderTagRow(item)).join('');
             updateBreadcrumb();
             document.getElementById('statsBar').style.display = 'flex';
+            document.getElementById('tagTree').classList.add('has-content');
         }
 
         function buildVisibleItems(parentPath, depth) {
@@ -931,12 +1015,18 @@
             }
 
             if (filtered.length === 0) {
+                const message = searchQuery ? 'No matching tags found' : 'No tags found';
+                const subtitle = searchQuery ? 'Try a different search term' : 'This device has no tags configured yet';
                 content.innerHTML = `
                     <div class="no-tags">
-                        <p style="font-size: 48px; margin-bottom: 16px;">🔍</p>
-                        <p>${searchQuery ? 'No matching tags found' : 'No tags found'}</p>
+                        <div class="no-tags-compact">
+                            <span class="no-tags-icon">🔍</span>
+                            <p class="no-tags-title">${message}</p>
+                            <p class="no-tags-subtitle">${subtitle}</p>
+                        </div>
                     </div>
                 `;
+                document.getElementById('tagTree').classList.remove('has-content');
                 return;
             }
 
@@ -953,6 +1043,7 @@
 
             content.innerHTML = html;
             document.getElementById('statsBar').style.display = 'flex';
+            document.getElementById('tagTree').classList.add('has-content');
         }
 
         function loadMoreFlatTags() {
@@ -1096,6 +1187,7 @@
                 </div>
             `;
             document.getElementById('statsBar').style.display = 'none';
+            document.getElementById('tagTree').classList.remove('has-content');
         }
 
         function showError(message) {
@@ -1109,11 +1201,15 @@
         function showNoDevice() {
             document.getElementById('tagContent').innerHTML = `
                 <div class="no-tags">
-                    <p style="font-size: 48px; margin-bottom: 16px;">🏭</p>
-                    <p>Select a device to browse its tags</p>
+                    <div class="no-tags-compact">
+                        <span class="no-tags-icon">🏭</span>
+                        <p class="no-tags-title">Select a device to browse its tags</p>
+                        <p class="no-tags-subtitle">Choose a device from the dropdown above to view its tag structure</p>
+                    </div>
                 </div>
             `;
             document.getElementById('statsBar').style.display = 'none';
+            document.getElementById('tagTree').classList.remove('has-content');
         }
 
         // Helper functions
