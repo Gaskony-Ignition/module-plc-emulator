@@ -234,11 +234,11 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
-     * Find an existing file in the storage directory that was previously uploaded.
-     * This is a fallback for when device config doesn't have filename but file exists on disk.
+     * Find an existing file in the storage directory that was previously uploaded for THIS device.
+     * Only returns files with the device-specific prefix to prevent cross-device file sharing.
      *
      * @param storageDir Directory to search for files
-     * @return First matching PLC file found, or null if none exist
+     * @return Device-specific PLC file found, or null if none exist
      */
     private File findExistingFileForDevice(File storageDir) {
         if (storageDir == null || !storageDir.exists()) {
@@ -255,38 +255,21 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
         String deviceName = context.getName();
 
-        // First priority: Look for device-specific files (e.g., "MyDevice_program.l5k")
+        // Only look for device-specific files (e.g., "MyDevice_program.l5k")
+        // This prevents new devices from accidentally picking up files from other devices
         for (File file : files) {
             String name = file.getName();
             // Skip hidden files and backup files
             if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
                 continue;
             }
-            // Check if file starts with device name
+            // Check if file starts with this device's name prefix
             if (name.startsWith(deviceName + "_")) {
                 for (String ext : extensions) {
                     if (name.endsWith(ext)) {
                         logger.info("Found device-specific file: {}", file.getName());
                         return file;
                     }
-                }
-            }
-        }
-
-        // Second priority: Fall back to any file with supported extension
-        // (for backward compatibility with files uploaded before this change)
-        for (File file : files) {
-            String name = file.getName();
-            // Skip hidden files and backup files
-            if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
-                continue;
-            }
-            // Check if it has a supported extension
-            for (String ext : extensions) {
-                if (name.endsWith(ext)) {
-                    logger.debug("Found candidate file: {}", file.getName());
-                    logger.warn("File '{}' does not have device-specific prefix. Consider re-uploading.", name);
-                    return file;
                 }
             }
         }
@@ -536,6 +519,38 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
     }
 
     /**
+     * Clear the OPC-UA address space, removing all tags.
+     * Used when a file is deleted from the device.
+     */
+    private void clearAddressSpace() {
+        logger.info("Clearing address space for device: {}", context.getName());
+
+        // Stop simulation engine if running
+        if (simulationEngine != null && simulationEngine.isRunning()) {
+            simulationEngine.stop();
+            simulationEngine = null;
+            logger.debug("Stopped simulation engine");
+        }
+
+        // Stop file watcher if running
+        if (fileWatcher != null && fileWatcher.isRunning()) {
+            fileWatcher.stop();
+            fileWatcher = null;
+            logger.debug("Stopped file watcher");
+        }
+
+        // Remove all nodes belonging to this device
+        removeAllDeviceNodes();
+
+        // Recreate empty root node so device still appears in OPC-UA browser
+        createRootNode();
+
+        // Update device status
+        deviceStatus = "Ready - Waiting for file upload";
+        logger.info("Address space cleared - device ready for new file upload");
+    }
+
+    /**
      * Initialize and start the simulation engine.
      */
     private void initializeSimulation() {
@@ -665,8 +680,8 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
         // Update parsed data
         parsedData = newData;
 
-        // Rebuild address space
-        getNodeManager().removeNode(rootNode.getNodeId());
+        // Clear all existing nodes for this device before rebuilding
+        removeAllDeviceNodes();
         createRootNode();
         buildAddressSpace();
 
@@ -677,6 +692,40 @@ public class EnhancedSimulatorDevice extends ManagedAddressSpaceWithLifecycle im
 
         deviceStatus = "Running";
         logger.info("Device successfully reloaded with full rebuild");
+    }
+
+    /**
+     * Remove all OPC-UA nodes belonging to this device.
+     * This ensures clean rebuilds without lingering nodes from previous configurations.
+     */
+    private void removeAllDeviceNodes() {
+        String deviceName = context.getName();
+        logger.debug("Removing all nodes for device: {}", deviceName);
+
+        // Collect all node IDs that belong to this device
+        java.util.List<org.eclipse.milo.opcua.stack.core.types.builtin.NodeId> nodesToRemove =
+            new java.util.ArrayList<>();
+
+        getNodeManager().getNodes().forEach(node -> {
+            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId = node.getNodeId();
+            Object identifier = nodeId.getIdentifier();
+            if (identifier instanceof String) {
+                String idStr = (String) identifier;
+                // Check if this node belongs to our device
+                // Device nodes have identifiers like "DeviceName" or "DeviceName.SomePath"
+                if (idStr.equals(deviceName) || idStr.startsWith(deviceName + ".")) {
+                    nodesToRemove.add(nodeId);
+                }
+            }
+        });
+
+        // Remove all collected nodes
+        for (org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId : nodesToRemove) {
+            getNodeManager().removeNode(nodeId);
+        }
+
+        rootNode = null;
+        logger.info("Removed {} nodes for device: {}", nodesToRemove.size(), deviceName);
     }
 
     @Override

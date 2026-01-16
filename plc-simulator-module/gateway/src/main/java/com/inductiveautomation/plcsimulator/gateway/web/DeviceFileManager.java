@@ -135,4 +135,35 @@ public class DeviceFileManager {
         filePathField.set(device, filePath);
         logger.debug("Updated device file path to: {}", filePath);
     }
+
+    /**
+     * Clear the device's file association and rebuild address space to remove all tags.
+     * Used when a file is deleted.
+     */
+    public void clearDeviceFile(EnhancedSimulatorDevice device) {
+        try {
+            // Clear the currentFilePath field
+            Field filePathField = EnhancedSimulatorDevice.class.getDeclaredField("currentFilePath");
+            filePathField.setAccessible(true);
+            filePathField.set(device, null);
+            logger.debug("Cleared file path for device: {}", device.getName());
+
+            // Clear parsed data to remove all tags
+            Field parsedDataField = EnhancedSimulatorDevice.class.getDeclaredField("parsedData");
+            parsedDataField.setAccessible(true);
+            parsedDataField.set(device, null);
+            logger.debug("Cleared parsed data for device: {}", device.getName());
+
+            // Invoke the clearAddressSpace method to remove all tag nodes
+            Method clearMethod = EnhancedSimulatorDevice.class.getDeclaredMethod("clearAddressSpace");
+            clearMethod.setAccessible(true);
+            clearMethod.invoke(device);
+            logger.info("Cleared address space for device: {}", device.getName());
+
+        } catch (NoSuchFieldException | NoSuchMethodException e) {
+            logger.error("Reflection error - device class structure may have changed", e);
+        } catch (Exception e) {
+            logger.error("Error clearing device file: {}", device.getName(), e);
+        }
+    }
 }
