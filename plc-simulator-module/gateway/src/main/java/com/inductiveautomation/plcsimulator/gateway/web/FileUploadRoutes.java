@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
@@ -967,16 +968,35 @@ public class FileUploadRoutes {
             return result.put("success", false).put("error", "Device not found: " + deviceName);
         }
 
-        String fileName = deviceOpt.get().getConfiguration().parser().fileName();
-        if (fileName == null || fileName.isEmpty()) {
+        EnhancedSimulatorDevice device = deviceOpt.get();
+
+        // Get the actual file path from the device (not from config which may not be updated)
+        String filePath = deviceManager.getDeviceFilePath(device);
+        if (filePath == null || filePath.isEmpty()) {
             resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
             return result.put("success", false).put("error", "No file configured for device: " + deviceName);
         }
 
         try {
-            File deviceFile = PathSecurity.validateFilePath(deviceManager.getStorageDirectory(), deviceName, fileName);
+            File deviceFile = new File(filePath);
+            String fileName = deviceFile.getName();
+
+            // Verify file is within storage directory (security check)
+            File storageDir = deviceManager.getStorageDirectory();
+            String canonicalFilePath = deviceFile.getCanonicalPath();
+            String canonicalStorageDir = storageDir.getCanonicalPath();
+            if (!canonicalFilePath.startsWith(canonicalStorageDir + File.separator)) {
+                logger.error("Security violation: attempt to delete file outside storage directory: {}", filePath);
+                resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return result.put("success", false).put("error", "Invalid file path");
+            }
+
             if (deviceFile.exists() && deviceFile.delete()) {
                 logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
+
+                // Clear the device's file path and rebuild address space to remove tags
+                deviceManager.clearDeviceFile(device);
+
                 return result.put("success", true).put("message", "File deleted successfully").put("fileName", fileName);
             }
             resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
@@ -985,6 +1005,10 @@ public class FileUploadRoutes {
             logger.error("Security violation: attempt to delete file outside allowed directory", se);
             resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             return result.put("success", false).put("error", "Invalid file path");
+        } catch (Exception e) {
+            logger.error("Error deleting file for device {}", deviceName, e);
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return result.put("success", false).put("error", "Error deleting file: " + e.getMessage());
         }
     }
 
