@@ -29,6 +29,21 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Set up module signing
+        run: |
+          SIGNING_DIR="${HOME}/.ignition-signing"
+          mkdir -p "$SIGNING_DIR"
+          echo "${{ secrets.SIGNING_KEYSTORE }}" | base64 -d > "$SIGNING_DIR/gaskony-keystore.jks"
+          echo "${{ secrets.SIGNING_CERT }}" | base64 -d > "$SIGNING_DIR/gaskony-cert.pem"
+          # Override sign.props to use secrets instead of in-repo certs
+          cat > sign.props << EOF
+          key.file=$SIGNING_DIR/gaskony-keystore.jks
+          key.pass=${{ secrets.SIGNING_PASSWORD }}
+          cert.file=$SIGNING_DIR/gaskony-cert.pem
+          cert.alias=gaskony-module
+          cert.pass=${{ secrets.SIGNING_PASSWORD }}
+          EOF
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
