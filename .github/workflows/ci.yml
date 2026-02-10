@@ -27,13 +27,13 @@ jobs:
       with:
         node-version: '18'
         cache: 'yarn'
-        cache-dependency-path: 'plc-simulator-module/web-ui/yarn.lock'
+        cache-dependency-path: 'logix-emulator-module/web-ui/yarn.lock'
 
     - name: Grant execute permission for gradlew
-      run: chmod +x plc-simulator-module/gradlew
+      run: chmod +x logix-emulator-module/gradlew
 
     - name: Create signing configuration
-      working-directory: plc-simulator-module
+      working-directory: logix-emulator-module
       run: |
         echo "# CI/CD signing configuration" > gradle.properties
         echo "ignition.signing.keystoreFile=keystore.jks" >> gradle.properties
@@ -44,11 +44,11 @@ jobs:
         cat gradle.properties
 
     - name: Build with Gradle
-      working-directory: plc-simulator-module
+      working-directory: logix-emulator-module
       run: ./gradlew build --no-daemon --console=plain
 
     - name: Run tests
-      working-directory: plc-simulator-module
+      working-directory: logix-emulator-module
       run: ./gradlew test --no-daemon --console=plain
 
     - name: Upload test results
@@ -57,8 +57,8 @@ jobs:
       with:
         name: test-results
         path: |
-          plc-simulator-module/gateway/build/test-results/
-          plc-simulator-module/gateway/build/reports/tests/
+          logix-emulator-module/gateway/build/test-results/
+          logix-emulator-module/gateway/build/reports/tests/
         retention-days: 30
 
     - name: Upload module artifact
@@ -66,7 +66,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ignition-module
-        path: plc-simulator-module/build/*.modl
+        path: logix-emulator-module/build/*.modl
         retention-days: 90
 
     - name: Display build info
@@ -74,7 +74,7 @@ jobs:
       run: |
         echo "Build completed successfully!"
         echo "Module artifacts:"
-        ls -lh plc-simulator-module/build/*.modl || echo "No .modl files found"
+        ls -lh logix-emulator-module/build/*.modl || echo "No .modl files found"
 
   security-scan:
     name: Security Scan
@@ -91,7 +91,7 @@ jobs:
         echo "Checking for hardcoded secrets..."
 
         # Check for potential hardcoded passwords (excluding templates, binaries, and build artifacts)
-        if grep -rI "password\s*=\s*['\"]" plc-simulator-module --exclude="*.template" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
+        if grep -rI "password\s*=\s*['\"]" logix-emulator-module --exclude="*.template" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
           echo "WARNING: Found potential hardcoded passwords"
           exit 1
         else

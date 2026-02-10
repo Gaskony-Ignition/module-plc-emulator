@@ -4,7 +4,7 @@ on:
   push:
     branches: [master]
     paths:
-      - 'plc-simulator-module/build.gradle.kts'
+      - 'logix-emulator-module/build.gradle.kts'
 
 jobs:
   auto-tag:
@@ -18,7 +18,7 @@ jobs:
       - name: Extract version from build.gradle.kts
         id: version
         run: |
-          VERSION=$(grep -oP '^version\s*=\s*"\K[^"]+' plc-simulator-module/build.gradle.kts)
+          VERSION=$(grep -oP '^version\s*=\s*"\K[^"]+' logix-emulator-module/build.gradle.kts)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Detected version: $VERSION"
 

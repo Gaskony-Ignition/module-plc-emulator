@@ -14,7 +14,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./plc-simulator-module
+        working-directory: ./logix-emulator-module
 
     steps:
       - name: Checkout code
@@ -59,7 +59,7 @@ jobs:
       - name: Find .modl file
         id: modl
         run: |
-          MODL_FILE=$(find build -maxdepth 1 -name "EnhancedPLCSimulator-*.modl" ! -name "*.unsigned.modl" | head -1)
+          MODL_FILE=$(find build -maxdepth 1 -name "LogixPLCEmulator-*.modl" ! -name "*.unsigned.modl" | head -1)
           echo "file=$MODL_FILE" >> $GITHUB_OUTPUT
           echo "Found: $MODL_FILE"
 
@@ -69,8 +69,8 @@ jobs:
         working-directory: .
         run: |
           gh release create "${{ github.ref_name }}" \
-            "plc-simulator-module/${{ steps.modl.outputs.file }}" \
-            --title "Enhanced PLC Simulator ${{ github.ref_name }}" \
+            "logix-emulator-module/${{ steps.modl.outputs.file }}" \
+            --title "Logix PLC Emulator ${{ github.ref_name }}" \
             --generate-notes
 
       - name: Create portal release
@@ -78,7 +78,7 @@ jobs:
           GH_TOKEN: ${{ secrets.PORTAL_TOKEN }}
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          TAG="plc-simulator-${{ github.ref_name }}"
+          TAG="logix-emulator-${{ github.ref_name }}"
 
           gh release delete "$TAG" --repo Gaskony-Ignition/ignition-modules-portal --yes 2>/dev/null || true
           gh api repos/Gaskony-Ignition/ignition-modules-portal/git/refs/tags/"$TAG" -X DELETE 2>/dev/null || true
@@ -86,13 +86,13 @@ jobs:
           gh release create "$TAG" \
             "${{ steps.modl.outputs.file }}" \
             --repo Gaskony-Ignition/ignition-modules-portal \
-            --title "Enhanced PLC Simulator v${VERSION}" \
-            --notes "## Enhanced PLC Simulator v${VERSION}
+            --title "Logix PLC Emulator v${VERSION}" \
+            --notes "## Logix PLC Emulator v${VERSION}
 
-          Simulate PLC devices with configurable tag structures for development and testing.
+          Emulate Rockwell Logix PLC tag structures for development and testing.
 
           ### Installation
-          1. Download \`EnhancedPLCSimulator-${VERSION}.modl\` below
+          1. Download \`LogixPLCEmulator-${VERSION}.modl\` below
           2. Ignition Gateway: Config > System > Modules > Install or Upgrade
           3. Upload the .modl file
 
@@ -113,15 +113,15 @@ jobs:
           VERSION = os.environ['VERSION']
           with open('README.md', 'r') as f:
               content = f.read()
-          content = re.sub(r'EnhancedPLCSimulator-[\d.]+\.modl', f'EnhancedPLCSimulator-{VERSION}.modl', content)
-          content = re.sub(r'plc-simulator-v[\d.]+', f'plc-simulator-v{VERSION}', content)
+          content = re.sub(r'LogixPLCEmulator-[\d.]+\.modl', f'LogixPLCEmulator-{VERSION}.modl', content)
+          content = re.sub(r'logix-emulator-v[\d.]+', f'logix-emulator-v{VERSION}', content)
           content = re.sub(
-              r'(### PLC Simulator.*?\*\*Latest Version\*\* \| v)[\d.]+',
+              r'(### Logix PLC Emulator.*?\*\*Latest Version\*\* \| v)[\d.]+',
               lambda m: m.group(1) + VERSION,
               content, flags=re.DOTALL, count=1
           )
           content = re.sub(
-              r'(\| PLC Simulator\s*\| v)[\d.]+',
+              r'(\| Logix PLC Emulator\s*\| v)[\d.]+',
               lambda m: m.group(1) + VERSION,
               content
           )
@@ -132,5 +132,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md
-          git diff --cached --quiet || git commit -m "Update PLC Simulator to v${VERSION}"
+          git diff --cached --quiet || git commit -m "Update Logix PLC Emulator to v${VERSION}"
           git push
