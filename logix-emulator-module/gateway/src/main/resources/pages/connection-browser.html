@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tag Browser - Logix PLC Emulator</title>
+    <title>Connection Browser - Logix PLC Emulator</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -81,7 +81,7 @@
             align-items: center;
         }
 
-        select, input {
+        select, input[type="text"] {
             background: #0f172a;
             color: #e2e8f0;
             border: 1px solid #475569;
@@ -92,8 +92,8 @@
             transition: all 0.2s;
         }
 
-        select:hover, input:hover { border-color: #3b82f6; }
-        select:focus, input:focus {
+        select:hover, input[type="text"]:hover { border-color: #3b82f6; }
+        select:focus, input[type="text"]:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
@@ -115,9 +115,205 @@
         }
 
         .btn:hover { background: #2563eb; }
+        .btn:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            transform: none;
+        }
         .btn-secondary { background: #475569; }
         .btn-secondary:hover { background: #64748b; }
+        .btn-success { background: #10b981; }
+        .btn-success:hover { background: #059669; }
 
+        /* Device info + upload row */
+        .device-upload-row {
+            display: none;
+            gap: 16px;
+            margin-top: 8px;
+        }
+
+        .device-upload-row.visible {
+            display: flex;
+        }
+
+        .device-info-panel {
+            flex: 1;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-left: 3px solid #3b82f6;
+            border-radius: 6px;
+            padding: 10px 12px;
+            min-width: 0;
+        }
+
+        .device-info-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .device-info-header .info-icon { font-size: 18px; }
+
+        .device-info-header strong {
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        .device-info-header .device-status-text {
+            color: #94a3b8;
+            font-size: 12px;
+            margin-left: auto;
+        }
+
+        .file-status {
+            background: #1e293b;
+            border: 1px solid #334155;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .file-status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .file-status-label { color: #94a3b8; font-weight: 600; }
+        .file-status-value {
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn-delete {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-delete:hover { background: #b91c1c; }
+
+        .no-file-message {
+            color: #94a3b8;
+            font-style: italic;
+            font-size: 12px;
+        }
+
+        /* Upload zone */
+        .upload-panel {
+            width: 260px;
+            flex-shrink: 0;
+        }
+
+        .upload-zone {
+            border: 2px dashed #475569;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+            background: #0f172a;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            height: 100%;
+            min-height: 80px;
+        }
+
+        .upload-zone:hover {
+            border-color: #3b82f6;
+            background: #1e293b;
+        }
+
+        .upload-zone.dragover {
+            border-color: #3b82f6;
+            background: #1e3a8a;
+            transform: scale(1.02);
+        }
+
+        @keyframes success-pulse {
+            0%, 100% { border-color: #10b981; }
+            50% { border-color: #34d399; }
+        }
+
+        .upload-zone.success {
+            border-color: #10b981;
+            animation: success-pulse 1s ease-in-out;
+        }
+
+        .upload-zone .upload-icon { font-size: 22px; }
+        .upload-zone h3 { font-size: 13px; margin: 0; }
+        .upload-zone .btn { padding: 6px 14px; font-size: 12px; }
+        .file-input { display: none; }
+
+        /* Upload result bar */
+        .upload-result-bar {
+            display: none;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-left: 3px solid #10b981;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-top: 8px;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .upload-result-bar.visible { display: flex; }
+
+        .upload-result-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .upload-result-info .filename {
+            color: #3b82f6;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .upload-result-info .file-meta {
+            color: #94a3b8;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        .upload-result-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .upload-result-actions .btn { padding: 6px 14px; font-size: 13px; }
+
+        .upload-success-msg {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #10b981;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .upload-success-msg.visible { display: flex; }
+
+        /* Stats bar */
         .stats-bar {
             display: flex;
             gap: 20px;
@@ -128,16 +324,11 @@
             flex-wrap: wrap;
         }
 
-        .stat {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
+        .stat { display: flex; align-items: center; gap: 8px; }
         .stat-label { color: #94a3b8; font-size: 13px; }
         .stat-value { color: #3b82f6; font-weight: 600; font-size: 16px; }
 
-        /* Virtual scroll container */
+        /* Tag tree */
         .tag-tree {
             background: #0f172a;
             border: 1px solid #334155;
@@ -145,7 +336,7 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 280px);
+            height: calc(100vh - 320px);
             min-height: 250px;
         }
 
@@ -169,18 +360,6 @@
             position: relative;
         }
 
-        /* Virtual scroll spacer */
-        .virtual-spacer {
-            position: relative;
-        }
-
-        .virtual-viewport {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-        }
-
         .tag-item {
             display: grid;
             grid-template-columns: minmax(300px, 2fr) 120px minmax(100px, 1fr) 160px;
@@ -192,11 +371,7 @@
             height: 40px;
         }
 
-        /* Row striping */
-        .tag-item:nth-child(even) {
-            background: rgba(30, 41, 59, 0.3);
-        }
-
+        .tag-item:nth-child(even) { background: rgba(30, 41, 59, 0.3); }
         .tag-item:hover {
             background: rgba(59, 130, 246, 0.1);
             border-color: rgba(59, 130, 246, 0.2);
@@ -212,13 +387,8 @@
             white-space: nowrap;
         }
 
-        .tag-name-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
+        .tag-name-text { overflow: hidden; text-overflow: ellipsis; }
         .tag-icon { font-size: 14px; flex-shrink: 0; }
-
         .folder-icon { color: #fbbf24; }
         .bool-icon { color: #10b981; }
         .int-icon { color: #3b82f6; }
@@ -245,10 +415,7 @@
         .value-number { color: #3b82f6; }
         .value-string { color: #ec4899; }
 
-        .tag-actions {
-            display: flex;
-            gap: 6px;
-        }
+        .tag-actions { display: flex; gap: 6px; }
 
         .btn-small {
             padding: 4px 8px;
@@ -259,10 +426,7 @@
         .btn-write { background: #10b981; }
         .btn-write:hover { background: #059669; }
 
-        .folder-row {
-            background: #1e3a5f;
-            cursor: pointer;
-        }
+        .folder-row { background: #1e3a5f; cursor: pointer; }
         .folder-row:hover { background: #1e4a7f; }
 
         .expand-icon {
@@ -297,33 +461,12 @@
             gap: 12px;
         }
 
-        .no-tags-icon {
-            font-size: 40px;
-            opacity: 0.7;
-        }
+        .no-tags-icon { font-size: 40px; opacity: 0.7; }
+        .no-tags-title { font-size: 15px; color: #94a3b8; margin: 0; }
+        .no-tags-subtitle { font-size: 13px; color: #64748b; margin: 4px 0 0 0; }
 
-        .no-tags-title {
-            font-size: 15px;
-            color: #94a3b8;
-            margin: 0;
-        }
-
-        .no-tags-subtitle {
-            font-size: 13px;
-            color: #64748b;
-            margin: 4px 0 0 0;
-        }
-
-        .no-tags-actions {
-            display: flex;
-            gap: 12px;
-            margin-top: 8px;
-        }
-
-        .no-tags-actions .btn {
-            padding: 8px 16px;
-            font-size: 13px;
-        }
+        .no-tags-actions { display: flex; gap: 12px; margin-top: 8px; }
+        .no-tags-actions .btn { padding: 8px 16px; font-size: 13px; }
 
         .loading-spinner {
             display: inline-block;
@@ -375,11 +518,7 @@
             to { background: transparent; }
         }
 
-        .auto-refresh-toggle {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .auto-refresh-toggle { display: flex; align-items: center; gap: 8px; }
 
         .toggle-switch {
             position: relative;
@@ -451,7 +590,7 @@
             justify-content: flex-end;
         }
 
-        /* Load more button */
+        /* Load more */
         .load-more-row {
             padding: 12px 16px;
             text-align: center;
@@ -477,13 +616,8 @@
             cursor: pointer;
             font-size: 13px;
         }
-        .view-toggle button.active {
-            background: #3b82f6;
-            color: white;
-        }
-        .view-toggle button:hover:not(.active) {
-            background: #334155;
-        }
+        .view-toggle button.active { background: #3b82f6; color: white; }
+        .view-toggle button:hover:not(.active) { background: #334155; }
 
         /* Breadcrumb */
         .breadcrumb {
@@ -495,26 +629,16 @@
             color: #94a3b8;
             flex-wrap: wrap;
         }
-        .breadcrumb-item {
-            color: #3b82f6;
-            cursor: pointer;
-        }
+        .breadcrumb-item { color: #3b82f6; cursor: pointer; }
         .breadcrumb-item:hover { text-decoration: underline; }
         .breadcrumb-sep { color: #475569; }
 
         /* Simulation toggle button */
-        .btn-sim {
-            background: #475569;
-            position: relative;
-        }
+        .btn-sim { background: #475569; position: relative; }
         .btn-sim:hover { background: #64748b; }
-        .btn-sim.active {
-            background: #f59e0b;
-            color: #1e293b;
-        }
+        .btn-sim.active { background: #f59e0b; color: #1e293b; }
         .btn-sim.active:hover { background: #d97706; }
 
-        /* Simulation pattern dropdown */
         .sim-pattern-select {
             background: #1e293b;
             color: #e2e8f0;
@@ -524,14 +648,93 @@
             font-size: 10px;
             cursor: pointer;
         }
+
+        /* Confirmation modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal-dialog {
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-message {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .modal-btn-cancel { background: #475569; color: #e2e8f0; }
+        .modal-btn-cancel:hover { background: #64748b; }
+        .modal-btn-confirm { background: #dc2626; color: white; }
+        .modal-btn-confirm:hover { background: #b91c1c; }
+
+        /* Screen reader only */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
     </style>
 </head>
 <body>
+    <div id="statusAnnouncement" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
     <div class="container">
         <div class="header">
             <div>
-                <h1>🏷️ Tag Browser</h1>
-                <div class="subtitle">Browse and interact with PLC tags</div>
+                <h1>Connection Browser</h1>
+                <div class="subtitle">Browse tags and manage PLC files</div>
             </div>
             <span id="simEngineStatus" class="sim-status" style="display:none;">
                 <span class="sim-dot"></span>
@@ -540,6 +743,7 @@
         </div>
 
         <div class="card">
+            <!-- Toolbar row -->
             <div class="device-selector">
                 <div class="toolbar-group">
                     <label for="deviceSelect" style="color: #94a3b8;">Device:</label>
@@ -549,18 +753,18 @@
                 </div>
                 <div class="toolbar-divider"></div>
                 <div class="toolbar-group">
-                    <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search tags..." />
+                    <input type="text" id="searchBox" class="search-box" placeholder="Search tags..." />
                 </div>
                 <div class="toolbar-divider"></div>
                 <div class="toolbar-group">
                     <div class="view-toggle">
-                        <button id="viewTree" class="active" onclick="setViewMode('tree')">🌳 Tree</button>
-                        <button id="viewFlat" onclick="setViewMode('flat')">📋 Flat</button>
+                        <button id="viewTree" class="active" onclick="setViewMode('tree')">Tree</button>
+                        <button id="viewFlat" onclick="setViewMode('flat')">Flat</button>
                     </div>
                 </div>
                 <div class="toolbar-divider"></div>
                 <div class="toolbar-group">
-                    <button class="btn btn-secondary" onclick="refreshCurrentView()">🔄 Refresh</button>
+                    <button class="btn btn-secondary" onclick="refreshCurrentView()">Refresh</button>
                     <div class="auto-refresh-toggle">
                         <span style="color: #94a3b8; font-size: 13px;">Live</span>
                         <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
@@ -568,6 +772,49 @@
                 </div>
             </div>
 
+            <!-- Device info + Upload zone row (shown when device selected) -->
+            <div id="deviceUploadRow" class="device-upload-row">
+                <div class="device-info-panel">
+                    <div class="device-info-header">
+                        <span class="info-icon">🎯</span>
+                        <strong id="selectedDeviceName"></strong>
+                        <span class="device-status-text" id="selectedDeviceStatus"></span>
+                    </div>
+                    <div id="fileStatusContainer">
+                        <p class="no-file-message">Loading device status...</p>
+                    </div>
+                </div>
+                <div class="upload-panel">
+                    <div class="upload-zone" id="uploadZone"
+                         role="button"
+                         tabindex="0"
+                         aria-label="Drag and drop file upload zone, or click to browse files"
+                         onkeydown="if(event.key === 'Enter' || event.key === ' ') { event.preventDefault(); document.getElementById('fileInput').click(); }">
+                        <div class="upload-icon">📤</div>
+                        <h3>Drag & Drop or Browse</h3>
+                        <button class="btn" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">Browse Files</button>
+                    </div>
+                    <input type="file" id="fileInput" class="file-input" accept=".l5k,.L5K,.l5x,.L5X,.json,.JSON" aria-label="Select PLC file to upload">
+                </div>
+            </div>
+
+            <!-- Upload result bar (shown when file selected) -->
+            <div id="uploadResultBar" class="upload-result-bar">
+                <div class="upload-result-info">
+                    <span>✅</span>
+                    <span class="filename" id="uploadFileName"></span>
+                    <span class="file-meta" id="uploadFileMeta"></span>
+                </div>
+                <div id="uploadSuccessMsg" class="upload-success-msg">
+                    <span>✅</span> Uploaded to <strong id="uploadedDeviceName"></strong>
+                </div>
+                <div class="upload-result-actions">
+                    <button id="uploadBtn" class="btn btn-success" onclick="uploadToDevice()">Upload to Device</button>
+                    <button class="btn btn-secondary" onclick="resetUpload()">Clear</button>
+                </div>
+            </div>
+
+            <!-- Stats bar -->
             <div class="stats-bar" id="statsBar" style="display: none;">
                 <div class="stat">
                     <span class="stat-label">Total Tags:</span>
@@ -618,7 +865,7 @@
     <!-- Write Tag Modal -->
     <div id="writeModal" class="write-modal" onclick="closeWriteModal(event)">
         <div class="write-dialog" onclick="event.stopPropagation()">
-            <h2>✏️ Write Tag Value</h2>
+            <h2>Write Tag Value</h2>
             <div class="tag-info">
                 <div><strong>Tag:</strong> <span id="writeTagName"></span></div>
                 <div><strong>Path:</strong> <span id="writeTagPath"></span></div>
@@ -629,47 +876,76 @@
             <input type="text" id="writeTagValue" placeholder="Enter new value..." onkeypress="if(event.key==='Enter')submitWrite()" />
             <div class="btn-row">
                 <button class="btn btn-secondary" onclick="closeWriteModal()">Cancel</button>
-                <button class="btn btn-write" onclick="submitWrite()">✓ Write</button>
+                <button class="btn btn-write" onclick="submitWrite()">Write</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm delete modal -->
+    <div id="confirmModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-dialog">
+            <div class="modal-title" id="modalTitle">Confirm Delete</div>
+            <div class="modal-message" id="modalMessage">Are you sure you want to delete this file?</div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeConfirmModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modalConfirmBtn">Delete</button>
             </div>
         </div>
     </div>
 
     <script>
+        // =====================================================
         // State
+        // =====================================================
         let selectedDevice = null;
         let autoRefreshInterval = null;
         let currentWriteTag = null;
-        let viewMode = 'tree'; // 'tree' or 'flat'
-        let currentPath = ''; // Current folder path for tree view
-        let expandedPaths = new Set(); // Track expanded folders
-        let loadedChildren = {}; // Cache of loaded children by path
-        let childrenOffset = {}; // Track pagination offset per folder path
-        let childrenTotal = {}; // Track total children per folder path
-        let flatTags = []; // All tags for flat view
+        let viewMode = 'tree';
+        let currentPath = '';
+        let expandedPaths = new Set();
+        let loadedChildren = {};
+        let childrenOffset = {};
+        let childrenTotal = {};
+        let flatTags = [];
         let flatOffset = 0;
         let flatTotal = 0;
         let stats = { totalTags: 0, folders: 0, udtInstances: 0 };
         let searchQuery = '';
         let searchTimeout = null;
-        let liveValues = {}; // Cache of live values
-        let isLoadingMore = {}; // Track loading state per folder
-        let simulatedTags = new Set(); // Tags with simulation enabled
+        let liveValues = {};
+        let isLoadingMore = {};
+        let simulatedTags = new Set();
         let simulationEngineAvailable = false;
 
-        // Constants
-        const PAGE_SIZE = 200; // Increased for better UX
-        const ROW_HEIGHT = 40;
+        // Upload state
+        let currentFileContent = '';
+        let pendingDeleteDevice = null;
 
-        // Initialize
+        const PAGE_SIZE = 200;
+
+        // =====================================================
+        // Initialization
+        // =====================================================
         document.addEventListener('DOMContentLoaded', () => {
             loadDeviceList();
 
-            document.getElementById('deviceSelect').addEventListener('change', (e) => {
+            document.getElementById('deviceSelect').addEventListener('change', async (e) => {
                 selectedDevice = e.target.value;
                 if (selectedDevice) {
-                    resetState();
+                    // Show device info + upload row
+                    document.getElementById('deviceUploadRow').classList.add('visible');
+                    document.getElementById('selectedDeviceName').textContent = selectedDevice;
+                    document.getElementById('selectedDeviceStatus').textContent = 'Files uploaded will be directed to this device';
+
+                    // Load device file status
+                    await loadDeviceStatus(selectedDevice);
+
+                    // Load tags
+                    resetTagState();
                     loadRootTags();
                 } else {
+                    document.getElementById('deviceUploadRow').classList.remove('visible');
+                    hideUploadResult();
                     showNoDevice();
                 }
             });
@@ -679,7 +955,6 @@
                 searchTimeout = setTimeout(() => {
                     searchQuery = e.target.value.toLowerCase();
                     if (searchQuery) {
-                        // Switch to flat view for search
                         setViewMode('flat');
                         loadFlatTags(true);
                     } else {
@@ -688,25 +963,43 @@
                 }, 300);
             });
 
-            // Setup virtual scroll
             document.getElementById('treeBody').addEventListener('scroll', handleScroll);
+
+            // Upload zone drag-and-drop
+            const uploadZone = document.getElementById('uploadZone');
+            const fileInput = document.getElementById('fileInput');
+
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFile(e.dataTransfer.files[0]);
+                }
+            });
+
+            uploadZone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    handleFile(e.target.files[0]);
+                }
+            });
         });
 
-        function resetState() {
-            currentPath = '';
-            expandedPaths.clear();
-            loadedChildren = {};
-            childrenOffset = {};
-            childrenTotal = {};
-            isLoadingMore = {};
-            flatTags = [];
-            flatOffset = 0;
-            flatTotal = 0;
-            liveValues = {};
-            simulatedTags.clear();
-            simulationEngineAvailable = false;
-        }
-
+        // =====================================================
+        // Device list
+        // =====================================================
         async function loadDeviceList() {
             try {
                 const response = await fetch('/data/logixemulator/devices', { credentials: 'include' });
@@ -728,12 +1021,244 @@
                     if (deviceParam) {
                         select.value = deviceParam;
                         selectedDevice = deviceParam;
-                        loadRootTags();
+                        select.dispatchEvent(new Event('change'));
                     }
                 }
             } catch (error) {
                 console.error('Error loading devices:', error);
             }
+        }
+
+        // =====================================================
+        // Device file status (from upload page)
+        // =====================================================
+        async function loadDeviceStatus(deviceName) {
+            const container = document.getElementById('fileStatusContainer');
+
+            try {
+                const response = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/status`, {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    displayFileStatus(data);
+                } else {
+                    container.innerHTML = `<p class="no-file-message">Unable to fetch device status (HTTP ${response.status})</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading device status:', error);
+                container.innerHTML = `<p class="no-file-message">Error loading status: ${error.message}</p>`;
+            }
+        }
+
+        function displayFileStatus(statusData) {
+            const container = document.getElementById('fileStatusContainer');
+
+            if (statusData.hasFile) {
+                const fileSize = (statusData.fileSize / 1024 / 1024).toFixed(2);
+                const uploadDate = new Date(statusData.lastModified).toLocaleString();
+                let displayName = statusData.fileName;
+                if (!displayName && statusData.filePath) {
+                    displayName = statusData.filePath.split('/').pop().split('\\').pop();
+                }
+                displayName = displayName || 'Unknown file';
+
+                container.innerHTML = `
+                    <div class="file-status">
+                        <div class="file-status-header">
+                            <span class="file-status-label">Current File:</span>
+                            <button class="btn-delete" onclick="deleteFile('${escapeAttr(statusData.deviceName)}')" title="Delete file">Delete</button>
+                        </div>
+                        <div style="margin-bottom: 2px;">
+                            <span class="file-status-label">Name:</span>
+                            <span class="file-status-value">${escapeHtml(displayName)}</span>
+                        </div>
+                        <div style="margin-bottom: 2px;">
+                            <span class="file-status-label">Size:</span>
+                            <span class="file-status-value">${fileSize} MB</span>
+                        </div>
+                        <div>
+                            <span class="file-status-label">Uploaded:</span>
+                            <span class="file-status-value">${uploadDate}</span>
+                        </div>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '<p class="no-file-message">No file uploaded yet</p>';
+            }
+        }
+
+        // =====================================================
+        // File upload handling
+        // =====================================================
+        function handleFile(file) {
+            const reader = new FileReader();
+
+            reader.onload = (e) => {
+                currentFileContent = e.target.result;
+                showUploadResult(file);
+
+                const uploadZone = document.getElementById('uploadZone');
+                uploadZone.classList.add('success');
+                setTimeout(() => uploadZone.classList.remove('success'), 1000);
+            };
+
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+                announceStatus('Error reading file. Please try again.');
+            };
+
+            reader.readAsText(file);
+        }
+
+        function showUploadResult(file) {
+            document.getElementById('uploadFileName').textContent = file.name;
+            document.getElementById('uploadFileMeta').textContent = `(${formatBytes(file.size)}, ${file.name.split('.').pop().toUpperCase()})`;
+            document.getElementById('uploadResultBar').classList.add('visible');
+            document.getElementById('uploadSuccessMsg').classList.remove('visible');
+            document.getElementById('uploadBtn').disabled = false;
+            document.getElementById('uploadBtn').textContent = 'Upload to Device';
+            document.getElementById('uploadBtn').style.background = '';
+            announceStatus(`File ${file.name} loaded, ${formatBytes(file.size)}`);
+        }
+
+        function hideUploadResult() {
+            document.getElementById('uploadResultBar').classList.remove('visible');
+            currentFileContent = '';
+            document.getElementById('fileInput').value = '';
+        }
+
+        function resetUpload() {
+            hideUploadResult();
+        }
+
+        async function uploadToDevice() {
+            if (!selectedDevice) {
+                announceStatus('Please select a device first');
+                return;
+            }
+
+            if (!currentFileContent) {
+                announceStatus('No file content loaded. Please select a file first.');
+                return;
+            }
+
+            const uploadBtn = document.getElementById('uploadBtn');
+            const originalText = uploadBtn.textContent;
+
+            try {
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+
+                const fileName = document.getElementById('uploadFileName').textContent;
+                const uploadUrl = `/data/logixemulator/upload?device=${encodeURIComponent(selectedDevice)}`;
+
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'text/plain',
+                        'X-Filename': fileName
+                    },
+                    body: currentFileContent
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    document.getElementById('uploadedDeviceName').textContent = selectedDevice;
+                    document.getElementById('uploadSuccessMsg').classList.add('visible');
+
+                    uploadBtn.textContent = 'Uploaded!';
+                    uploadBtn.style.background = '#10b981';
+
+                    announceStatus(`File uploaded successfully to ${selectedDevice}`);
+
+                    // Refresh device status and tags
+                    await loadDeviceStatus(selectedDevice);
+                    resetTagState();
+                    loadRootTags();
+
+                    setTimeout(() => {
+                        uploadBtn.textContent = originalText;
+                        uploadBtn.style.background = '';
+                        uploadBtn.disabled = false;
+                    }, 3000);
+                } else {
+                    const errorMsg = result.error || result.message || 'Upload failed';
+                    throw new Error(errorMsg);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                announceStatus(`Upload failed: ${error.message}`);
+                uploadBtn.textContent = originalText;
+                uploadBtn.disabled = false;
+            }
+        }
+
+        // =====================================================
+        // File delete
+        // =====================================================
+        function deleteFile(deviceName) {
+            showConfirmModal(deviceName);
+        }
+
+        function showConfirmModal(deviceName) {
+            pendingDeleteDevice = deviceName;
+            document.getElementById('modalMessage').textContent = `Are you sure you want to delete the file for device "${deviceName}"? This cannot be undone.`;
+            document.getElementById('modalConfirmBtn').onclick = confirmDelete;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+            pendingDeleteDevice = null;
+        }
+
+        async function confirmDelete() {
+            const deviceName = pendingDeleteDevice;
+            closeConfirmModal();
+            if (!deviceName) return;
+
+            try {
+                const response = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/delete`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    announceStatus(`File deleted successfully: ${result.fileName}`);
+                    await loadDeviceStatus(deviceName);
+                    resetTagState();
+                    loadRootTags();
+                } else {
+                    announceStatus(`Error deleting file: ${result.error}`);
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                announceStatus('Error deleting file. Check console for details.');
+            }
+        }
+
+        // =====================================================
+        // Tag browser
+        // =====================================================
+        function resetTagState() {
+            currentPath = '';
+            expandedPaths.clear();
+            loadedChildren = {};
+            childrenOffset = {};
+            childrenTotal = {};
+            isLoadingMore = {};
+            flatTags = [];
+            flatOffset = 0;
+            flatTotal = 0;
+            liveValues = {};
+            simulatedTags.clear();
+            simulationEngineAvailable = false;
         }
 
         function setViewMode(mode) {
@@ -775,23 +1300,18 @@
                     childrenOffset[''] = data.tags?.length || 0;
                     childrenTotal[''] = data.totalAtLevel || 0;
 
-                    // Auto-expand the first folder (usually Controller:Global) and load its children
                     const rootTags = data.tags || [];
                     if (rootTags.length > 0) {
                         for (const tag of rootTags) {
                             if (tag.isFolder && tag.path) {
-                                // Auto-expand this folder
                                 expandedPaths.add(tag.path);
-                                // Pre-load its children
                                 await loadChildren(tag.path);
-                                break; // Only auto-expand the first folder
+                                break;
                             }
                         }
                     }
 
-                    // Load simulation state
                     await loadSimulatedTags();
-
                     renderTreeView();
                 } else {
                     showError('Failed to load tags');
@@ -814,7 +1334,6 @@
 
             try {
                 let url = `/data/logixemulator/device/${encodeURIComponent(selectedDevice)}/tags?flat=true&offset=${flatOffset}&limit=${PAGE_SIZE}`;
-
                 const response = await fetch(url, { credentials: 'include' });
 
                 if (response.ok) {
@@ -835,7 +1354,6 @@
                         flatTags = flatTags.concat(newTags);
                     }
 
-                    // Apply search filter client-side for loaded tags
                     renderFlatView();
                 } else {
                     showError('Failed to load tags');
@@ -847,7 +1365,6 @@
         }
 
         async function loadChildren(parentPath, append = false) {
-            // If already loaded and not appending, return cached
             if (loadedChildren[parentPath] && !append) {
                 return loadedChildren[parentPath];
             }
@@ -883,7 +1400,6 @@
 
         async function loadMoreChildren(parentPath) {
             if (isLoadingMore[parentPath]) return;
-
             isLoadingMore[parentPath] = true;
             await loadChildren(parentPath, true);
             isLoadingMore[parentPath] = false;
@@ -895,7 +1411,6 @@
                 expandedPaths.delete(path);
                 renderTreeView();
             } else {
-                // Show loading state
                 iconElement.classList.add('loading');
                 iconElement.textContent = '⟳';
 
@@ -919,10 +1434,7 @@
                         <div class="no-tags-compact">
                             <span class="no-tags-icon">📭</span>
                             <p class="no-tags-title">No tags found</p>
-                            <p class="no-tags-subtitle">This device has no tags configured yet</p>
-                            <div class="no-tags-actions">
-                                <a href="simple-upload.html?device=${encodeURIComponent(selectedDevice)}" class="btn btn-secondary">📤 Upload PLC File</a>
-                            </div>
+                            <p class="no-tags-subtitle">Upload a PLC file using the upload zone above to populate tags</p>
                         </div>
                     </div>
                 `;
@@ -942,12 +1454,10 @@
                 const item = { ...child, depth };
                 items.push(item);
 
-                // If folder is expanded, add its children
                 if (child.isFolder && expandedPaths.has(child.path)) {
                     const nestedItems = buildVisibleItems(child.path, depth + 1);
                     items = items.concat(nestedItems);
 
-                    // Add "Load more" entry if there are more children
                     const loadedCount = childrenOffset[child.path] || 0;
                     const totalCount = childrenTotal[child.path] || 0;
                     if (loadedCount < totalCount) {
@@ -962,7 +1472,6 @@
                 }
             }
 
-            // Also add "Load more" for the root level if needed
             if (parentPath === '') {
                 const loadedCount = childrenOffset[''] || 0;
                 const totalCount = childrenTotal[''] || 0;
@@ -983,7 +1492,6 @@
         function renderFlatView() {
             const content = document.getElementById('tagContent');
 
-            // Filter by search
             let filtered = flatTags;
             if (searchQuery) {
                 filtered = flatTags.filter(tag =>
@@ -995,7 +1503,7 @@
 
             if (filtered.length === 0) {
                 const message = searchQuery ? 'No matching tags found' : 'No tags found';
-                const subtitle = searchQuery ? 'Try a different search term' : 'This device has no tags configured yet';
+                const subtitle = searchQuery ? 'Try a different search term' : 'Upload a PLC file using the upload zone above to populate tags';
                 content.innerHTML = `
                     <div class="no-tags">
                         <div class="no-tags-compact">
@@ -1010,7 +1518,6 @@
 
             let html = filtered.map(tag => renderTagRow({ ...tag, depth: 0 })).join('');
 
-            // Add "load more" if there are more tags
             if (flatTags.length < flatTotal) {
                 html += `
                     <div class="load-more-row" onclick="loadMoreFlatTags()">
@@ -1031,12 +1538,11 @@
         function renderTagRow(item) {
             const indent = item.depth * 24;
 
-            // Handle "Load more" pseudo-item
             if (item.isLoadMore) {
                 const remaining = item.totalCount - item.loadedCount;
                 return `
                     <div class="load-more-row" style="padding-left: ${16 + indent}px" onclick="loadMoreChildren('${escapeAttr(item.parentPath)}')">
-                        📥 Load more... (${item.loadedCount.toLocaleString()} of ${item.totalCount.toLocaleString()} loaded, ${remaining.toLocaleString()} remaining)
+                        Load more... (${item.loadedCount.toLocaleString()} of ${item.totalCount.toLocaleString()} loaded, ${remaining.toLocaleString()} remaining)
                     </div>
                 `;
             }
@@ -1093,6 +1599,9 @@
             }
         }
 
+        // =====================================================
+        // Breadcrumb
+        // =====================================================
         function updateBreadcrumb() {
             const breadcrumb = document.getElementById('breadcrumb');
             if (viewMode !== 'tree') {
@@ -1101,7 +1610,7 @@
             }
 
             breadcrumb.style.display = 'flex';
-            let html = `<span class="breadcrumb-item" onclick="navigateTo('')">🏠 Root</span>`;
+            let html = `<span class="breadcrumb-item" onclick="navigateTo('')">Root</span>`;
 
             if (currentPath) {
                 const parts = currentPath.split('/');
@@ -1118,7 +1627,6 @@
 
         function navigateTo(path) {
             currentPath = path;
-            // Ensure all parent paths are expanded
             if (path) {
                 const parts = path.split('/');
                 let p = '';
@@ -1131,7 +1639,6 @@
         }
 
         function handleScroll(e) {
-            // In flat view, check if we need to load more
             if (viewMode === 'flat' && flatTags.length < flatTotal) {
                 const { scrollTop, scrollHeight, clientHeight } = e.target;
                 if (scrollHeight - scrollTop - clientHeight < 200) {
@@ -1142,7 +1649,7 @@
 
         function refreshCurrentView() {
             if (!selectedDevice) return;
-            resetState();
+            resetTagState();
             if (viewMode === 'tree') {
                 loadRootTags();
             } else {
@@ -1187,77 +1694,9 @@
             document.getElementById('statsBar').style.display = 'none';
         }
 
-        // Helper functions
-        function escapeHtml(str) {
-            if (str === null || str === undefined) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        function escapeAttr(str) {
-            if (str === null || str === undefined) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-        }
-
-        function getTagIcon(dataType) {
-            const type = (dataType || '').toUpperCase();
-            if (type === 'BOOL' || type === 'BOOLEAN') return { emoji: '🔘', class: 'bool-icon' };
-            if (['INT', 'DINT', 'SINT', 'LINT'].includes(type)) return { emoji: '🔢', class: 'int-icon' };
-            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) return { emoji: '📊', class: 'real-icon' };
-            if (type === 'STRING') return { emoji: '📝', class: 'string-icon' };
-            return { emoji: '📦', class: 'udt-icon' };
-        }
-
-        function getValueClass(dataType, value) {
-            const type = (dataType || '').toUpperCase();
-            if (type === 'BOOL' || type === 'BOOLEAN') {
-                return value === true || value === 'true' || value === 'TRUE' ? 'value-bool-true' : 'value-bool-false';
-            }
-            if (['INT', 'DINT', 'SINT', 'LINT', 'REAL', 'LREAL', 'FLOAT'].includes(type)) {
-                return 'value-number';
-            }
-            return 'value-string';
-        }
-
-        function formatValue(value, dataType) {
-            if (value === undefined || value === null || value === '') return '-';
-            const type = (dataType || '').toUpperCase();
-            if (type === 'BOOL' || type === 'BOOLEAN') {
-                return value === true || value === 'true' || value === '"true"' ? 'TRUE' : 'FALSE';
-            }
-            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) {
-                const num = parseFloat(value);
-                return isNaN(num) ? value : num.toFixed(2);
-            }
-            // Remove surrounding quotes if present
-            if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
-                return value.slice(1, -1);
-            }
-            return String(value);
-        }
-
-        function copyTagPath(path) {
-            const fullPath = `[${selectedDevice}]${path}`;
-            navigator.clipboard.writeText(fullPath).then(() => {
-                showToast(`Copied: ${fullPath}`);
-            });
-        }
-
-        function showToast(message, isError = false) {
-            const toast = document.createElement('div');
-            toast.textContent = message;
-            const bg = isError ? '#ef4444' : '#10b981';
-            toast.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${bg};color:white;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2000);
-        }
-
         // =====================================================
-        // Per-tag simulation control
+        // Simulation control
         // =====================================================
-
-        /**
-         * Load the list of tags that have simulation enabled.
-         */
         async function loadSimulatedTags() {
             if (!selectedDevice) return;
 
@@ -1285,9 +1724,6 @@
             }
         }
 
-        /**
-         * Toggle simulation for a specific tag.
-         */
         async function toggleSimulation(tagPath) {
             if (!selectedDevice) return;
 
@@ -1310,7 +1746,6 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Update local state
                     if (result.simulationEnabled) {
                         simulatedTags.add(tagPath);
                         showToast(`Simulation enabled for ${tagPath.split('/').pop()}`);
@@ -1321,7 +1756,6 @@
 
                     updateSimStatusHeader();
 
-                    // Re-render to update button state
                     if (viewMode === 'tree') {
                         renderTreeView();
                     } else {
@@ -1336,9 +1770,6 @@
             }
         }
 
-        /**
-         * Update the simulation status indicator in the header.
-         */
         function updateSimStatusHeader() {
             const statusEl = document.getElementById('simEngineStatus');
             const countEl = document.getElementById('simTagCount');
@@ -1351,7 +1782,9 @@
             }
         }
 
+        // =====================================================
         // Auto-refresh / Live values
+        // =====================================================
         function toggleAutoRefresh() {
             const toggle = document.getElementById('autoRefreshToggle');
             const indicator = document.getElementById('refreshIndicator');
@@ -1364,7 +1797,7 @@
             } else {
                 toggle.classList.add('active');
                 indicator.style.display = 'flex';
-                updateLiveValues(); // Immediate update
+                updateLiveValues();
                 autoRefreshInterval = setInterval(updateLiveValues, 1000);
             }
         }
@@ -1384,7 +1817,6 @@
                         for (const [path, value] of Object.entries(data.values)) {
                             liveValues[path] = formatValue(value, null);
 
-                            // Update displayed value
                             const tagId = path.replace(/[^a-zA-Z0-9]/g, '_');
                             const el = document.getElementById(`value-${tagId}`);
                             if (el && el.textContent !== liveValues[path]) {
@@ -1400,7 +1832,9 @@
             }
         }
 
+        // =====================================================
         // Write modal
+        // =====================================================
         function openWriteModal(tagPath, tagName, dataType, currentValue) {
             currentWriteTag = { path: tagPath, name: tagName, dataType: dataType };
 
@@ -1446,7 +1880,6 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    // Update cache and display
                     liveValues[currentWriteTag.path] = formatValue(value, currentWriteTag.dataType);
                     const tagId = currentWriteTag.path.replace(/[^a-zA-Z0-9]/g, '_');
                     const el = document.getElementById(`value-${tagId}`);
@@ -1458,11 +1891,90 @@
                     closeWriteModal();
                     showToast('Value written successfully');
                 } else {
-                    alert(`Write failed: ${result.error}`);
+                    showToast(`Write failed: ${result.error}`, true);
                 }
             } catch (error) {
-                alert(`Error writing tag: ${error.message}`);
+                showToast(`Error writing tag: ${error.message}`, true);
             }
+        }
+
+        // =====================================================
+        // Helpers
+        // =====================================================
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeAttr(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+        }
+
+        function getTagIcon(dataType) {
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') return { emoji: '🔘', class: 'bool-icon' };
+            if (['INT', 'DINT', 'SINT', 'LINT'].includes(type)) return { emoji: '🔢', class: 'int-icon' };
+            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) return { emoji: '📊', class: 'real-icon' };
+            if (type === 'STRING') return { emoji: '📝', class: 'string-icon' };
+            return { emoji: '📦', class: 'udt-icon' };
+        }
+
+        function getValueClass(dataType, value) {
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') {
+                return value === true || value === 'true' || value === 'TRUE' ? 'value-bool-true' : 'value-bool-false';
+            }
+            if (['INT', 'DINT', 'SINT', 'LINT', 'REAL', 'LREAL', 'FLOAT'].includes(type)) {
+                return 'value-number';
+            }
+            return 'value-string';
+        }
+
+        function formatValue(value, dataType) {
+            if (value === undefined || value === null || value === '') return '-';
+            const type = (dataType || '').toUpperCase();
+            if (type === 'BOOL' || type === 'BOOLEAN') {
+                return value === true || value === 'true' || value === '"true"' ? 'TRUE' : 'FALSE';
+            }
+            if (['REAL', 'LREAL', 'FLOAT'].includes(type)) {
+                const num = parseFloat(value);
+                return isNaN(num) ? value : num.toFixed(2);
+            }
+            if (typeof value === 'string' && value.startsWith('"') && value.endsWith('"')) {
+                return value.slice(1, -1);
+            }
+            return String(value);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function copyTagPath(path) {
+            const fullPath = `[${selectedDevice}]${path}`;
+            navigator.clipboard.writeText(fullPath).then(() => {
+                showToast(`Copied: ${fullPath}`);
+            });
+        }
+
+        function showToast(message, isError = false) {
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            const bg = isError ? '#ef4444' : '#10b981';
+            toast.style.cssText = `position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:${bg};color:white;padding:12px 24px;border-radius:8px;font-size:14px;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.3);`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        function announceStatus(message) {
+            const announcement = document.getElementById('statusAnnouncement');
+            announcement.textContent = message;
+            setTimeout(() => announcement.textContent = '', 3000);
         }
     </script>
 </body>

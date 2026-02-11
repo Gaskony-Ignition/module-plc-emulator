@@ -63,7 +63,7 @@ The original "Programmable Device Simulator" has an "Edit Program" menu item bec
 | **Rockwell L5K** | `.l5k`, `.L5K` | Allen-Bradley RSLogix 5000 / Studio 5000 export files |
 | **JSON** | `.json`, `.JSON` | Custom JSON tag definition format |
 | **CSV** | `.csv`, `.CSV` | Comma-separated tag list |
-| **Siemens XML** | `.xml`, `.XML` | TIA Portal export files |
+| **Rockwell L5X** | `.l5x`, `.L5X` | Allen-Bradley Studio 5000 XML export files |
 
 ---
 
@@ -72,7 +72,7 @@ The original "Programmable Device Simulator" has an "Edit Program" menu item bec
 ### 1. Install the Module
 - Navigate to **Gateway → Config → System → Modules**
 - Click **"Install or Upgrade a Module"**
-- Upload `EnhancedPLCSimulator-1.4.0.modl`
+- Upload `LogixPLCEmulator-8.1.0.modl`
 - Restart Gateway if prompted
 
 ### 2. Create Device(s)
@@ -158,6 +158,7 @@ After uploading a file:
 
 | Task | Method | URL / Location |
 |------|--------|----------------|
+| Upload files & browse tags | Connection Browser | `/data/logixemulator/connection-browser` |
 | Upload files | Edit Program page | `/res/logixemulator/edit-program.html` |
 | Configure device | Gateway Config | `Config → OPC UA → Device Connections` |
 | View tags | OPC Browser | Designer → Tools → OPC Browser |
@@ -186,7 +187,7 @@ After uploading a file:
 
 ## Version
 
-**Module Version:** 5.4.9
-**Release Date:** 2025-11-22
+**Module Version:** 8.1.0
+**Release Date:** 2026-02-11
 **Ignition Compatibility:** 8.3.0+
-**Major Release:** v5.4.9 - Security hardened with comprehensive test coverage
+**Major Release:** v8.1.0 - Unified Connection Browser

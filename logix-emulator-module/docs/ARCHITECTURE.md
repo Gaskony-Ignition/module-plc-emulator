@@ -15,7 +15,7 @@
 The Logix PLC Emulator is an Ignition Gateway module that provides virtual PLC device simulation through OPC-UA. It allows users to upload PLC program files (L5K, L5X, JSON, CSV) which are parsed and exposed as OPC-UA tags in a hierarchical structure.
 
 ### Key Features
-- **Multi-vendor PLC file support** (Rockwell, Siemens, Schneider, Beckhoff, Gaskony)
+- **Rockwell Logix PLC file support** (L5K, L5X, JSON, CSV)
 - **OPC-UA device driver** appearing in Gateway Config → Devices dropdown
 - **Hierarchical tag structure** with UDT expansion
 - **Web-based file upload** with embedded React UI
@@ -37,7 +37,7 @@ The Logix PLC Emulator is an Ignition Gateway module that provides virtual PLC d
 ### Module Scopes
 
 ```
-Logix PLC Emulator (v5.4.9)
+Logix PLC Emulator (v8.1.0)
 ├── Gateway (G)     - Core device driver and OPC-UA server
 ├── Designer (D)    - Design-time integration (minimal)
 ├── Common (GD)     - Shared code between Gateway and Designer
@@ -75,8 +75,10 @@ logix-emulator-module/
 │   │       └── FileVersionManager.java
 │   ├── src/main/resources/mounted/  # Mounted web resources
 │   │   ├── index.html
-│   │   ├── edit-program.html
 │   │   └── plc-file-upload.js
+│   ├── src/main/resources/pages/    # Authenticated HTML pages
+│   │   ├── connection-browser.html  # Unified tag browser + file upload
+│   │   └── edit-program.html
 │   └── src/test/java/               # Unit tests
 │       └── com/inductiveautomation/plcsimulator/gateway/
 │           ├── parser/L5XParserTest.java
@@ -612,7 +614,7 @@ User Creates Device in Gateway Config
 # Build module (creates .modl file)
 ./gradlew build
 
-# Output: build/EnhancedPLCSimulator-5.4.9.modl
+# Output: build/LogixPLCEmulator-8.1.0.modl
 ```
 
 ### Module Signing
@@ -758,7 +760,16 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 
 ## Version History
 
-### v5.4.9 (Current)
+### v8.1.0 (Current)
+- ✅ Unified Connection Browser (merged File Upload + Tag Browser)
+- ✅ Single navigation entry in Gateway Config
+
+### v8.0.0
+- ✅ Renamed to Logix PLC Emulator
+- ✅ Removed unused vendor parsers
+- ✅ SINT simulation support
+
+### v5.4.9
 - ✅ Fixed critical XXE vulnerability
 - ✅ Fixed authentication bypass
 - ✅ Fixed path traversal vulnerabilities
@@ -781,7 +792,7 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 
 ---
 
-**Last Updated**: 2025-11-22
-**Module Version**: 5.4.9
+**Last Updated**: 2026-02-11
+**Module Version**: 8.1.0
 **Ignition SDK**: 8.3.0
 **Java Version**: 17

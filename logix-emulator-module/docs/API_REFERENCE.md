@@ -1,7 +1,7 @@
 # API Reference - Logix PLC Emulator
 
-**Version**: 5.4.9
-**Last Updated**: 2025-11-22
+**Version**: 8.1.0
+**Last Updated**: 2026-02-11
 **Base URL**: `http://your-gateway:8088`
 
 ---
@@ -497,7 +497,7 @@ curl -u admin:password http://localhost:8088/data/logixemulator/status
 **Success (200 OK)**:
 ```json
 {
-  "moduleVersion": "5.4.9",
+  "moduleVersion": "8.1.0",
   "moduleStatus": "Running",
   "totalDevices": 2,
   "runningDevices": 1,
@@ -564,15 +564,20 @@ Edit Program page with drag-and-drop file upload.
 </html>
 ```
 
-### GET /res/logixemulator/simple-upload.html
+### GET /data/logixemulator/connection-browser
 
-Simple file upload form (alternative to edit-program.html).
+Connection Browser - unified tag browsing and file upload page.
 
-**URL**: `http://localhost:8088/res/logixemulator/simple-upload.html`
+**URL**: `http://localhost:8088/data/logixemulator/connection-browser`
 
-**Authentication**: No (public resource, but uploads require auth)
+**Authentication**: Yes (requires Gateway login)
 
-**Description**: Basic HTML form for file upload without JavaScript.
+**Description**: Combined interface for browsing device tags and managing PLC files:
+- Device selector with tag tree/flat view
+- Drag-and-drop file upload zone
+- Live tag values with write support
+- Simulation controls
+- File status and management
 
 ---
 
@@ -698,9 +703,9 @@ ROCKWELL_L5K
 
 ### Current Implementation
 
-**Status**: Not implemented in v5.4.9
+**Status**: Not implemented in v8.1.0
 
-**Planned for v5.5.0**:
+**Planned for future release**:
 - 100 uploads per hour per user
 - 1000 uploads per hour per IP address
 - Configurable limits in Gateway Config

@@ -1,8 +1,8 @@
 # CLAUDE_CONTEXT.md - Logix PLC Emulator Module
 
 > **Purpose**: Optimized context file for AI-assisted development with Claude Code.
-> **Last Updated**: 2025-11-22
-> **Module Version**: 5.4.9
+> **Last Updated**: 2026-02-11
+> **Module Version**: 8.1.0
 
 ---
 
@@ -10,7 +10,7 @@
 
 **Name**: Logix PLC Emulator
 **Type**: Ignition Gateway Module (Device Driver)
-**Purpose**: Multi-vendor PLC simulation with OPC-UA integration
+**Purpose**: Rockwell Logix PLC emulation with OPC-UA integration
 **Core Functionality**: Parses L5K/L5X/JSON/CSV files → Creates hierarchical OPC-UA tags → Simulates dynamic values
 
 **Key Value Proposition**: Allows testing HMI/SCADA applications without physical PLC hardware by simulating realistic tag structures from vendor export files.
@@ -19,18 +19,17 @@
 
 ## Current Development Phase
 
-**Version**: 5.4.9 (Production Ready - Security Hardened)
+**Version**: 8.1.0 (Production Ready)
 **Phase**: Production + Quality Assurance
-**Status**: All critical security vulnerabilities resolved, comprehensive test coverage, CI/CD automated
-**Last Major Release**: v5.4.9 (2025-11-22) - Security fixes, testing suite, CI/CD pipeline
+**Status**: Unified Connection Browser, all security vulnerabilities resolved, comprehensive test coverage
+**Last Major Release**: v8.1.0 (2026-02-11) - Unified Connection Browser
 
-**Recent Changes (Last Session - 2025-11-22)**:
-- ✅ v5.4.9: Fixed all critical security vulnerabilities (XXE, authentication bypass, path traversal, hardcoded credentials, DoS)
-- ✅ Comprehensive test suite added (40 tests - all passing)
-- ✅ Dependencies updated (Gson 2.11.0, Modl plugin 0.5.0)
-- ✅ CI/CD pipeline implemented (GitHub Actions)
-- ✅ ARCHITECTURE.md documentation created
-- ✅ Security best practices documented
+**Recent Changes (Last Session - 2026-02-11)**:
+- ✅ v8.1.0: Merged File Upload + Tag Browser into unified Connection Browser
+- ✅ Single navigation entry in Gateway Config
+- ✅ New ConnectionBrowser React wrapper component
+- ✅ Old routes (`/page`, `/tag-browser`) redirect to Connection Browser for backwards compat
+- ✅ v8.0.0: Renamed module to Logix PLC Emulator, removed unused vendor parsers
 
 ---
 
@@ -62,8 +61,8 @@
 ## Project Structure
 
 ```
-/modules/ignition-plc-simulator/logix-emulator-module/
-├── build.gradle.kts                    # Build configuration (version: 5.4.9)
+/modules/ignition-module-plc-emulator/logix-emulator-module/
+├── build.gradle.kts                    # Build configuration (version: 8.1.0)
 ├── gradle.properties                   # Signing config (uses environment variables)
 ├── CHANGELOG.md                        # Detailed version history ⭐
 ├── README.md                          # Project overview
@@ -110,11 +109,12 @@
         │
         └── resources/
             ├── LogixEmulator.properties      # i18n display names
-            └── mounted/                          # Web resources
-                ├── index.html                    # Landing page
-                ├── simple-upload.html            # Upload interface
-                ├── plc-file-upload.js            # Client-side enhancement
-                └── (other HTML/JS files)
+            ├── mounted/                          # Public web resources
+            │   ├── index.html                    # Landing page
+            │   └── plc-file-upload.js            # Client-side enhancement
+            └── pages/                            # Authenticated HTML pages
+                ├── connection-browser.html        # Unified tag browser + file upload
+                └── edit-program.html              # PLC program editor
 ```
 
 ---
@@ -165,9 +165,9 @@ LogixEmulatorConfig(
 
 ### Building
 ```bash
-cd /modules/ignition-plc-simulator/logix-emulator-module
+cd /modules/ignition-module-plc-emulator/logix-emulator-module
 ./gradlew clean build
-# Output: build/EnhancedPLCSimulator-2.0.5.modl (~12MB)
+# Output: build/LogixPLCEmulator-8.1.0.modl (~12MB)
 ```
 
 ### Testing
@@ -319,16 +319,12 @@ tail -f /var/log/ignition/wrapper.log
 
 ## Success Metrics
 
-**Module Quality Score**: 7.5/10 (per 2025-11-11 code review)
-
 **Production Readiness**:
 - ✅ Core functionality complete
 - ✅ Parser system operational
-- ⚠️ Security hardening needed
-- ⚠️ Simulation feature incomplete
+- ✅ Security hardened (v5.4.9+)
+- ✅ Unified Connection Browser (v8.1.0)
 - ✅ Documentation comprehensive
-
-**Next Milestone**: v2.1.0 with security fixes and additional parsers
 
 ---
 
@@ -342,7 +338,7 @@ tail -f /var/log/ignition/wrapper.log
 ./gradlew clean build
 
 # Install locally
-cp build/EnhancedPLCSimulator-2.0.5.modl ~/ignition/user-lib/modules/
+cp build/LogixPLCEmulator-8.1.0.modl ~/ignition/user-lib/modules/
 
 # Check what changed
 git status
@@ -354,7 +350,7 @@ git commit -m "feat: description"
 git push origin master
 
 # View logs in Ignition
-tail -f /var/log/ignition/wrapper.log | grep plcsimulator
+tail -f /var/log/ignition/wrapper.log | grep logixemulator
 ```
 
 ---

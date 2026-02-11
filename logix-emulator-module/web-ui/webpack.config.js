@@ -16,8 +16,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
   return {
     mode,
     entry: {
-      plcUpload: [path.join(__dirname, "src/pages/PLCUpload/index.ts")],
-      tagBrowser: [path.join(__dirname, "src/pages/TagBrowser/index.ts")],
+      connectionBrowser: [path.join(__dirname, "src/pages/ConnectionBrowser/index.ts")],
     },
     output: {
       // Export as SystemJS module for Ignition gateway
