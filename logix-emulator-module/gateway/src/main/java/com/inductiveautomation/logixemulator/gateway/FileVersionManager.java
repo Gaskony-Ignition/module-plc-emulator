@@ -7,10 +7,10 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,7 +22,7 @@ public class FileVersionManager {
 
     private static final Logger logger = LoggerFactory.getLogger(FileVersionManager.class);
     private static final int MAX_VERSIONS = 5; // Keep last 5 versions
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyyMMdd_HHmmss");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
 
     private final File storageDir;
     private final String deviceName;
@@ -65,7 +65,7 @@ public class FileVersionManager {
             }
 
             // Generate version filename with timestamp
-            String timestamp = DATE_FORMAT.format(new Date());
+            String timestamp = LocalDateTime.now().format(DATE_FORMAT);
             String baseFileName = getBaseFileName(fileName);
             String extension = getFileExtension(fileName);
             String versionFileName = String.format("%s_%s%s", baseFileName, timestamp, extension);

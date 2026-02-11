@@ -31,7 +31,7 @@ public class RateLimiter {
     private final Map<String, RequestCounter> ipRequests = new ConcurrentHashMap<>();
 
     // Cleanup task runs periodically to remove expired entries
-    private long lastCleanupTime = System.currentTimeMillis();
+    private volatile long lastCleanupTime = System.currentTimeMillis();
     private static final long CLEANUP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5);
 
     /**
@@ -245,10 +245,10 @@ public class RateLimiter {
 
     /**
      * Counter for tracking requests in a time window.
-     * Uses sliding window algorithm.
+     * Resets automatically when the window expires.
      */
     private static class RequestCounter {
-        private final long startTime;
+        private volatile long startTime;
         private final AtomicInteger count = new AtomicInteger(0);
 
         public RequestCounter(long startTime) {
@@ -258,14 +258,15 @@ public class RateLimiter {
         /**
          * Check if a request is allowed (without incrementing).
          * Returns true if within limits, false if exceeded.
+         * Resets the counter when the window has expired.
          */
-        public boolean allowRequest(long now, long windowMs, int maxRequests) {
-            // Check if window has expired and should be reset
+        public synchronized boolean allowRequest(long now, long windowMs, int maxRequests) {
             if (isExpired(now, windowMs)) {
-                return true; // New window, allow request
+                // Reset for new window
+                count.set(0);
+                startTime = now;
+                return true;
             }
-
-            // Check if we're at the limit
             return count.get() < maxRequests;
         }
 

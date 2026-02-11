@@ -2,195 +2,110 @@
 
 ## Overview
 
-This document outlines the phased development approach for expanding the Logix PLC Emulator module.
+This document outlines the development history and future direction of the Logix PLC Emulator module.
+
+## Current State (v8.2.0)
+
+The module is production-ready, focused on Rockwell Logix PLC emulation with the following capabilities:
+
+- **Parsers**: Rockwell L5K/L5X, JSON, CSV
+- **OPC-UA Integration**: Full device driver with hierarchical tag structure
+- **Simulation Engine**: 5 patterns (STATIC, RAMP, SINE, RANDOM, TOGGLE)
+- **Web UI**: Connection Browser with unified tag browsing and file upload
+- **Security**: XXE prevention, path traversal protection, authentication, rate limiting
+- **Test Coverage**: 92 tests (100% passing)
 
 ## Completed Phases
 
-### Phase 1: Stabilization & Core Completion (v5.5.0) ✅ COMPLETED
+### Phase 1: Core Implementation (v1.0.0 - v3.0.0)
 
-**Goals**: Fix all known issues, complete simulation engine, add security hardening
-
-**Completed Tasks:**
-- ✅ Updated KNOWN_ISSUES.md to reflect actual current state
-- ✅ Completed Simulation Engine implementation
-  - All 5 patterns now functional: STATIC, RAMP, SINE, RANDOM, TOGGLE
-  - Real-time node value updates via functional interface pattern
-  - Configurable update intervals (default 1000ms, minimum 100ms)
-- ✅ Implemented Rate Limiting
-  - Dual user + IP based rate limiting
-  - Sliding window algorithm
-  - 100 requests/hour per user, 1000 requests/hour per IP
-  - Automatic cleanup of stale entries
-- ✅ Security hardening (v5.4.9)
-  - XXE attack prevention
-  - Path traversal protection
-  - Authentication bypass fixes
-  - File size DoS prevention
-
-**Outcome**: Module is fully stable with all core features working correctly.
+- Basic Rockwell L5K support
+- Device driver architecture with OPC-UA integration
+- Pure Java parsers (L5K, L5X, JSON, CSV)
+- Complete Rockwell predefined type support (22 types including TIMER, COUNTER, PID, PIDE)
+- UDT expansion with nested members
 
 ---
 
-### Phase 2: Market Expansion - Multi-Vendor Support (v6.0.0 - v6.5.0) ✅ COMPLETED
+### Phase 2: Stabilization & Security (v5.4.9 - v5.5.0)
 
-**Goals**: Expand beyond Rockwell to support multiple PLC vendors
-
-**Completed Tasks (v6.0.0):**
-- ✅ **Siemens TIA Portal Parser** - S7-1200/1500/1500T support
-- ✅ **Schneider Electric Parser** - Unity Pro/EcoStruxure
-- ✅ **Beckhoff TwinCAT Parser** - TwinCAT 2/3 support
-
-**Completed Tasks (v6.5.0):**
-- ✅ **Mitsubishi Electric Parser** - GX Works 2/3 CSV
-- ✅ **ABB Parser** - Automation Builder/Control Builder Plus
-
-**Outcome**: 85% global market coverage across 6 major PLC vendors.
+- XXE attack prevention
+- Path traversal protection
+- Authentication bypass fixes
+- File size DoS prevention
+- Simulation engine completion (all 5 patterns)
+- Rate limiting implementation
+- Comprehensive test suite
 
 ---
 
-### Phase 3: Performance & Code Quality (v7.0.0) ✅ COMPLETED
+### Phase 3: Code Quality (v7.0.0)
 
-**Goals**: Optimize address space operations, refactor code, expand vendor coverage
-
-**Completed Tasks:**
-- ✅ **Omron Parser** - CX-Programmer and Sysmac Studio support
-  - Brings total to 7 vendors, 92% market coverage
-  - 11 comprehensive tests
-
-- ✅ **Incremental Address Space Updates**
-  - `IncrementalAddressSpaceUpdater.java` - Smart change detection
-  - Value-only updates without OPC-UA client disconnection
-  - Full rebuild only when structure changes
-  - 10 comprehensive tests
-
-- ✅ **Major Code Refactoring**
-  - L5KParser: 843→378 lines (55% reduction)
-    - Extracted `UDTDefinition.java`
-    - Extracted `RockwellBuiltInTypes.java`
-  - FileUploadRoutes: 1067→304 lines (72% reduction)
-    - Extracted `PathSecurity.java`
-    - Extracted `AuthenticationHelper.java`
-    - Extracted `DeviceFileManager.java`
-
-- ✅ **UI Enhancements**
-  - New Tag Browser page (`tag-browser.html`)
-  - `/device/:name/tags` API endpoint
-  - Device selector, search, folder tree, auto-refresh
-
-- ✅ **Test Coverage Enhancement**
-  - Before: 64 tests
-  - After: 153 tests (139% increase)
-  - 100% passing
-
-**Metrics:**
-- **Market Coverage**: 92% of global industrial automation market
-- **Vendors Supported**: 7 (Siemens, Rockwell, Mitsubishi, Omron, Schneider, ABB, Beckhoff)
-- **Total Tests**: 153 (100% passing)
-- **Code Reduction**: ~1,200 lines removed through refactoring
-
-**Outcome**: Production-ready module with 92% market coverage, clean codebase, and comprehensive testing.
+- L5KParser refactored: 843 -> 378 lines (55% reduction)
+- FileUploadRoutes refactored: 1067 -> 304 lines (72% reduction)
+- Extracted helper classes (UDTDefinition, RockwellBuiltInTypes, PathSecurity, AuthenticationHelper, DeviceFileManager)
+- Incremental address space updates (smart change detection)
+- Tag Browser UI
 
 ---
 
-## Current Phase
+### Phase 4: Rename & Refocus (v8.0.0)
 
-### Phase 4: Advanced Features (v8.0.0) 📋 PLANNED
-
-**Goals**: Add value-added features beyond basic simulation
-
-**Proposed Features:**
-- **Alarm Integration**
-  - Parse PLC alarm definitions
-  - Generate Ignition alarms from PLC alarm tags
-  - Alarm state simulation
-
-- **Trending & Logging**
-  - Automatic historian tag creation
-  - Historical data simulation
-  - Pre-populated historical trends
-
-- **Advanced Simulation**
-  - Custom expression-based simulation
-  - Interlinked tag simulation (e.g., totalizers, calculated values)
-  - Event-driven simulation scenarios
-
-- **Data Export/Import**
-  - Export tag configuration to CSV/JSON
-  - Import tag values from CSV (batch initialization)
-  - Tag mapping between different PLC types
+- **Breaking change**: Renamed from "Enhanced PLC Simulator" to "Logix PLC Emulator"
+- Removed multi-vendor parsers (Siemens, Schneider, Beckhoff, ABB, Mitsubishi, Omron) that were unused
+- SINT simulation support
+- Storage directory migrated from `plc-simulator` to `logix-emulator`
 
 ---
 
-### Phase 5: Community & Adoption 🌐 PLANNED
+### Phase 5: UI Unification (v8.1.0 - v8.2.0)
 
-**Goals**: Increase module adoption and community engagement
-
-**Proposed Activities:**
-- **Example Projects**
-  - Sample PLC files for each vendor
-  - Tutorial projects (process control, SCADA, etc.)
-  - Best practices documentation
-
-- **Integration Examples**
-  - Perspective component examples
-  - Vision window templates
-  - Scripting examples for tag interaction
-
-- **Community Support**
-  - GitHub Discussions setup
-  - Issue templates
-  - Contributing guidelines
-  - Code of conduct
-
-- **Educational Content**
-  - Video tutorials
-  - Blog posts / case studies
-  - Webinar presentations
+- Unified Connection Browser (merged File Upload + Tag Browser)
+- Single navigation entry in Gateway Config
+- Restyled to match Ignition 8.3 gateway theme
 
 ---
 
-## Vendor Coverage Summary
+## Future Plans
 
-**Currently Supported (v7.0.0) - 92% Global Market Coverage:**
+### Short-term
 
-| Vendor | Market Share | Parser | Tests |
-|--------|-------------|--------|-------|
-| ✅ Siemens | ~30% | TIA Portal XML | 8 |
-| ✅ Rockwell | ~25% | L5K/L5X | 25+ |
-| ✅ Schneider Electric | ~10% | Unity Pro XML/CSV | 11 |
-| ✅ Mitsubishi Electric | ~8% | GX Works CSV | 11 |
-| ✅ Omron | ~7% | CX-Programmer/Sysmac | 11 |
-| ✅ ABB | ~5% | Automation Builder | 10 |
-| ✅ Beckhoff | ~3-4% | TwinCAT 2/3 | 12 |
-| **Total** | **~92%** | **9 parsers** | **153** |
+- **Alarm Integration**: Parse PLC alarm definitions, generate Ignition alarms
+- **Advanced Simulation**: Custom expression-based simulation, interlinked tag simulation
+- **Data Export/Import**: Export tag configuration to CSV/JSON, batch tag value import
 
-**Potential Future Vendors (v8.0.0+):**
-- 🔮 Delta Electronics
-- 🔮 Panasonic
-- 🔮 Honeywell
-- 🔮 Emerson (DeltaV)
+### Medium-term
+
+- **Historical Data Simulation**: Pre-populated historical trends
+- **Enhanced UI**: Real-time value monitoring improvements, simulation controls
+
+### Long-term
+
+- **Multi-Instance Management**: Centralized device registry, inter-device communication
+- **Program Execution Simulation**: Basic ladder logic simulation
 
 ---
 
 ## Version History
 
-| Version | Release Date | Phase | Key Features |
-|---------|-------------|-------|--------------|
-| v7.0.0 | 2025-11-25 | Phase 3 | Omron support, major refactoring, incremental updates, 153 tests |
-| v6.5.0 | 2025-11-24 | Phase 2 | Mitsubishi + ABB support - 85% coverage |
-| v6.0.0 | 2025-11-XX | Phase 2 | Siemens, Schneider, Beckhoff - 75% coverage |
-| v5.4.9 | 2025-11-22 | Phase 1 | Security hardening, 40 tests |
-| v3.0.0 | 2025-11-XX | Core | Complete Rockwell type support (22 types) |
-| v2.0.0 | 2025-11-XX | Core | Device driver architecture, Java parsers |
-| v1.0.0 | 2025-11-XX | Initial | Basic Rockwell L5K support |
+| Version | Key Features |
+|---------|--------------|
+| v8.2.0 | Restyled Connection Browser for Ignition 8.3 theme |
+| v8.1.0 | Unified Connection Browser (merged File Upload + Tag Browser) |
+| v8.0.0 | Renamed to Logix PLC Emulator, removed multi-vendor parsers |
+| v7.0.0 | Major code refactoring, incremental updates, Tag Browser |
+| v5.5.0 | Simulation engine, rate limiting |
+| v5.4.9 | Security hardening (XXE, auth, path traversal) |
+| v3.0.0 | Complete Rockwell type support (22 types) |
+| v2.0.0 | Device driver architecture, pure Java parsers |
+| v1.0.0 | Basic Rockwell L5K support |
 
 ---
 
 ## Notes
 
 - This roadmap is subject to change based on user feedback and priorities
-- Phases may be reordered or combined based on resource availability
-- Version numbers are approximate and may adjust based on scope changes
 - Security and stability always take priority over new features
+- The module requires Ignition 8.3+
 
-**Last Updated**: November 2025 (v7.0.0 release)
+**Last Updated**: February 2026 (v8.2.0 release)

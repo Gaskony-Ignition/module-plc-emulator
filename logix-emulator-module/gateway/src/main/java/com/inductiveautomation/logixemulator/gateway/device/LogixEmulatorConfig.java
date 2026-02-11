@@ -16,7 +16,7 @@ public record LogixEmulatorConfig(General general, ParserSettings parser, Simula
 
     /**
      * Supported PLC file parser types.
-     * Multi-vendor support for major PLC platforms.
+     * Supported PLC file parser types for Rockwell Logix emulation.
      */
     public enum ParserType {
         ROCKWELL("rockwell", "Rockwell L5K/L5X (Allen-Bradley)"),
@@ -98,7 +98,7 @@ public record LogixEmulatorConfig(General general, ParserSettings parser, Simula
 
     /**
      * Parser and file settings.
-     * Upload PLC files via Gateway menu: Config → PLC Simulator → File Upload
+     * Upload PLC files via Gateway menu: Config → Logix PLC Emulator → Connection Browser
      */
     public record ParserSettings(
         // Internal fields - stored but not displayed in form

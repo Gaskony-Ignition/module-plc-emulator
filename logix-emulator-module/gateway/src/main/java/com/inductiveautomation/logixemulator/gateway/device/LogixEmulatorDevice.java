@@ -23,19 +23,24 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
+import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
+import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
+import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
+import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+
 import java.io.File;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Logix PLC Emulator Device implementation.
  *
  * This device:
- * 1. Parses PLC files (L5K, JSON, etc.) using multi-vendor parsers
+ * 1. Parses Rockwell Logix PLC files (L5K, L5X, JSON, CSV)
  * 2. Creates hierarchical OPC-UA address space
  * 3. Simulates dynamic tag values
  * 4. Supports hot-reload when file changes
@@ -100,6 +105,42 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      */
     public DeviceContext getDeviceContext() {
         return context;
+    }
+
+    /**
+     * Get the current file path for this device.
+     */
+    public String getCurrentFilePath() {
+        return currentFilePath;
+    }
+
+    /**
+     * Set the current file path for this device.
+     */
+    public void setCurrentFilePath(String path) {
+        this.currentFilePath = path;
+    }
+
+    /**
+     * Get the parsed PLC data for this device.
+     */
+    public JsonObject getParsedData() {
+        return parsedData;
+    }
+
+    /**
+     * Trigger a reload from the current file on disk.
+     */
+    public void reloadFromFile(File file) {
+        handleFileChange(file);
+    }
+
+    /**
+     * Clear the device's address space and reset to waiting state.
+     */
+    public void clearAndReset() {
+        parsedData = null;
+        clearAddressSpace();
     }
 
     /**
@@ -703,11 +744,10 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         logger.debug("Removing all nodes for device: {}", deviceName);
 
         // Collect all node IDs that belong to this device
-        java.util.List<org.eclipse.milo.opcua.stack.core.types.builtin.NodeId> nodesToRemove =
-            new java.util.ArrayList<>();
+        List<NodeId> nodesToRemove = new ArrayList<>();
 
         getNodeManager().getNodes().forEach(node -> {
-            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId = node.getNodeId();
+            NodeId nodeId = node.getNodeId();
             Object identifier = nodeId.getIdentifier();
             if (identifier instanceof String) {
                 String idStr = (String) identifier;
@@ -720,7 +760,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         });
 
         // Remove all collected nodes
-        for (org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId : nodesToRemove) {
+        for (NodeId nodeId : nodesToRemove) {
             getNodeManager().removeNode(nodeId);
         }
 
@@ -756,7 +796,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      * Get the root NodeId for this device's OPC-UA address space.
      * @return The root folder's NodeId
      */
-    public org.eclipse.milo.opcua.stack.core.types.builtin.NodeId getRootNodeId() {
+    public NodeId getRootNodeId() {
         return rootNode != null ? rootNode.getNodeId() : null;
     }
 
@@ -768,11 +808,11 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
     public Object readTagValue(String tagPath) {
         try {
             // Build the full NodeId for this tag using DeviceContext.nodeId()
-            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId =
+            NodeId nodeId =
                 context.nodeId(tagPath);
 
             var node = getNodeManager().get(nodeId);
-            if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
+            if (node instanceof UaVariableNode varNode) {
                 var dataValue = varNode.getValue();
                 if (dataValue != null && dataValue.getValue() != null) {
                     return dataValue.getValue().getValue();
@@ -792,13 +832,13 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      */
     public boolean writeTagValue(String tagPath, Object value) {
         try {
-            org.eclipse.milo.opcua.stack.core.types.builtin.NodeId nodeId =
+            NodeId nodeId =
                 context.nodeId(tagPath);
 
             var node = getNodeManager().get(nodeId);
-            if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
-                var variant = new org.eclipse.milo.opcua.stack.core.types.builtin.Variant(value);
-                var dataValue = new org.eclipse.milo.opcua.stack.core.types.builtin.DataValue(variant);
+            if (node instanceof UaVariableNode varNode) {
+                var variant = new Variant(value);
+                var dataValue = new DataValue(variant);
                 varNode.setValue(dataValue);
                 logger.debug("Wrote value {} to tag {}", value, tagPath);
                 return true;
@@ -814,13 +854,13 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      * Used by the tag browser API.
      * @return Map of tag path to current value
      */
-    public java.util.Map<String, Object> getAllTagValues() {
-        java.util.Map<String, Object> values = new java.util.HashMap<>();
+    public Map<String, Object> getAllTagValues() {
+        Map<String, Object> values = new HashMap<>();
 
         try {
             // Iterate all nodes in the node manager
             getNodeManager().getNodes().forEach(node -> {
-                if (node instanceof org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode varNode) {
+                if (node instanceof UaVariableNode varNode) {
                     String browseName = varNode.getBrowseName().getName();
                     try {
                         var dataValue = varNode.getValue();
@@ -918,11 +958,11 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      * Get all tags that have simulation enabled.
      * @return Set of tag paths with simulation enabled
      */
-    public java.util.Set<String> getSimulatedTags() {
+    public Set<String> getSimulatedTags() {
         if (simulationEngine != null) {
             return simulationEngine.getSimulatedTags();
         }
-        return java.util.Collections.emptySet();
+        return Collections.emptySet();
     }
 
     /**
@@ -959,7 +999,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      */
     public void enableSimulationByScope(String scope) {
         if (simulationEngine != null) {
-            java.util.Set<String> allPaths = getAllTagValues().keySet();
+            Set<String> allPaths = getAllTagValues().keySet();
             simulationEngine.enableSimulationByScope(scope, allPaths);
         }
     }
@@ -979,7 +1019,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      */
     public void enableAllSimulation() {
         if (simulationEngine != null) {
-            java.util.Set<String> allPaths = getAllTagValues().keySet();
+            Set<String> allPaths = getAllTagValues().keySet();
             simulationEngine.enableAllSimulation(allPaths);
         }
     }

@@ -1,7 +1,7 @@
-# Logix PLC Emulator - Testing Guide v5.4.9
+# Logix PLC Emulator - Testing Guide v8.2.0
 
-**Version**: 5.4.9
-**Last Updated**: 2025-11-22
+**Version**: 8.2.0
+**Last Updated**: 2026-02-11
 **Status**: Production Ready - Security Hardened & Fully Tested
 
 ---
@@ -29,7 +29,7 @@
 
 ### Test Coverage Summary
 
-**Total Tests**: 40 (100% passing)
+**Total Tests**: 92 (100% passing)
 
 | Test Class | Tests | Focus Area |
 |------------|-------|------------|
@@ -46,7 +46,7 @@
 **Expected output**:
 ```
 BUILD SUCCESSFUL in 15s
-40 tests completed, 40 succeeded
+92 tests completed, 92 succeeded
 ```
 
 ### Running Specific Test Classes
@@ -164,7 +164,7 @@ void testRejectOversizedFile() {
 #### ✓ Build Module from Source
 
 ```bash
-cd /modules/ignition-plc-simulator/logix-emulator-module
+cd /modules/ignition-module-plc-emulator/logix-emulator-module
 ./gradlew clean build
 ```
 
@@ -176,7 +176,7 @@ BUILD SUCCESSFUL in 45s
 
 **Verify module file**:
 ```bash
-ls -lh build/EnhancedPLCSimulator-5.4.9.modl
+ls -lh build/LogixPLCEmulator-{version}.modl
 ```
 
 Expected size: ~12-15MB
@@ -184,7 +184,7 @@ Expected size: ~12-15MB
 #### ✓ Verify Module Contents
 
 ```bash
-unzip -l build/EnhancedPLCSimulator-5.4.9.modl | head -20
+unzip -l build/LogixPLCEmulator-{version}.modl | head -20
 ```
 
 **Required files**:
@@ -200,7 +200,7 @@ unzip -l build/EnhancedPLCSimulator-5.4.9.modl | head -20
 
 1. Navigate to **Gateway Config → System → Modules**
 2. Click **"Install or Upgrade a Module"**
-3. Upload `EnhancedPLCSimulator-5.4.9.modl`
+3. Upload `LogixPLCEmulator-{version}.modl`
 4. Click **"Install"**
 5. Gateway prompts for restart
 6. Click **"Restart"**
@@ -214,7 +214,7 @@ unzip -l build/EnhancedPLCSimulator-5.4.9.modl | head -20
 
 Check module details:
 - **Name**: Logix PLC Emulator
-- **Version**: 5.4.9
+- **Version**: 8.2.0
 - **License**: Free Module
 - **Scopes**: G (Gateway only)
 - **Status**: Running
@@ -244,7 +244,7 @@ INFO  [SimulatorModuleHook] Logix PLC Emulator module started successfully
 #### ✓ Sidebar Menu (Optional Feature)
 
 1. Navigate to **Gateway Config**
-2. Check left sidebar for **"PLC Simulator"** menu item (if implemented)
+2. Check left sidebar for **"Logix PLC Emulator"** menu item (if implemented)
 
 ---
 
@@ -721,7 +721,7 @@ curl -X POST http://localhost:8088/data/logixemulator/upload \
 docker run -d -p 8088:8088 inductiveautomation/ignition:8.3.0
 
 # Copy module to container
-docker cp EnhancedPLCSimulator-5.4.9.modl <container>:/tmp/
+docker cp LogixPLCEmulator-{version}.modl <container>:/tmp/
 
 # Install via Gateway Config web UI
 # Test device creation and file upload
@@ -796,7 +796,7 @@ Before each release, verify:
 - [ ] OPC-UA browsing works
 
 ### Security
-- [ ] All 40 automated tests pass
+- [ ] All 92 automated tests pass
 - [ ] Authentication enforced
 - [ ] Path traversal blocked
 - [ ] XXE attacks blocked
@@ -956,13 +956,13 @@ Look for parse errors or validation failures.
 
 **Automated on every push**:
 1. Build module
-2. Run all 40 tests
+2. Run all 92 tests
 3. Generate test reports
 4. Check for test failures
 
 **View results**:
 ```
-https://github.com/your-org/ignition-plc-simulator/actions
+https://github.com/nigelgwork/ignition-plc-simulator/actions
 ```
 
 ### Local CI Testing
@@ -978,7 +978,7 @@ https://github.com/your-org/ignition-plc-simulator/actions
 
 ## Version Information
 
-**Module Version**: 5.4.9
+**Module Version**: 8.2.0
 **Ignition Compatibility**: 8.3.0+
 **Java Version**: 17
 **Test Framework**: JUnit Jupiter 5.10.1

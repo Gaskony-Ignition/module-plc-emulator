@@ -22,7 +22,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.net.InetAddress;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Routes for handling PLC file uploads in the Logix Emulator device configuration.
@@ -115,8 +118,7 @@ public class FileUploadRoutes {
      */
     private boolean isAuthenticated(RequestContext ctx) {
         String username = getUsername(ctx);
-        // "gateway-user" is our fallback, consider it authenticated if we get here via /data/ routes
-        // which already require authentication
+        // Verify that a real authenticated user principal exists
         return username != null && !username.isEmpty() && !username.equals("anonymous");
     }
 
@@ -191,7 +193,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error handling file upload", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred during file upload");
         }
     }
 
@@ -264,7 +266,7 @@ public class FileUploadRoutes {
             .put("hasFile", hasFile)
             .put("fileSize", hasFile ? file.length() : 0)
             .put("lastModified", hasFile ? file.lastModified() : 0)
-            .put("filePath", filePath)
+            .put("filePath", hasFile ? file.getName() : null)
             .put("parserType", config.parser().parserType().getDisplayName())
             .put("enabled", config.general().enabled())
             .put("simulationEnabled", config.simulation().enabled());
@@ -308,9 +310,7 @@ public class FileUploadRoutes {
         LogixEmulatorDevice device = deviceOpt.get();
 
         try {
-            var parsedDataField = LogixEmulatorDevice.class.getDeclaredField("parsedData");
-            parsedDataField.setAccessible(true);
-            var parsedData = (com.google.gson.JsonObject) parsedDataField.get(device);
+            var parsedData = device.getParsedData();
 
             if (parsedData == null) {
                 return result.put("success", true)
@@ -356,7 +356,7 @@ public class FileUploadRoutes {
 
         } catch (Exception e) {
             logger.warn("Could not access parsed data for device: {}", deviceName, e);
-            return result.put("success", false).put("error", "Failed to read tag data: " + e.getMessage());
+            return result.put("success", false).put("error", "Failed to read tag data");
         }
     }
 
@@ -394,9 +394,7 @@ public class FileUploadRoutes {
         LogixEmulatorDevice device = deviceOpt.get();
 
         try {
-            var parsedDataField = LogixEmulatorDevice.class.getDeclaredField("parsedData");
-            parsedDataField.setAccessible(true);
-            var parsedData = (com.google.gson.JsonObject) parsedDataField.get(device);
+            var parsedData = device.getParsedData();
 
             if (parsedData == null) {
                 return result.put("success", true)
@@ -420,7 +418,7 @@ public class FileUploadRoutes {
 
         } catch (Exception e) {
             logger.warn("Could not get children for path: {} on device: {}", parentPath, deviceName, e);
-            return result.put("success", false).put("error", "Failed to read children: " + e.getMessage());
+            return result.put("success", false).put("error", "Failed to read children");
         }
     }
 
@@ -434,239 +432,6 @@ public class FileUploadRoutes {
             }
         }
         return defaultValue;
-    }
-
-    /**
-     * Helper class to build and navigate the tag tree structure efficiently.
-     * Supports lazy loading and pagination.
-     */
-    private static class TagTreeBuilder {
-        private final java.util.Map<String, java.util.List<JSONObject>> childrenByPath = new java.util.HashMap<>();
-        private final java.util.Map<String, JSONObject> nodesByPath = new java.util.HashMap<>();
-        private final TagStats stats = new TagStats();
-
-        static class TagStats {
-            int totalTags = 0;
-            int folderCount = 0;
-            int udtCount = 0;
-        }
-
-        TagTreeBuilder(com.google.gson.JsonObject parsedData) throws JSONException {
-            // Build index of all tags organized by parent path
-            if (parsedData.has("global_tags")) {
-                var globalTags = parsedData.getAsJsonArray("global_tags");
-
-                // Add Controller:Global as a root folder
-                addFolderNode("", "Controller:Global", "Folder", false);
-                stats.folderCount++;
-
-                for (var elem : globalTags) {
-                    var tag = elem.getAsJsonObject();
-                    indexTag(tag, "Controller:Global");
-                }
-            }
-
-            if (parsedData.has("programs")) {
-                var programs = parsedData.getAsJsonArray("programs");
-
-                // Add Programs as a root folder if there are programs
-                if (programs.size() > 0) {
-                    addFolderNode("", "Programs", "Folder", false);
-                    stats.folderCount++;
-                }
-
-                for (var progElem : programs) {
-                    var prog = progElem.getAsJsonObject();
-                    String progName = prog.has("name") ? prog.get("name").getAsString() : "Program";
-
-                    // Add program as a folder under Programs
-                    addFolderNode("Programs", progName, "Program", false);
-                    stats.folderCount++;
-
-                    if (prog.has("tags")) {
-                        var progTags = prog.getAsJsonArray("tags");
-                        for (var tagElem : progTags) {
-                            var tag = tagElem.getAsJsonObject();
-                            indexTag(tag, "Programs/" + progName);
-                        }
-                    }
-                }
-            }
-        }
-
-        private void indexTag(com.google.gson.JsonObject tag, String parentPath) throws JSONException {
-            String tagName = tag.has("name") ? tag.get("name").getAsString() : "unknown";
-            String dataType = tag.has("data_type") ? tag.get("data_type").getAsString() : "STRING";
-            String tagPath = parentPath + "/" + tagName;
-
-            // Check if this is a UDT instance with members
-            if (tag.has("udt_members")) {
-                var members = tag.getAsJsonArray("udt_members");
-                if (members.size() > 0) {
-                    stats.udtCount++;
-
-                    // Add UDT instance as a folder
-                    addFolderNode(parentPath, tagName, dataType, true);
-                    stats.folderCount++;
-
-                    // Recursively index members
-                    for (var memberElem : members) {
-                        var member = memberElem.getAsJsonObject();
-                        indexTag(member, tagPath);
-                    }
-                    return;
-                }
-            }
-
-            // Atomic tag - add as leaf
-            addLeafNode(parentPath, tagName, dataType,
-                tag.has("initial_value") ? tag.get("initial_value").toString() : "", tagPath);
-            stats.totalTags++;
-        }
-
-        private void addFolderNode(String parentPath, String name, String dataType, boolean isUdt) throws JSONException {
-            String path = parentPath.isEmpty() ? name : parentPath + "/" + name;
-
-            JSONObject node = new JSONObject();
-            node.put("name", name);
-            node.put("path", path);
-            node.put("data_type", dataType);
-            node.put("isFolder", true);
-            node.put("isUdt", isUdt);
-
-            childrenByPath.computeIfAbsent(parentPath, k -> new java.util.ArrayList<>()).add(node);
-            nodesByPath.put(path, node);
-        }
-
-        private void addLeafNode(String parentPath, String name, String dataType, String value, String path) throws JSONException {
-            JSONObject node = new JSONObject();
-            node.put("name", name);
-            node.put("path", path);
-            node.put("data_type", dataType);
-            node.put("value", value);
-            node.put("isFolder", false);
-
-            childrenByPath.computeIfAbsent(parentPath, k -> new java.util.ArrayList<>()).add(node);
-            nodesByPath.put(path, node);
-        }
-
-        TagStats getStats() {
-            return stats;
-        }
-
-        int getChildCount(String parentPath) {
-            java.util.List<JSONObject> children = childrenByPath.get(parentPath);
-            return children != null ? children.size() : 0;
-        }
-
-        /**
-         * Get children of a path with pagination.
-         * @param parentPath Parent path (empty string for root)
-         * @param depth How many levels to include (1 = direct children only)
-         * @param offset Pagination offset
-         * @param limit Max items to return
-         */
-        JSONArray getChildrenOf(String parentPath, int depth, int offset, int limit) throws JSONException {
-            JSONArray result = new JSONArray();
-            java.util.List<JSONObject> children = childrenByPath.get(parentPath);
-
-            if (children == null || children.isEmpty()) {
-                return result;
-            }
-
-            // Sort children: folders first, then alphabetically
-            children.sort((a, b) -> {
-                try {
-                    boolean aFolder = a.optBoolean("isFolder", false);
-                    boolean bFolder = b.optBoolean("isFolder", false);
-                    if (aFolder != bFolder) {
-                        return aFolder ? -1 : 1;
-                    }
-                    return a.optString("name", "").compareToIgnoreCase(b.optString("name", ""));
-                } catch (Exception e) {
-                    return 0;
-                }
-            });
-
-            // Apply pagination
-            int end = Math.min(offset + limit, children.size());
-            for (int i = offset; i < end; i++) {
-                JSONObject child = children.get(i);
-                JSONObject copy = new JSONObject(child.toString());
-
-                // Add child count for folders (for UI to show expand arrow)
-                if (child.optBoolean("isFolder", false)) {
-                    String childPath = child.optString("path", "");
-                    int childCount = getChildCount(childPath);
-                    copy.put("childCount", childCount);
-                    copy.put("hasChildren", childCount > 0);
-
-                    // If depth > 1, include nested children
-                    if (depth > 1 || depth == -1) {
-                        JSONArray nested = getChildrenOf(childPath, depth == -1 ? -1 : depth - 1, 0, 500);
-                        if (nested.length() > 0) {
-                            copy.put("children", nested);
-                        }
-                    }
-                }
-
-                result.put(copy);
-            }
-
-            return result;
-        }
-
-        /**
-         * Get flattened list of all visible tags for virtual scrolling.
-         * Only returns tags (not folders) for simpler virtual scroll implementation.
-         */
-        JSONArray getFlatTags(String parentPath, int offset, int limit) throws JSONException {
-            JSONArray result = new JSONArray();
-            java.util.List<JSONObject> allTags = new java.util.ArrayList<>();
-
-            // Collect all leaf tags under the given path
-            collectLeafTags(parentPath.isEmpty() ? null : parentPath, allTags);
-
-            // Sort alphabetically by path
-            allTags.sort((a, b) -> a.optString("path", "").compareToIgnoreCase(b.optString("path", "")));
-
-            // Apply pagination
-            int end = Math.min(offset + limit, allTags.size());
-            for (int i = offset; i < end; i++) {
-                result.put(allTags.get(i));
-            }
-
-            return result;
-        }
-
-        private void collectLeafTags(String parentPath, java.util.List<JSONObject> tags) {
-            for (var entry : childrenByPath.entrySet()) {
-                String path = entry.getKey();
-                // If parentPath is null, collect everything; otherwise filter by prefix
-                if (parentPath == null || path.equals(parentPath) || path.startsWith(parentPath + "/")) {
-                    for (JSONObject node : entry.getValue()) {
-                        if (!node.optBoolean("isFolder", false)) {
-                            tags.add(node);
-                        }
-                    }
-                }
-            }
-        }
-
-        int getTotalFlatCount(String parentPath) {
-            int count = 0;
-            for (var entry : childrenByPath.entrySet()) {
-                String path = entry.getKey();
-                if (parentPath.isEmpty() || path.equals(parentPath) || path.startsWith(parentPath + "/")) {
-                    for (JSONObject node : entry.getValue()) {
-                        if (!node.optBoolean("isFolder", false)) {
-                            count++;
-                        }
-                    }
-                }
-            }
-            return count;
-        }
     }
 
     /**
@@ -694,7 +459,7 @@ public class FileUploadRoutes {
 
         try {
             // Get all live tag values from OPC-UA address space
-            java.util.Map<String, Object> liveValues = device.getAllTagValues();
+            Map<String, Object> liveValues = device.getAllTagValues();
             for (var entry : liveValues.entrySet()) {
                 Object value = entry.getValue();
                 if (value != null) {
@@ -790,7 +555,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error writing tag value", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred while writing tag value");
         }
     }
 
@@ -870,7 +635,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error toggling tag simulation", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred while toggling simulation");
         }
     }
 
@@ -960,7 +725,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error in bulk simulation by scope", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred during bulk simulation");
         }
     }
 
@@ -1008,7 +773,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error in bulk simulation all", e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred during bulk simulation");
         }
     }
 
@@ -1115,7 +880,7 @@ public class FileUploadRoutes {
         } catch (Exception e) {
             logger.error("Error deleting file for device {}", deviceName, e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            return result.put("success", false).put("error", "Error deleting file: " + e.getMessage());
+            return result.put("success", false).put("error", "An internal error occurred while deleting file");
         }
     }
 
@@ -1208,14 +973,14 @@ public class FileUploadRoutes {
         var req = ctx.getRequest();
         if (req.getRemoteUser() != null) return req.getRemoteUser();
         if (req.getUserPrincipal() != null) return req.getUserPrincipal().getName();
-        return "gateway-user";
+        return null;
     }
 
     /**
      * Trusted proxy IP addresses. Only trust X-Forwarded-For from these sources.
      * Add your reverse proxy IPs here if needed.
      */
-    private static final java.util.Set<String> TRUSTED_PROXIES = java.util.Set.of(
+    private static final Set<String> TRUSTED_PROXIES = Set.of(
         "127.0.0.1",
         "::1",
         "0:0:0:0:0:0:0:1"  // IPv6 localhost
@@ -1261,7 +1026,7 @@ public class FileUploadRoutes {
             return false;
         }
         try {
-            java.net.InetAddress.getByName(ip);
+            InetAddress.getByName(ip);
             return true;
         } catch (Exception e) {
             return false;

@@ -136,7 +136,12 @@ public class IncrementalAddressSpaceUpdater {
 
         for (TagChange change : changes.changedTags.values()) {
             try {
-                String nodeIdPath = "Controller:Global." + change.tagPath;
+                // Tag paths from extractAllTags already include scope prefix:
+                // Global tags: "TagName" or "UDT.Member" -> need "Controller:Global." prefix
+                // Program tags: "Programs.ProgramName.TagName" -> already fully qualified
+                String nodeIdPath = change.tagPath.startsWith("Programs.")
+                    ? change.tagPath
+                    : "Controller:Global." + change.tagPath;
                 NodeId nodeId = nodeIdFactory.apply(nodeIdPath);
                 UaNode node = nodeLookup.apply(nodeId);
 

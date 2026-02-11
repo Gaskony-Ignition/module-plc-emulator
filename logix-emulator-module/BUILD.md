@@ -1,7 +1,7 @@
-# PLC Simulator Module - Build & Package Guide
+# Logix PLC Emulator - Build & Package Guide
 
 ## Overview
-This document describes how to build and package the PLC Simulator module for distribution.
+This document describes how to build and package the Logix PLC Emulator module for distribution.
 
 ## Prerequisites
 - Java 17 JDK
@@ -16,12 +16,12 @@ This document describes how to build and package the PLC Simulator module for di
 
 This creates a **signed** module at:
 ```
-build/PLCSimulator-1.0.0.modl
+build/LogixPLCEmulator-{version}.modl
 ```
 
 And also creates an unsigned version:
 ```
-build/PLCSimulator-1.0.0.unsigned.modl
+build/LogixPLCEmulator-{version}.unsigned.modl
 ```
 
 The build process:
@@ -31,8 +31,8 @@ The build process:
 4. Signs the module with self-signed certificate (skipModlSigning=false)
 
 ### Build Output
-- **Signed module**: `build/PLCSimulator-1.0.0.modl` (~12MB) - **Use this for installation**
-- **Unsigned module**: `build/PLCSimulator-1.0.0.unsigned.modl` (~12MB)
+- **Signed module**: `build/LogixPLCEmulator-{version}.modl` (~12MB) - **Use this for installation**
+- **Unsigned module**: `build/LogixPLCEmulator-{version}.unsigned.modl` (~12MB)
 - **Module report**: `build/reports/module-report.txt`
 - **Certificate**: `certificate.der` (included in repository)
 - **Keystore**: `keystore.jks` (included in repository)
@@ -71,7 +71,7 @@ To generate new self-signed certificates:
 keytool -genkeypair -alias plcsimulator -keyalg RSA -keysize 2048 \
     -validity 3650 -keystore keystore.jks -storepass REDACTED-DEV-PASSWORD \
     -keypass REDACTED-DEV-PASSWORD \
-    -dname "CN=PLC Simulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US"
+    -dname "CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US"
 
 keytool -exportcert -alias plcsimulator -keystore keystore.jks \
     -storepass REDACTED-DEV-PASSWORD -file certificate.der -rfc
@@ -83,7 +83,7 @@ For production deployment:
 1. Generate production certificates with private passwords (never commit to git)
 2. Update `gradle.properties` with production certificate paths and passwords
 3. Build signed module: `./gradlew clean build`
-4. Distribute the signed `PLCSimulator-1.0.0.modl` file
+4. Distribute the signed `LogixPLCEmulator-{version}.modl` file
 
 For internal distribution:
 1. Build module with your dev certificate
@@ -93,12 +93,12 @@ For internal distribution:
 ## Module Structure
 
 ```
-EnhancedPLCSimulator-5.4.9.modl (ZIP archive)
+LogixPLCEmulator-{version}.modl (ZIP archive)
 ├── module.xml                    # Module metadata
 ├── gateway.jar                   # Gateway scope code
-│   ├── com/inductiveautomation/plcsimulator/gateway/
+│   ├── com/inductiveautomation/logixemulator/gateway/
 │   │   ├── SimulatorModuleHook.class
-│   │   ├── EnhancedSimulatorDevice.class
+│   │   ├── LogixEmulatorDevice.class
 │   │   ├── parser/
 │   │   │   ├── L5KParser.class
 │   │   │   ├── L5XParser.class (with XXE protection)
@@ -108,9 +108,8 @@ EnhancedPLCSimulator-5.4.9.modl (ZIP archive)
 │   │   └── web/
 │   │       └── FileUploadRoutes.class
 │   └── mounted/                  # Web UI resources
-│       ├── index.html
-│       ├── edit-program.html
-│       └── plc-file-upload.js
+│       ├── connection-browser.html
+│       └── connectionBrowser.js
 ├── designer.jar                  # Designer scope code
 └── common.jar                    # Common scope code
 ```
@@ -120,16 +119,16 @@ EnhancedPLCSimulator-5.4.9.modl (ZIP archive)
 ### Install via Gateway Webpage
 1. Navigate to Config > System > Modules
 2. Click "Install or Upgrade a Module"
-3. Select `PLCSimulator-1.0.0.modl` (signed version)
+3. Select `LogixPLCEmulator-{version}.modl` (signed version)
 4. Click "Install"
 5. Restart Gateway when prompted
 
-**Note**: Use the **signed** version (`PLCSimulator-1.0.0.modl`) for installation. Gateway will accept the self-signed development certificate.
+**Note**: Use the **signed** version (`LogixPLCEmulator-{version}.modl`) for installation. Gateway will accept the self-signed development certificate.
 
 ### Install via Command Line
 ```bash
 # Copy to Ignition modules directory
-cp build/PLCSimulator-1.0.0.modl \
+cp build/LogixPLCEmulator-{version}.modl \
     /path/to/ignition/user-lib/modules/
 
 # Restart Ignition
@@ -160,14 +159,14 @@ Common issues:
 ### Signing Issues
 If using self-signed certificates and Ignition rejects the module:
 1. Check Gateway logs for specific error
-2. Verify certificate is valid: `keytool -list -v -keystore plcsimulator.jks`
+2. Verify certificate is valid: `keytool -list -v -keystore keystore.jks`
 3. Ensure Gateway is configured to accept modules from untrusted sources (development only)
 
 ## Version Management
 
-Update version in `gradle.properties`:
-```properties
-version=1.0.0
+Update version in `build.gradle.kts`:
+```kotlin
+version = "8.2.0"
 ```
 
 This updates:
@@ -201,7 +200,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v2
         with:
-          name: plcsimulator-module
+          name: logix-emulator-module
           path: build/*.modl
 ```
 

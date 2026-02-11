@@ -6,7 +6,7 @@ This guide covers the development workflow, architecture, and procedures for wor
 
 - **Java 17 JDK** (OpenJDK or Oracle)
 - **Gradle 7.x+** (wrapper included in project)
-- **Ignition Gateway 8.1+** for testing
+- **Ignition Gateway 8.3+** for testing
 - **IDE**: IntelliJ IDEA or Eclipse with Gradle plugin
 - **Git** for version control
 
@@ -27,8 +27,6 @@ logix-emulator-module/
 ├── designer/
 │   ├── build.gradle.kts      # Designer scope (client-side)
 │   └── src/main/java/        # Designer Java code
-├── web/                      # React UI (not currently used)
-├── python-parser/            # Python parser service (not currently used)
 ├── BUILD.md                  # Build instructions
 ├── SIGNING.md                # Module signing documentation
 ├── TESTING.md                # Testing procedures
@@ -67,8 +65,8 @@ export PATH=$JAVA_HOME/bin:$PATH
 ```
 
 This produces:
-- `build/EnhancedPLCSimulator-{version}.modl` (signed)
-- `build/EnhancedPLCSimulator-{version}.unsigned.modl` (unsigned)
+- `build/LogixPLCEmulator-{version}.modl` (signed)
+- `build/LogixPLCEmulator-{version}.unsigned.modl` (unsigned)
 
 ### 4. Install in Ignition Gateway
 
@@ -82,7 +80,7 @@ This produces:
 **Method 2: Direct Copy** (faster for development)
 ```bash
 # Stop Gateway first
-cp build/EnhancedPLCSimulator-{version}.modl \
+cp build/LogixPLCEmulator-{version}.modl \
    /path/to/ignition/user-lib/modules/
 
 # Restart Gateway
@@ -94,12 +92,12 @@ systemctl restart ignition
 
 Check Gateway logs:
 ```bash
-tail -f /path/to/ignition/logs/wrapper.log | grep "EnhancedSimulator"
+tail -f /path/to/ignition/logs/wrapper.log | grep "LogixEmulator"
 ```
 
 Expected output:
 ```
-INFO  [LogixEmulatorExtensionPoint] Registering device type: EnhancedSimulator
+INFO  [LogixEmulatorExtensionPoint] Registering device type: LogixEmulator
 INFO  [LogixEmulatorExtensionPoint] Registered bundle: com.inductiveautomation.logixemulator...
 ```
 
@@ -111,7 +109,7 @@ The module uses **AbstractDeviceModuleHook** to register as a device driver:
 
 ```java
 // LogixEmulatorExtensionPoint.java
-public class LogixEmulatorExtensionPoint extends AbstractDeviceModuleHook {
+public class LogixEmulatorExtensionPoint extends DeviceExtensionPoint<LogixEmulatorConfig> {
     @Override
     public void startup(LicenseState licenseState) {
         // Initialize module
@@ -132,10 +130,10 @@ Device types are registered via `DeviceType` interface:
 
 ```java
 // LogixEmulatorDevice.java
-public class LogixEmulatorDevice extends AbstractEvaluationDriver {
+public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implements Device {
     @Override
     public String getDeviceTypeName() {
-        return "EnhancedSimulator";
+        return "LogixEmulator";
     }
 
     @Override
@@ -181,18 +179,18 @@ Display names are resolved from resource bundles:
 
 **File**: `gateway/src/main/resources/.../LogixEmulator.properties`
 ```properties
-EnhancedSimulator.Meta.DisplayName=Logix PLC Emulator
+LogixEmulator.Meta.DisplayName=Logix PLC Emulator
 ParserType.ROCKWELL.DisplayName=Rockwell L5K (Allen-Bradley)
 ParserType.JSON.DisplayName=JSON Format
-ParserType.SIEMENS.DisplayName=Siemens TIA Portal (S7-1200/1500)
+ParserType.CSV.DisplayName=CSV Format
 ```
 
 **Registration** (in module startup):
 ```java
 BundleUtil.get().addBundle(
-    "EnhancedSimulator",
+    "LogixEmulator",
     LogixEmulatorExtensionPoint.class,
-    "EnhancedSimulator"
+    "LogixEmulator"
 );
 ```
 
@@ -203,20 +201,17 @@ BundleUtil.get().addBundle(
 **1. Add enum value** (`LogixEmulatorConfig.java`):
 ```java
 public enum ParserType {
-    ROCKWELL("Rockwell L5K (Allen-Bradley)"),
-    JSON("JSON Format"),
-    SIEMENS("Siemens TIA Portal (S7-1200/1500)"),
-    MYNEWPARSER("My New Parser (Description)"); // ADD THIS
+    ROCKWELL("rockwell", "Rockwell L5K/L5X (Allen-Bradley)"),
+    JSON("json", "JSON Format"),
+    CSV("csv", "CSV Format"),
+    MYNEWPARSER("mynewparser", "My New Parser (Description)"); // ADD THIS
 
+    private final String key;
     private final String displayName;
 
-    ParserType(String displayName) {
+    ParserType(String key, String displayName) {
+        this.key = key;
         this.displayName = displayName;
-    }
-
-    @Override
-    public String toString() {
-        return displayName;
     }
 }
 ```
@@ -261,9 +256,9 @@ private void parseMyNewFormat(String content) {
 
 ### Changing Module Version
 
-**1. Update `gradle.properties`**:
-```properties
-version=1.2.0
+**1. Update `build.gradle.kts`**:
+```kotlin
+version = "8.2.0"
 ```
 
 **2. Update CHANGELOG.md**:
@@ -277,7 +272,7 @@ version=1.2.0
 **3. Build and test**:
 ```bash
 ./gradlew clean build
-# Output: EnhancedPLCSimulator-1.2.0.modl
+# Output: LogixPLCEmulator-{version}.modl
 ```
 
 ### Adding Configuration Fields
@@ -295,8 +290,8 @@ public boolean enableAdvancedFeatures = false;
 
 **2. Add i18n entry**:
 ```properties
-EnhancedSimulator.Config.enableAdvancedFeatures=Enable Advanced Features
-EnhancedSimulator.Config.enableAdvancedFeatures.Desc=Enable experimental features
+LogixEmulator.Config.enableAdvancedFeatures=Enable Advanced Features
+LogixEmulator.Config.enableAdvancedFeatures.Desc=Enable experimental features
 ```
 
 **3. Use in Device**:
@@ -344,14 +339,14 @@ tail -f /path/to/ignition/logs/wrapper.log
 ./gradlew clean build
 
 # 3. Copy to Gateway (if using direct copy method)
-cp build/EnhancedPLCSimulator-*.modl /path/to/ignition/user-lib/modules/
+cp build/LogixPLCEmulator-*.modl /path/to/ignition/user-lib/modules/
 
 # 4. Restart Gateway
 docker restart ignition
 # or systemctl restart ignition
 
 # 5. Check logs
-docker logs -f ignition | grep EnhancedSimulator
+docker logs -f ignition | grep LogixEmulator
 
 # 6. Test in Gateway UI
 # Config > Devices > Create Device
@@ -392,17 +387,9 @@ public String myMethod(String paramName) {
 ### TODOs
 Mark incomplete work:
 ```java
-// TODO: Implement Siemens parser
+// TODO: Add support for new file format
 // FIXME: Handle edge case where file is empty
 ```
-
-Current TODOs in codebase:
-- `LogixEmulatorDevice.java:110` - Initialize simulation engine
-- `LogixEmulatorDevice.java:115` - Setup file watcher for hot reload
-- `LogixEmulatorDevice.java:146` - Stop simulation engine
-- `LogixEmulatorDevice.java:309` - Implement parsing for each vendor format
-- `LogixEmulatorDevice.java:396` - Simulation engine integration
-- `LogixEmulatorDevice.java:408` - Hot reload support
 
 ## Troubleshooting Development Issues
 
@@ -429,7 +416,7 @@ Current TODOs in codebase:
    ./gradlew build
    ```
 
-### Display Names Show as "?EnhancedSimulator...?"
+### Display Names Show as "?LogixEmulator...?"
 
 **Problem**: Resource bundle not registered
 
@@ -456,7 +443,7 @@ public String toString() {
 ## Release Process
 
 **1. Update Version**:
-- `gradle.properties`: `version=1.x.0`
+- `build.gradle.kts`: `version = "8.x.0"`
 - `CHANGELOG.md`: Add release notes
 
 **2. Test**:

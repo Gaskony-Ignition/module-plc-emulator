@@ -19,7 +19,6 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -51,9 +50,6 @@ public class AddressSpaceBuilder {
     private final Logger logger;
     private final Consumer<UaNode> nodeAdder;
     private final String deviceName;
-
-    // Helper to generate unique node IDs
-    private final Map<String, Integer> nodeIdCounter = new HashMap<>();
 
     // ThreadLocal to prevent infinite recursion in synchronized writes
     private static final ThreadLocal<NodeId> currentlyWritingNode = new ThreadLocal<>();

@@ -37,7 +37,7 @@ The Logix PLC Emulator is an Ignition Gateway module that provides virtual PLC d
 ### Module Scopes
 
 ```
-Logix PLC Emulator (v8.1.0)
+Logix PLC Emulator (v8.2.0)
 ├── Gateway (G)     - Core device driver and OPC-UA server
 ├── Designer (D)    - Design-time integration (minimal)
 ├── Common (GD)     - Shared code between Gateway and Designer
@@ -50,7 +50,7 @@ Logix PLC Emulator (v8.1.0)
 logix-emulator-module/
 ├── gateway/
 │   ├── src/main/java/
-│   │   └── com/inductiveautomation/plcsimulator/gateway/
+│   │   └── com/inductiveautomation/logixemulator/gateway/
 │   │       ├── device/              # Device driver implementation
 │   │       │   ├── LogixEmulatorExtensionPoint.java
 │   │       │   ├── LogixEmulatorDevice.java
@@ -70,7 +70,6 @@ logix-emulator-module/
 │   │       │   └── FileUploadRoutes.java
 │   │       ├── SimulatorModuleHook.java
 │   │       ├── OpcUaSimulationEngine.java
-│   │       ├── ParserService.java
 │   │       ├── FileWatcher.java
 │   │       └── FileVersionManager.java
 │   ├── src/main/resources/mounted/  # Mounted web resources
@@ -80,13 +79,13 @@ logix-emulator-module/
 │   │   ├── connection-browser.html  # Unified tag browser + file upload
 │   │   └── edit-program.html
 │   └── src/test/java/               # Unit tests
-│       └── com/inductiveautomation/plcsimulator/gateway/
+│       └── com/inductiveautomation/logixemulator/gateway/
 │           ├── parser/L5XParserTest.java
 │           ├── validation/FileValidatorTest.java
 │           └── web/FileUploadRoutesSecurityTest.java
 ├── designer/
 │   └── src/main/java/
-│       └── com/inductiveautomation/plcsimulator/designer/
+│       └── com/inductiveautomation/logixemulator/designer/
 │           └── DesignerHook.java
 ├── common/
 │   └── src/main/java/
@@ -217,7 +216,7 @@ public interface PLCParser {
 - Data value parsing (DINT, REAL, BOOL, STRING)
 - Array support
 
-**Location**: `gateway/parser/L5KParser.java` (843 lines - **needs refactoring**)
+**Location**: `gateway/parser/L5KParser.java` (378 lines - refactored in v7.0.0)
 
 #### L5XParser
 **Purpose**: Parses Rockwell Studio 5000 XML export format (.l5x).
@@ -312,7 +311,7 @@ private File validateFilePath(File storageDir, String deviceName, String fileNam
 }
 ```
 
-**Location**: `gateway/web/FileUploadRoutes.java` (932 lines - **needs refactoring**)
+**Location**: `gateway/web/FileUploadRoutes.java` (1270 lines - refactored from 932, expanded with Connection Browser routes)
 
 **Test Coverage**: `FileUploadRoutesSecurityTest.java` - 18 security tests ✅
 
@@ -347,7 +346,7 @@ private File validateFilePath(File storageDir, String deviceName, String fileNam
 
 **Location**: `gateway/OpcUaSimulationEngine.java`
 
-**Status**: Implemented but marked as TODO for device integration
+**Status**: Fully integrated with devices since v5.5.0
 
 ### 6. Module Hooks
 
@@ -542,7 +541,7 @@ User Creates Device in Gateway Config
 
 ### Test Coverage
 
-**Total Tests**: 40 (all passing ✅)
+**Total Tests**: 92 (all passing)
 
 #### Unit Tests
 
@@ -614,7 +613,7 @@ User Creates Device in Gateway Config
 # Build module (creates .modl file)
 ./gradlew build
 
-# Output: build/LogixPLCEmulator-8.1.0.modl
+# Output: build/LogixPLCEmulator-{version}.modl
 ```
 
 ### Module Signing
@@ -649,7 +648,7 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 
 ### File Storage
 
-- **Location**: `{IGNITION_DATA_DIR}/plc-simulator/`
+- **Location**: `{IGNITION_DATA_DIR}/logix-emulator/`
 - **Format**: `{DeviceName}_{FileName}`
 - **Permissions**: Read/write by Ignition process user
 
@@ -657,36 +656,32 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 
 ### Short-term (Next Release)
 
-1. **Code Refactoring**
-   - Reduce L5KParser from 843 to ~400 lines
-   - Reduce FileUploadRoutes from 932 to ~300 lines
-   - Extract common parsing logic
+1. **Alarm Integration**
+   - Parse PLC alarm definitions
+   - Generate Ignition alarms from PLC alarm tags
+   - Alarm state simulation
 
-2. **Hot-Reload Implementation**
-   - Enable FileWatcher integration
-   - Automatic address space rebuild on file changes
-   - Configurable watch interval
+2. **Advanced Simulation**
+   - Custom expression-based simulation
+   - Interlinked tag simulation (e.g., totalizers, calculated values)
+   - Event-driven simulation scenarios
 
-3. **Simulation Engine Integration**
-   - Connect OpcUaSimulationEngine to devices
-   - Per-tag simulation configuration
-   - Historical trend simulation
+3. **Data Export/Import**
+   - Export tag configuration to CSV/JSON
+   - Import tag values from CSV (batch initialization)
 
 ### Medium-term (Future Versions)
 
-4. **Additional Parser Support**
-   - Siemens TIA Portal (.db files)
-   - Schneider Unity Pro (.xef files)
-   - Beckhoff TwinCAT (.tmc files)
+4. **Historical Data Simulation**
+   - Pre-populated historical trends
+   - Automatic historian tag creation
 
 5. **Enhanced UI**
-   - Tag browser in Gateway web interface
-   - Real-time value monitoring
+   - Real-time value monitoring improvements
    - Simulation controls (start/stop/reset)
 
 6. **Performance Optimization**
    - Lazy loading for large tag lists
-   - Pagination for tag browsing
    - Caching for parsed structures
 
 ### Long-term (Research)
@@ -716,9 +711,9 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
    - Solution: Use proper Ignition SDK authentication APIs
 
 3. **Large Classes**
-   - `L5KParser.java`: 843 lines (target: 400)
-   - `FileUploadRoutes.java`: 932 lines (target: 300)
-   - Solution: Extract helper classes, single responsibility principle
+   - `L5KParser.java`: 378 lines (reduced from 843 in v7.0.0)
+   - `FileUploadRoutes.java`: 1270 lines (expanded with Connection Browser routes)
+   - Solution: Continue extracting helper classes, single responsibility principle
 
 ### Code Quality Goals
 
@@ -760,9 +755,12 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 
 ## Version History
 
-### v8.1.0 (Current)
-- ✅ Unified Connection Browser (merged File Upload + Tag Browser)
-- ✅ Single navigation entry in Gateway Config
+### v8.2.0 (Current)
+- Restyled Connection Browser to match Ignition 8.3 gateway theme
+
+### v8.1.0
+- Unified Connection Browser (merged File Upload + Tag Browser)
+- Single navigation entry in Gateway Config
 
 ### v8.0.0
 - ✅ Renamed to Logix PLC Emulator
@@ -793,6 +791,6 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 ---
 
 **Last Updated**: 2026-02-11
-**Module Version**: 8.1.0
+**Module Version**: 8.2.0
 **Ignition SDK**: 8.3.0
 **Java Version**: 17

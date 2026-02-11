@@ -28,6 +28,7 @@ Thumbs.db
 
 # Signing credentials - NEVER commit!
 gradle.properties
+sign.props
 
 # Note: gradle.properties.template is the template (safe to commit)
 # Developers should copy template to gradle.properties and fill in credentials
