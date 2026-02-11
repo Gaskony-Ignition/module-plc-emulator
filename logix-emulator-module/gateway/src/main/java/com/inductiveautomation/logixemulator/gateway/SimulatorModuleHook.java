@@ -51,7 +51,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
                     .label("Logix PLC Emulator")
                     .addPage("Connection Browser", page -> page
                         .position(10)
-                        .mount("/logix-connection-browser", "ConnectionBrowser", connectionBrowserModule)
+                        .mount("/logix-connection-browser", "LogixConnectionBrowser", connectionBrowserModule)
                     )
                 );
 
