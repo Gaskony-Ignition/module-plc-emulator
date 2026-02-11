@@ -1,1 +1,1 @@
-export { default as ConnectionBrowser } from "./pages/ConnectionBrowser";
+export { default as LogixConnectionBrowser } from "./pages/ConnectionBrowser";
