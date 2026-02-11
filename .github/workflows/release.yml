@@ -35,7 +35,8 @@ jobs:
           mkdir -p "$SIGNING_DIR"
           echo "${{ secrets.SIGNING_KEYSTORE }}" | base64 -d > "$SIGNING_DIR/gaskony-keystore.jks"
           echo "${{ secrets.SIGNING_CERT }}" | base64 -d > "$SIGNING_DIR/gaskony-cert.pem"
-          # Override gradle.properties signing config to use secrets
+          # Create gradle.properties from template with CI signing secrets
+          cp gradle.properties.template gradle.properties
           sed -i \
             -e "s|ignition.signing.keystoreFile=.*|ignition.signing.keystoreFile=$SIGNING_DIR/gaskony-keystore.jks|" \
             -e "s|ignition.signing.keystorePassword=.*|ignition.signing.keystorePassword=${{ secrets.SIGNING_PASSWORD }}|" \

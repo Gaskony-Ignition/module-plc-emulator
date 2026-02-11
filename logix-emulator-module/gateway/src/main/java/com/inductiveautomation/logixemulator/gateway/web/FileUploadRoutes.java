@@ -130,6 +130,8 @@ public class FileUploadRoutes {
         try {
             routes.newRoute(path)
                 .handler(handler::handle)
+                .type(RouteGroup.TYPE_OCTET_STREAM)
+                .accessControl(AccessControlStrategy.OPEN_ROUTE)
                 .mount();
             logger.info("Mounted page route: {}", path);
         } catch (Exception e) {
