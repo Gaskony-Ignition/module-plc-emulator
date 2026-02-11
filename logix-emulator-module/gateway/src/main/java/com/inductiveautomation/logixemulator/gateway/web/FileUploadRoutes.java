@@ -62,11 +62,11 @@ public class FileUploadRoutes {
         mountProtectedRoute("/device/:name/simulation/all", this::handleBulkSimulationAll, HttpMethod.POST);
         mountProtectedRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
 
-        // Authenticated HTML pages (not publicly accessible)
-        mountProtectedRoute("/connection-browser", this::handleConnectionBrowserPage, null);
-        mountProtectedRoute("/page", this::handleUploadPage, null);
-        mountProtectedRoute("/edit-program", this::handleEditProgramPage, null);
-        mountProtectedRoute("/tag-browser", this::handleTagBrowserPage, null);
+        // HTML pages — authentication is handled by Ignition's /data/ route infrastructure
+        mountPageRoute("/connection-browser", this::handleConnectionBrowserPage);
+        mountPageRoute("/page", this::handleUploadPage);
+        mountPageRoute("/edit-program", this::handleEditProgramPage);
+        mountPageRoute("/tag-browser", this::handleTagBrowserPage);
 
         // Public routes - no authentication required
         mountPublicRoute("/health", this::handleHealthCheck);
@@ -120,6 +120,21 @@ public class FileUploadRoutes {
         String username = getUsername(ctx);
         // Verify that a real authenticated user principal exists
         return username != null && !username.isEmpty() && !username.equals("anonymous");
+    }
+
+    /**
+     * Mount an HTML page route. Authentication is handled by Ignition's /data/ route
+     * infrastructure — no custom auth check needed.
+     */
+    private void mountPageRoute(String path, RouteHandler handler) {
+        try {
+            routes.newRoute(path)
+                .handler(handler::handle)
+                .mount();
+            logger.info("Mounted page route: {}", path);
+        } catch (Exception e) {
+            logger.error("Failed to mount page route: {} - {}", path, e.getMessage(), e);
+        }
     }
 
     /**
