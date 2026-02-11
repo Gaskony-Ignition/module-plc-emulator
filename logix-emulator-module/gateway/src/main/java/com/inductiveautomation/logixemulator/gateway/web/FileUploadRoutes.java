@@ -2,7 +2,6 @@ package com.inductiveautomation.logixemulator.gateway.web;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.AccessControlStrategy;
 import com.inductiveautomation.ignition.gateway.dataroutes.HttpMethod;
-import com.inductiveautomation.ignition.gateway.dataroutes.PermissionType;
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
@@ -48,25 +47,25 @@ public class FileUploadRoutes {
     }
 
     public void mountRoutes() {
-        // Protected routes - require Gateway Config access (logged in user)
-        mountProtectedRoute("/upload", this::handleFileUpload, HttpMethod.POST);
-        mountProtectedRoute("/devices", this::handleListDevices, null);
-        mountProtectedRoute("/device/:name/status", this::handleDeviceStatus, null);
-        mountProtectedRoute("/device/:name/tags", this::handleGetTags, null);
-        mountProtectedRoute("/device/:name/tags/children", this::handleGetTagChildren, null);
-        mountProtectedRoute("/device/:name/tags/live", this::handleGetLiveTags, null);
-        mountProtectedRoute("/device/:name/tags/simulated", this::handleGetSimulatedTags, null);
-        mountProtectedRoute("/device/:name/tag/write", this::handleWriteTag, HttpMethod.POST);
-        mountProtectedRoute("/device/:name/tag/simulate", this::handleToggleTagSimulation, HttpMethod.POST);
-        mountProtectedRoute("/device/:name/simulation/scope", this::handleBulkSimulationByScope, HttpMethod.POST);
-        mountProtectedRoute("/device/:name/simulation/all", this::handleBulkSimulationAll, HttpMethod.POST);
-        mountProtectedRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
+        // API routes — authentication is handled by Ignition's /data/ route infrastructure
+        mountRoute("/upload", this::handleFileUpload, HttpMethod.POST);
+        mountRoute("/devices", this::handleListDevices, null);
+        mountRoute("/device/:name/status", this::handleDeviceStatus, null);
+        mountRoute("/device/:name/tags", this::handleGetTags, null);
+        mountRoute("/device/:name/tags/children", this::handleGetTagChildren, null);
+        mountRoute("/device/:name/tags/live", this::handleGetLiveTags, null);
+        mountRoute("/device/:name/tags/simulated", this::handleGetSimulatedTags, null);
+        mountRoute("/device/:name/tag/write", this::handleWriteTag, HttpMethod.POST);
+        mountRoute("/device/:name/tag/simulate", this::handleToggleTagSimulation, HttpMethod.POST);
+        mountRoute("/device/:name/simulation/scope", this::handleBulkSimulationByScope, HttpMethod.POST);
+        mountRoute("/device/:name/simulation/all", this::handleBulkSimulationAll, HttpMethod.POST);
+        mountRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
 
-        // HTML pages — authentication is handled by Ignition's /data/ route infrastructure
-        mountPageRoute("/connection-browser", this::handleConnectionBrowserPage);
-        mountPageRoute("/page", this::handleUploadPage);
-        mountPageRoute("/edit-program", this::handleEditProgramPage);
-        mountPageRoute("/tag-browser", this::handleTagBrowserPage);
+        // HTML page routes
+        mountRoute("/connection-browser", this::handleConnectionBrowserPage, null);
+        mountRoute("/page", this::handleUploadPage, null);
+        mountRoute("/edit-program", this::handleEditProgramPage, null);
+        mountRoute("/tag-browser", this::handleTagBrowserPage, null);
 
         // Public routes - no authentication required
         mountPublicRoute("/health", this::handleHealthCheck);
@@ -82,60 +81,20 @@ public class FileUploadRoutes {
     }
 
     /**
-     * Mount a route with defense-in-depth authentication.
-     * While Ignition 8.3's data routes require login by default, we add explicit
-     * authentication checks as a security best practice.
+     * Mount a route. Authentication is handled by Ignition's /data/ route infrastructure.
      */
-    private void mountProtectedRoute(String path, RouteHandler handler, HttpMethod method) {
+    private void mountRoute(String path, RouteHandler handler, HttpMethod method) {
         try {
             var builder = routes.newRoute(path)
-                .handler((ctx, resp) -> {
-                    // Defense-in-depth: Explicit authentication check
-                    if (!isAuthenticated(ctx)) {
-                        logger.warn("Unauthenticated access attempt to protected route: {}", path);
-                        resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                        return new JSONObject()
-                            .put("success", false)
-                            .put("error", "Authentication required")
-                            .put("loginUrl", "/web/login");
-                    }
-                    return handler.handle(ctx, resp);
-                })
+                .handler(handler::handle)
                 .accessControl(AccessControlStrategy.OPEN_ROUTE);
             if (method != null) {
                 builder.method(method);
             }
             builder.mount();
-            logger.info("Mounted protected route: {} {}", method != null ? method : "GET", path);
+            logger.info("Mounted route: {} {}", method != null ? method : "GET", path);
         } catch (Exception e) {
             logger.error("Failed to mount route: {} - {}", path, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * Check if the current request is from an authenticated user.
-     * Returns true if the user has a valid session and is not anonymous.
-     */
-    private boolean isAuthenticated(RequestContext ctx) {
-        String username = getUsername(ctx);
-        // Verify that a real authenticated user principal exists
-        return username != null && !username.isEmpty() && !username.equals("anonymous");
-    }
-
-    /**
-     * Mount an HTML page route. Authentication is handled by Ignition's /data/ route
-     * infrastructure — no custom auth check needed.
-     */
-    private void mountPageRoute(String path, RouteHandler handler) {
-        try {
-            routes.newRoute(path)
-                .handler(handler::handle)
-                .type(RouteGroup.TYPE_OCTET_STREAM)
-                .accessControl(AccessControlStrategy.OPEN_ROUTE)
-                .mount();
-            logger.info("Mounted page route: {}", path);
-        } catch (Exception e) {
-            logger.error("Failed to mount page route: {} - {}", path, e.getMessage(), e);
         }
     }
 
