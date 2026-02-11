@@ -2,7 +2,7 @@
 
 > **Purpose**: Optimized context file for AI-assisted development with Claude Code.
 > **Last Updated**: 2026-02-11
-> **Module Version**: 8.1.0
+> **Module Version**: 8.2.10
 
 ---
 
@@ -19,16 +19,19 @@
 
 ## Current Development Phase
 
-**Version**: 8.1.0 (Production Ready)
+**Version**: 8.2.10 (Production Ready)
 **Phase**: Production + Quality Assurance
-**Status**: Unified Connection Browser, all security vulnerabilities resolved, comprehensive test coverage
-**Last Major Release**: v8.1.0 (2026-02-11) - Unified Connection Browser
+**Status**: Unified Connection Browser, security hardening complete, CI/CD operational
+**Last Major Release**: v8.2.10 (2026-02-11)
 
-**Recent Changes (Last Session - 2026-02-11)**:
+**Recent Changes (v8.2.x)**:
+- ✅ v8.2.10: Removed broken custom auth from all data routes (Ignition handles `/data/` auth)
+- ✅ v8.2.9: Fixed missing route type/access control on page routes
+- ✅ v8.2.8: Removed iframe sandbox/referrerPolicy blocking session cookies
+- ✅ v8.2.4: Fixed webpack entry export name (`LogixConnectionBrowser`)
+- ✅ v8.2.3: Unique component export names to prevent cross-module page collision
+- ✅ v8.2.1: Security hardening, code cleanup, architecture improvements
 - ✅ v8.1.0: Merged File Upload + Tag Browser into unified Connection Browser
-- ✅ Single navigation entry in Gateway Config
-- ✅ New ConnectionBrowser React wrapper component
-- ✅ Old routes (`/page`, `/tag-browser`) redirect to Connection Browser for backwards compat
 - ✅ v8.0.0: Renamed module to Logix PLC Emulator, removed unused vendor parsers
 
 ---
@@ -62,7 +65,7 @@
 
 ```
 /modules/ignition-module-plc-emulator/logix-emulator-module/
-├── build.gradle.kts                    # Build configuration (version: 8.1.0)
+├── build.gradle.kts                    # Build configuration (version: 8.2.10)
 ├── gradle.properties                   # Signing config (uses environment variables)
 ├── CHANGELOG.md                        # Detailed version history ⭐
 ├── README.md                          # Project overview
@@ -167,7 +170,7 @@ LogixEmulatorConfig(
 ```bash
 cd /modules/ignition-module-plc-emulator/logix-emulator-module
 ./gradlew clean build
-# Output: build/LogixPLCEmulator-8.1.0.modl (~12MB)
+# Output: build/LogixPLCEmulator-8.2.10.modl (~12MB)
 ```
 
 ### Testing
@@ -240,13 +243,14 @@ tail -f /var/log/ignition/wrapper.log
 
 ## Known Issues & TODOs
 
-### Security (RESOLVED in v5.4.9) ✅
-- ✅ Authentication enforced on all REST endpoints (FileUploadRoutes:771-858)
-- ✅ Path traversal protection implemented (FileUploadRoutes:859-923)
-- ✅ XXE protection complete with 6 security features (L5XParser:52-67)
+### Security (RESOLVED) ✅
+- ✅ Authentication via Ignition's `/data/` route infrastructure (custom auth removed in v8.2.10)
+- ✅ Path traversal protection implemented
+- ✅ XXE protection complete with 6 security features (L5XParser)
 - ✅ Hardcoded credentials removed (gradle.properties uses environment variables)
-- ✅ File size DoS prevention (FileUploadRoutes:137-216)
+- ✅ File size DoS prevention
 - ✅ Comprehensive security tests (18 tests in FileUploadRoutesSecurityTest)
+- ✅ Reflection removed — all public API methods on LogixEmulatorDevice (v8.2.1)
 
 ### Testing (Added in v5.4.9) ✅
 - ✅ L5XParserTest: 12 tests including XXE prevention
@@ -277,9 +281,9 @@ tail -f /var/log/ignition/wrapper.log
 **Cause**: i18n bundle not registered
 **Fix**: Verify `BundleUtil.get().addBundle()` in `SimulatorModuleHook.startup()`
 
-### Issue: "Routes not mounting"
-**Cause**: Access control not specified or GatewayContext null
-**Fix**: Check `.accessControl()` call and context initialization order
+### Issue: "Routes not mounting" or "Authentication required" on data routes
+**Cause**: Do NOT add custom `isAuthenticated()` wrappers — `getRemoteUser()`/`getUserPrincipal()` are not populated by Ignition's data route infrastructure
+**Fix**: Use `.handler().accessControl(AccessControlStrategy.OPEN_ROUTE).mount()` — Ignition handles auth for `/data/` routes
 
 ### Issue: "Device not in dropdown"
 **Cause**: Extension point not registered
@@ -338,7 +342,7 @@ tail -f /var/log/ignition/wrapper.log
 ./gradlew clean build
 
 # Install locally
-cp build/LogixPLCEmulator-8.1.0.modl ~/ignition/user-lib/modules/
+cp build/LogixPLCEmulator-8.2.10.modl ~/ignition/user-lib/modules/
 
 # Check what changed
 git status
