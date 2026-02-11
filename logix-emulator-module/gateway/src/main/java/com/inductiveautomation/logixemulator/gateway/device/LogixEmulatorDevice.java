@@ -290,7 +290,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
 
             // Use Ignition's data directory API for proper cross-platform support
             File dataDir = context.getGatewayContext().getSystemManager().getDataDir();
-            File storageDir = new File(dataDir, "plc-simulator");
+            File storageDir = new File(dataDir, "logix-emulator");
 
             if (!storageDir.exists()) {
                 storageDir.mkdirs();

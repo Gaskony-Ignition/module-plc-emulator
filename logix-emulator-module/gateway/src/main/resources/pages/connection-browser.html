@@ -6,10 +6,10 @@
     <title>Connection Browser - Logix PLC Emulator</title>
     <style>
         :root {
-            --bg-primary: #252536;
-            --bg-secondary: #2d2f3e;
-            --bg-tertiary: #1c1e2d;
-            --bg-hover: #353748;
+            --bg-primary: #242428;
+            --bg-secondary: #2c2c32;
+            --bg-tertiary: #1c1c22;
+            --bg-hover: #38383f;
             --text-primary: #e0e0e8;
             --text-secondary: #8b8fa0;
             --text-muted: #6b6e80;
@@ -19,8 +19,8 @@
             --success: #0aa648;
             --warning: #cf7911;
             --error: #e05555;
-            --border: #3a3c4e;
-            --border-subtle: #32344a;
+            --border: #3c3c44;
+            --border-subtle: #33333b;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,7 +34,7 @@
             min-height: 100%;
         }
 
-        .container { max-width: 1400px; margin: 0 auto; }
+        .container { width: 100%; }
 
         .header {
             background: var(--bg-tertiary);
@@ -139,7 +139,7 @@
             transform: none;
         }
         .btn-secondary { background: var(--bg-hover); }
-        .btn-secondary:hover { background: #454864; }
+        .btn-secondary:hover { background: #48484f; }
         .btn-success { background: var(--success); }
         .btn-success:hover { background: #088a3b; }
 
@@ -202,7 +202,6 @@
         .file-status-label { color: var(--text-secondary); font-weight: 600; }
         .file-status-value {
             color: var(--text-primary);
-            font-family: 'Courier New', monospace;
         }
 
         .btn-delete {
@@ -298,7 +297,6 @@
         .upload-result-info .filename {
             color: var(--text-link);
             font-weight: 600;
-            font-family: 'Courier New', monospace;
             font-size: 13px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -415,7 +413,6 @@
         .tag-type {
             color: var(--text-secondary);
             font-size: 12px;
-            font-family: 'Consolas', 'Monaco', monospace;
         }
 
         .tag-value {
@@ -443,7 +440,7 @@
         .btn-write:hover { background: #088a3b; }
 
         .folder-row { background: var(--bg-hover); cursor: pointer; }
-        .folder-row:hover { background: #3e4158; }
+        .folder-row:hover { background: #424248; }
 
         .expand-icon {
             display: inline-flex;
@@ -652,9 +649,35 @@
 
         /* Simulation toggle button */
         .btn-sim { background: var(--bg-hover); position: relative; }
-        .btn-sim:hover { background: #454864; }
+        .btn-sim:hover { background: #48484f; }
         .btn-sim.active { background: var(--warning); color: var(--bg-tertiary); }
         .btn-sim.active:hover { background: #b56a0f; }
+
+        /* Collapse toggle for device upload panel */
+        .collapse-toggle {
+            display: none;
+            align-items: center;
+            gap: 4px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .collapse-toggle:hover { border-color: var(--accent); color: var(--text-primary); }
+        .collapse-toggle.visible { display: inline-flex; }
+        .collapse-toggle .chevron {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        .collapse-toggle .chevron.collapsed { transform: rotate(-90deg); }
+
+        .device-upload-row, .upload-result-bar { transition: all 0.2s ease; }
+        .device-upload-row.collapsed, .upload-result-bar.collapsed { display: none !important; }
 
         .sim-pattern-select {
             background: var(--bg-secondary);
@@ -726,7 +749,7 @@
         }
 
         .modal-btn-cancel { background: var(--bg-hover); color: var(--text-primary); }
-        .modal-btn-cancel:hover { background: #454864; }
+        .modal-btn-cancel:hover { background: #48484f; }
         .modal-btn-confirm { background: var(--error); color: white; }
         .modal-btn-confirm:hover { background: #c44545; }
 
@@ -787,6 +810,11 @@
                         <div id="autoRefreshToggle" class="toggle-switch" onclick="toggleAutoRefresh()"></div>
                     </div>
                 </div>
+                <div class="toolbar-divider"></div>
+                <button id="collapseToggle" class="collapse-toggle" onclick="toggleDevicePanel()">
+                    <span class="chevron" id="collapseChevron">&#9660;</span>
+                    <span id="collapseLabel">Hide Upload</span>
+                </button>
             </div>
 
             <!-- Device info + Upload zone row (shown when device selected) -->
@@ -937,6 +965,7 @@
         // Upload state
         let currentFileContent = '';
         let pendingDeleteDevice = null;
+        let devicePanelCollapsed = sessionStorage.getItem('devicePanelCollapsed') === 'true';
 
         const PAGE_SIZE = 200;
 
@@ -949,8 +978,12 @@
             document.getElementById('deviceSelect').addEventListener('change', async (e) => {
                 selectedDevice = e.target.value;
                 if (selectedDevice) {
+                    // Show collapse toggle
+                    document.getElementById('collapseToggle').classList.add('visible');
+
                     // Show device info + upload row
                     document.getElementById('deviceUploadRow').classList.add('visible');
+                    applyCollapseState();
                     document.getElementById('selectedDeviceName').textContent = selectedDevice;
                     document.getElementById('selectedDeviceStatus').textContent = 'Files uploaded will be directed to this device';
 
@@ -961,6 +994,7 @@
                     resetTagState();
                     loadRootTags();
                 } else {
+                    document.getElementById('collapseToggle').classList.remove('visible');
                     document.getElementById('deviceUploadRow').classList.remove('visible');
                     hideUploadResult();
                     showNoDevice();
@@ -1013,6 +1047,34 @@
                 }
             });
         });
+
+        // =====================================================
+        // Collapse toggle
+        // =====================================================
+        function toggleDevicePanel() {
+            devicePanelCollapsed = !devicePanelCollapsed;
+            sessionStorage.setItem('devicePanelCollapsed', devicePanelCollapsed);
+            applyCollapseState();
+        }
+
+        function applyCollapseState() {
+            const row = document.getElementById('deviceUploadRow');
+            const bar = document.getElementById('uploadResultBar');
+            const chevron = document.getElementById('collapseChevron');
+            const label = document.getElementById('collapseLabel');
+
+            if (devicePanelCollapsed) {
+                row.classList.add('collapsed');
+                bar.classList.add('collapsed');
+                chevron.classList.add('collapsed');
+                label.textContent = 'Show Upload';
+            } else {
+                row.classList.remove('collapsed');
+                bar.classList.remove('collapsed');
+                chevron.classList.remove('collapsed');
+                label.textContent = 'Hide Upload';
+            }
+        }
 
         // =====================================================
         // Device list
