@@ -60,6 +60,7 @@ public class FileUploadRoutes {
         mountProtectedRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
 
         // Authenticated HTML pages (not publicly accessible)
+        mountProtectedRoute("/connection-browser", this::handleConnectionBrowserPage, null);
         mountProtectedRoute("/page", this::handleUploadPage, null);
         mountProtectedRoute("/edit-program", this::handleEditProgramPage, null);
         mountProtectedRoute("/tag-browser", this::handleTagBrowserPage, null);
@@ -69,11 +70,12 @@ public class FileUploadRoutes {
         mountPublicRoute("/auth/status", this::handleAuthStatus);
 
         logger.info("File upload routes mounted at /data/logixemulator/");
-        logger.info("  - Upload page:      /data/logixemulator/page");
-        logger.info("  - Edit program:     /data/logixemulator/edit-program");
-        logger.info("  - Tag browser:      /data/logixemulator/tag-browser");
-        logger.info("  - Live tags API:    /data/logixemulator/device/:name/tags/live");
-        logger.info("  - Write tag API:    /data/logixemulator/device/:name/tag/write");
+        logger.info("  - Connection browser: /data/logixemulator/connection-browser");
+        logger.info("  - Upload page:        /data/logixemulator/page");
+        logger.info("  - Edit program:       /data/logixemulator/edit-program");
+        logger.info("  - Tag browser:        /data/logixemulator/tag-browser");
+        logger.info("  - Live tags API:      /data/logixemulator/device/:name/tags/live");
+        logger.info("  - Write tag API:      /data/logixemulator/device/:name/tag/write");
     }
 
     /**
@@ -1131,8 +1133,13 @@ public class FileUploadRoutes {
             .put("loginUrl", "/web/login");
     }
 
+    private Object handleConnectionBrowserPage(RequestContext ctx, HttpServletResponse resp) {
+        return serveHtmlPage("/pages/connection-browser.html", "Connection browser page", resp);
+    }
+
     private Object handleUploadPage(RequestContext ctx, HttpServletResponse resp) {
-        return serveHtmlPage("/pages/simple-upload.html", "Upload page", resp);
+        // Redirect legacy route to the new connection browser
+        return serveHtmlPage("/pages/connection-browser.html", "Upload page", resp);
     }
 
     private Object handleEditProgramPage(RequestContext ctx, HttpServletResponse resp) {
@@ -1140,7 +1147,8 @@ public class FileUploadRoutes {
     }
 
     private Object handleTagBrowserPage(RequestContext ctx, HttpServletResponse resp) {
-        return serveHtmlPage("/pages/tag-browser.html", "Tag browser page", resp);
+        // Redirect legacy route to the new connection browser
+        return serveHtmlPage("/pages/connection-browser.html", "Tag browser page", resp);
     }
 
     /**

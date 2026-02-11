@@ -38,37 +38,25 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         this.context = context;
         logger.info("Logix PLC Emulator module setup - GatewayContext initialized: {}", (context != null));
 
-        // Register WebUI component for file upload page
+        // Register WebUI component for Connection Browser (combined tag browser + file upload)
         try {
-            // Create SystemJsModule that points to our bundled React component
-            SystemJsModule plcUploadModule = new SystemJsModule(
-                "com.inductiveautomation.logixemulator.PLCUpload",
-                "/res/logixemulator/plcUpload.js"
+            SystemJsModule connectionBrowserModule = new SystemJsModule(
+                "com.inductiveautomation.logixemulator.ConnectionBrowser",
+                "/res/logixemulator/connectionBrowser.js"
             );
 
-            // Create SystemJsModule for Tag Browser
-            SystemJsModule tagBrowserModule = new SystemJsModule(
-                "com.inductiveautomation.logixemulator.TagBrowser",
-                "/res/logixemulator/tagBrowser.js"
-            );
-
-            // Add navigation menu items in the Connections section
+            // Add navigation menu item in the Connections section
             context.getWebResourceManager().getNavigationModel().getConnections()
                 .addCategory("logixemulator", cat -> cat
                     .label("Logix PLC Emulator")
-                    .addPage("File Upload", page -> page
+                    .addPage("Connection Browser", page -> page
                         .position(10)
-                        .mount("/logix-file-upload", "PLCUpload", plcUploadModule)
-                    )
-                    .addPage("Tag Browser", page -> page
-                        .position(20)
-                        .mount("/logix-tag-browser", "TagBrowser", tagBrowserModule)
+                        .mount("/logix-connection-browser", "ConnectionBrowser", connectionBrowserModule)
                     )
                 );
 
-            logger.info("Added 'Logix PLC Emulator' menu items to Gateway Config:");
-            logger.info("  - File Upload:  /app/logix-file-upload");
-            logger.info("  - Tag Browser:  /app/logix-tag-browser");
+            logger.info("Added 'Logix PLC Emulator' menu item to Gateway Config:");
+            logger.info("  - Connection Browser: /app/logix-connection-browser");
         } catch (Exception e) {
             logger.error("Failed to add WebUI navigation menu item", e);
         }
@@ -199,12 +187,15 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
      * - /res/logixemulator/plc-file-upload.js - Form enhancement script
      *
      * Authenticated data routes (from mountRouteHandlers) at /data/logixemulator/*:
-     * - /data/logixemulator/page - File upload page (requires login)
+     * - /data/logixemulator/connection-browser - Connection Browser page (requires login)
      * - /data/logixemulator/edit-program - Edit program page (requires login)
-     * - /data/logixemulator/tag-browser - Tag browser page (requires login)
      * - /data/logixemulator/upload - File upload endpoint (requires login)
      * - /data/logixemulator/devices - List devices (requires login)
      * - /data/logixemulator/health - Health check (public)
+     *
+     * Legacy routes (redirect to Connection Browser):
+     * - /data/logixemulator/page - Redirects to connection-browser
+     * - /data/logixemulator/tag-browser - Redirects to connection-browser
      *
      * SECURITY: HTML pages are served through authenticated routes (/data/*)
      * to ensure only logged-in users can access the upload functionality.

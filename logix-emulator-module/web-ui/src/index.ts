@@ -1,2 +1,1 @@
-export { default as PLCUpload } from "./pages/PLCUpload";
-export { default as TagBrowser } from "./pages/TagBrowser";
+export { default as ConnectionBrowser } from "./pages/ConnectionBrowser";

@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.1.0] - 2026-02-11 - **Unified Connection Browser**
+
+### Added
+- **Connection Browser** - Merged File Upload and Tag Browser into a single unified page
+  - Combined device selector, file upload zone, and tag tree in one view
+  - Drag-and-drop file upload integrated alongside tag browsing
+  - Device info bar showing current file status with delete option
+  - Upload result bar for file selection and upload feedback
+  - Single navigation entry in Gateway Config under "Logix PLC Emulator"
+  - Route: `/data/logixemulator/connection-browser`
+
+### Changed
+- **Gateway navigation** - Replaced two separate menu entries ("File Upload" and "Tag Browser") with single "Connection Browser" entry
+- **React wrapper** - New `ConnectionBrowser` component replaces `PLCUpload` and `TagBrowser`
+- **Webpack entry** - Single `connectionBrowser` entry point replaces `plcUpload` and `tagBrowser`
+- Old routes (`/page`, `/tag-browser`) now serve the Connection Browser page for backwards compatibility
+
+### Removed
+- `simple-upload.html` - Replaced by `connection-browser.html`
+- `tag-browser.html` - Replaced by `connection-browser.html`
+- `PLCUpload` React component
+- `TagBrowser` React component
+- "Supported Formats" block from the upload UI
+
+---
+
 ## [8.0.0] - 2026-02-11 - **BREAKING: Renamed to Logix PLC Emulator**
 
 ### BREAKING CHANGES

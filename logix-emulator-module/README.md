@@ -4,7 +4,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 
 ## Current Status
 
-**Version**: v8.0.0
+**Version**: v8.1.0
 **Status**: Production Ready
 **Requires**: Ignition 8.3+ | Java 17
 
@@ -40,7 +40,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 2. Select device type: **Logix PLC Emulator**
 3. Enter **Device Name** and select **Parser Type**
 4. Click **Save** - device will show "Ready - Waiting for file upload" status
-5. Add files later via the File Upload page or Edit Program page
+5. Add files later via the Connection Browser or Edit Program page
 
 #### Create with File
 1. Go to Config > OPC UA > Device Connections > Create New Device
@@ -53,9 +53,8 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 
 ### Web UI Pages
 
-- **File Upload**: `/data/logixemulator/page` (requires authentication)
+- **Connection Browser**: `/data/logixemulator/connection-browser` (requires authentication) - Browse tags and manage PLC files
 - **Edit Program**: `/data/logixemulator/edit-program` (requires authentication)
-- **Tag Browser**: `/data/logixemulator/tag-browser` (requires authentication)
 
 ## Features
 
@@ -67,7 +66,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 - **SINT Support**: Simulates Short values in -128 to 127 range
 - **Hot Reload**: Automatic tag update when PLC file changes on disk
 - **Incremental Updates**: Smart detection of structural vs value-only changes
-- **Tag Browser UI**: Visual tag exploration with live values and write support
+- **Connection Browser UI**: Unified tag exploration, live values, write support, and file upload
 - **File Versioning**: Last 5 versions kept with rollback support
 - **Security**: Path traversal prevention, rate limiting, authentication on all routes
 
