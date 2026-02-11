@@ -3,7 +3,6 @@ package com.inductiveautomation.logixemulator.gateway.parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -13,18 +12,13 @@ import java.util.List;
 public class ParserFactory {
 
     private static final Logger logger = LoggerFactory.getLogger(ParserFactory.class);
-    private static final List<PLCParser> availableParsers = new ArrayList<>();
 
-    static {
-        // Register all available parsers
-        availableParsers.add(new L5KParser());  // Add L5K parser FIRST for .l5k files
-        availableParsers.add(new L5XParser());  // L5X parser for .l5x XML files
-        availableParsers.add(new JsonPLCParser());
-        availableParsers.add(new CsvParser());
-
-        logger.info("Registered {} PLC parsers: L5K, L5X, JSON, CSV",
-                    availableParsers.size());
-    }
+    private static final List<PLCParser> AVAILABLE_PARSERS = List.of(
+        new L5KParser(),      // L5K parser FIRST for .l5k files
+        new L5XParser(),      // L5X parser for .l5x XML files
+        new JsonPLCParser(),
+        new CsvParser()
+    );
 
     /**
      * Get parser for a specific file.
@@ -38,7 +32,7 @@ public class ParserFactory {
             return null;
         }
 
-        for (PLCParser parser : availableParsers) {
+        for (PLCParser parser : AVAILABLE_PARSERS) {
             if (parser.canHandle(fileName)) {
                 logger.info("Selected parser '{}' for file: {}", parser.getParserType(), fileName);
                 return parser;
@@ -62,7 +56,7 @@ public class ParserFactory {
 
         String normalizedType = parserType.toLowerCase().trim();
 
-        for (PLCParser parser : availableParsers) {
+        for (PLCParser parser : AVAILABLE_PARSERS) {
             if (parser.getParserType().equals(normalizedType)) {
                 logger.info("Selected parser by type: {}", parserType);
                 return parser;
@@ -98,6 +92,6 @@ public class ParserFactory {
      * @return List of all registered parsers
      */
     public static List<PLCParser> getAllParsers() {
-        return new ArrayList<>(availableParsers);
+        return AVAILABLE_PARSERS;
     }
 }

@@ -1,10 +1,10 @@
 # Module Signing Configuration
 
-This document describes the module signing configuration for the PLC Simulator module.
+This document describes the module signing configuration for the Logix PLC Emulator module.
 
 ## Overview
 
-The PLC Simulator module is signed with a **self-signed certificate** for development and testing purposes. This follows the same approach as the [ignition-module-python3-java](https://github.com/nigelgwork/ignition-module-python3-java) project.
+The Logix PLC Emulator module is signed with a **self-signed certificate** for development and testing purposes. This follows the same approach as the [ignition-module-python3-java](https://github.com/nigelgwork/ignition-module-python3-java) project.
 
 ## Signing Files
 
@@ -20,8 +20,8 @@ The following files are used for module signing:
 ## Certificate Details
 
 ```
-Owner: CN=PLC Simulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
-Issuer: CN=PLC Simulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
+Owner: CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
+Issuer: CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
 Algorithm: RSA 2048-bit
 Validity: 10 years (2025-2035)
 Alias: plcsimulator
@@ -84,7 +84,7 @@ keytool -genkeypair \
     -keystore keystore.jks \
     -storepass ***REDACTED*** \
     -keypass ***REDACTED*** \
-    -dname "CN=PLC Simulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US" \
+    -dname "CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US" \
     -ext "SAN=DNS:localhost,IP:127.0.0.1"
 
 # Export certificate in DER format
@@ -112,8 +112,8 @@ When you run `./gradlew clean build`, the following happens:
 2. JARs and resources are assembled into a .modl file
 3. Module is signed using the keystore and certificate
 4. Two module files are created:
-   - `PLCSimulator-1.0.0.modl` - **Signed** (use this)
-   - `PLCSimulator-1.0.0.unsigned.modl` - Unsigned backup
+   - `LogixPLCEmulator-{version}.modl` - **Signed** (use this)
+   - `LogixPLCEmulator-{version}.unsigned.modl` - Unsigned backup
 
 The signed module includes a `signatures.properties` file inside the .modl archive.
 
@@ -123,7 +123,7 @@ To verify a module is signed:
 
 ```bash
 # Check for signatures.properties file
-unzip -l build/PLCSimulator-1.0.0.modl | grep signatures.properties
+unzip -l build/LogixPLCEmulator-{version}.modl | grep signatures.properties
 
 # Expected output:
 #   1852  2025-11-06 11:47   signatures.properties
@@ -133,7 +133,7 @@ unzip -l build/PLCSimulator-1.0.0.modl | grep signatures.properties
 
 Ignition Gateway will accept the self-signed certificate without additional configuration:
 
-1. Upload `PLCSimulator-1.0.0.modl` (signed version) to Gateway
+1. Upload `LogixPLCEmulator-{version}.modl` (signed version) to Gateway
 2. Install normally - no special settings needed
 3. Gateway accepts the Gaskony development certificate
 
@@ -194,7 +194,7 @@ Store production passwords as repository secrets, not in code.
 
 This configuration mirrors the [ignition-module-python3-java](https://github.com/nigelgwork/ignition-module-python3-java) project:
 
-| Aspect | Python3 Module | PLC Simulator |
+| Aspect | Python3 Module | Logix PLC Emulator |
 |--------|---------------|---------------|
 | Keystore file | `keystore.jks` | `keystore.jks` |
 | Certificate file | `certificate.der` | `certificate.der` |

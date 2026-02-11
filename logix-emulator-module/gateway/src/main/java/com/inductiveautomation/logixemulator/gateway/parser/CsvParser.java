@@ -82,12 +82,12 @@ public class CsvParser implements PLCParser {
                 // Parse tag
                 JsonObject tag = new JsonObject();
                 tag.addProperty("name", parts[nameCol].trim());
-                tag.addProperty("type", parts[typeCol].trim().toUpperCase());
+                tag.addProperty("data_type", parts[typeCol].trim().toUpperCase());
 
                 if (parts.length > valueCol) {
-                    tag.addProperty("initialValue", parseValue(parts[valueCol].trim(), parts[typeCol].trim()));
+                    tag.addProperty("initial_value", parseValue(parts[valueCol].trim(), parts[typeCol].trim()));
                 } else {
-                    tag.addProperty("initialValue", getDefaultValue(parts[typeCol].trim()));
+                    tag.addProperty("initial_value", getDefaultValue(parts[typeCol].trim()));
                 }
 
                 if (parts.length > descCol) {
@@ -99,7 +99,7 @@ public class CsvParser implements PLCParser {
 
             result.addProperty("controller", "CSVController");
             result.addProperty("vendor", "csv");
-            result.add("tags", tags);
+            result.add("global_tags", tags);
 
             logger.info("Successfully parsed CSV file with {} tags: {}", tags.size(), fileName);
             return result;

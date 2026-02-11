@@ -113,52 +113,11 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     @Override
     public void mountRouteHandlers(RouteGroup routes) {
         try {
-            logger.info("=== ROUTE MOUNTING DEBUG ===");
-            logger.info("mountRouteHandlers called");
-            logger.info("GatewayContext null? {}", (context == null));
-            logger.info("RouteGroup null? {}", (routes == null));
-
-            if (routes != null) {
-                logger.info("RouteGroup class: {}", routes.getClass().getName());
-                logger.info("RouteGroup toString: {}", routes.toString());
-
-                // Try to extract the base path using reflection
-                try {
-                    java.lang.reflect.Method getBasePath = routes.getClass().getMethod("getBasePath");
-                    getBasePath.setAccessible(true);
-                    Object basePath = getBasePath.invoke(routes);
-                    logger.info("RouteGroup base path (via reflection): {}", basePath);
-                } catch (NoSuchMethodException e) {
-                    logger.info("RouteGroup does not have getBasePath() method");
-                } catch (Exception e) {
-                    logger.warn("Could not extract base path from RouteGroup", e);
-                }
-            }
-
-            if (context == null) {
-                logger.error("GatewayContext is null - cannot mount routes! This should not happen.");
-                return;
-            }
-
-            if (routes == null) {
-                logger.error("RouteGroup is null - cannot mount routes! This should not happen.");
-                return;
-            }
-
             FileUploadRoutes uploadRoutes = new FileUploadRoutes(context, routes);
             uploadRoutes.mountRoutes();
-
-            logger.info("File upload routes mounted successfully");
-            logger.info("Routes should be accessible at /data/logixemulator/* (based on getMountPathAlias)");
-            logger.info("If routes return 404, check:");
-            logger.info("  1. Authentication - routes require authenticated session");
-            logger.info("  2. Base path - verify RouteGroup base path above");
-            logger.info("  3. Test health endpoint: curl http://localhost:8088/data/logixemulator/health");
-            logger.info("=== END ROUTE MOUNTING DEBUG ===");
+            logger.info("File upload routes mounted at /data/logixemulator/*");
         } catch (Exception e) {
-            logger.error("CRITICAL: Failed to mount file upload routes", e);
-            e.printStackTrace();
-            // Don't rethrow - we want the module to continue loading even if routes fail
+            logger.error("Failed to mount file upload routes", e);
         }
     }
 

@@ -1,6 +1,6 @@
 # API Reference - Logix PLC Emulator
 
-**Version**: 8.1.0
+**Version**: 8.2.0
 **Last Updated**: 2026-02-11
 **Base URL**: `http://your-gateway:8088`
 
@@ -497,7 +497,7 @@ curl -u admin:password http://localhost:8088/data/logixemulator/status
 **Success (200 OK)**:
 ```json
 {
-  "moduleVersion": "8.1.0",
+  "moduleVersion": "8.2.0",
   "moduleStatus": "Running",
   "totalDevices": 2,
   "runningDevices": 1,
@@ -703,7 +703,7 @@ ROCKWELL_L5K
 
 ### Current Implementation
 
-**Status**: Not implemented in v8.1.0
+**Status**: Not implemented in v8.2.0
 
 **Planned for future release**:
 - 100 uploads per hour per user

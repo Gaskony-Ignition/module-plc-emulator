@@ -7,8 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Optional;
@@ -107,7 +105,8 @@ public class DeviceFileManager {
 
             logger.info("Saved file to disk: {} ({} bytes)", targetFile.getAbsolutePath(), fileContent.length());
 
-            updateDeviceFilePath(device, targetFile.getAbsolutePath());
+            device.setCurrentFilePath(targetFile.getAbsolutePath());
+            logger.debug("Updated device file path to: {}", targetFile.getAbsolutePath());
             return true;
 
         } catch (Exception e) {
@@ -121,9 +120,7 @@ public class DeviceFileManager {
      */
     public void reloadDevice(LogixEmulatorDevice device) {
         try {
-            Field filePathField = LogixEmulatorDevice.class.getDeclaredField("currentFilePath");
-            filePathField.setAccessible(true);
-            String filePath = (String) filePathField.get(device);
+            String filePath = device.getCurrentFilePath();
 
             if (filePath == null || filePath.isEmpty()) {
                 logger.warn("No file path set for device: {}", device.getName());
@@ -136,14 +133,9 @@ public class DeviceFileManager {
                 return;
             }
 
-            Method handleFileChangeMethod = LogixEmulatorDevice.class.getDeclaredMethod("handleFileChange", File.class);
-            handleFileChangeMethod.setAccessible(true);
-            handleFileChangeMethod.invoke(device, deviceFile);
-
+            device.reloadFromFile(deviceFile);
             logger.info("Device reloaded successfully: {}", device.getName());
 
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
-            logger.error("Reflection error - device class structure may have changed", e);
         } catch (Exception e) {
             logger.error("Error during device reload: {}", device.getName(), e);
         }
@@ -153,21 +145,7 @@ public class DeviceFileManager {
      * Get the current file path for a device.
      */
     public String getDeviceFilePath(LogixEmulatorDevice device) {
-        try {
-            Field filePathField = LogixEmulatorDevice.class.getDeclaredField("currentFilePath");
-            filePathField.setAccessible(true);
-            return (String) filePathField.get(device);
-        } catch (Exception e) {
-            logger.warn("Could not access currentFilePath field", e);
-            return null;
-        }
-    }
-
-    private void updateDeviceFilePath(LogixEmulatorDevice device, String filePath) throws Exception {
-        Field filePathField = LogixEmulatorDevice.class.getDeclaredField("currentFilePath");
-        filePathField.setAccessible(true);
-        filePathField.set(device, filePath);
-        logger.debug("Updated device file path to: {}", filePath);
+        return device.getCurrentFilePath();
     }
 
     /**
@@ -176,26 +154,9 @@ public class DeviceFileManager {
      */
     public void clearDeviceFile(LogixEmulatorDevice device) {
         try {
-            // Clear the currentFilePath field
-            Field filePathField = LogixEmulatorDevice.class.getDeclaredField("currentFilePath");
-            filePathField.setAccessible(true);
-            filePathField.set(device, null);
-            logger.debug("Cleared file path for device: {}", device.getName());
-
-            // Clear parsed data to remove all tags
-            Field parsedDataField = LogixEmulatorDevice.class.getDeclaredField("parsedData");
-            parsedDataField.setAccessible(true);
-            parsedDataField.set(device, null);
-            logger.debug("Cleared parsed data for device: {}", device.getName());
-
-            // Invoke the clearAddressSpace method to remove all tag nodes
-            Method clearMethod = LogixEmulatorDevice.class.getDeclaredMethod("clearAddressSpace");
-            clearMethod.setAccessible(true);
-            clearMethod.invoke(device);
+            device.setCurrentFilePath(null);
+            device.clearAndReset();
             logger.info("Cleared address space for device: {}", device.getName());
-
-        } catch (NoSuchFieldException | NoSuchMethodException e) {
-            logger.error("Reflection error - device class structure may have changed", e);
         } catch (Exception e) {
             logger.error("Error clearing device file: {}", device.getName(), e);
         }

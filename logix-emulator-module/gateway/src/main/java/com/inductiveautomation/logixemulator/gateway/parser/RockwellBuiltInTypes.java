@@ -3,6 +3,7 @@ package com.inductiveautomation.logixemulator.gateway.parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,31 +22,29 @@ public final class RockwellBuiltInTypes {
 
     private static final Logger logger = LoggerFactory.getLogger(RockwellBuiltInTypes.class);
 
+    private static final Map<String, UDTDefinition> BUILT_IN_TYPES;
+
+    static {
+        Map<String, UDTDefinition> types = new HashMap<>();
+        addBasicTypes(types);
+        addProcessControlTypes(types);
+        addMotionControlTypes(types);
+        addSpecialtyTypes(types);
+        BUILT_IN_TYPES = Collections.unmodifiableMap(types);
+        logger.debug("Created {} built-in Rockwell type definitions", BUILT_IN_TYPES.size());
+    }
+
     private RockwellBuiltInTypes() {
         // Utility class - prevent instantiation
     }
 
     /**
-     * Create all built-in Rockwell structured type definitions.
+     * Get all built-in Rockwell structured type definitions.
+     * Returns a cached, immutable map.
      * @return Map of type name to UDT definition
      */
     public static Map<String, UDTDefinition> createAll() {
-        Map<String, UDTDefinition> types = new HashMap<>();
-
-        // Basic types
-        addBasicTypes(types);
-
-        // Process control types
-        addProcessControlTypes(types);
-
-        // Motion control types
-        addMotionControlTypes(types);
-
-        // Specialty types
-        addSpecialtyTypes(types);
-
-        logger.debug("Created {} built-in Rockwell type definitions", types.size());
-        return types;
+        return BUILT_IN_TYPES;
     }
 
     private static void addBasicTypes(Map<String, UDTDefinition> types) {

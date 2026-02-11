@@ -9,6 +9,78 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [8.2.1] - 2026-02-11 - **Architecture & Test Coverage**
+
+### Changed
+- Extracted `TagTreeBuilder` (~230 lines) from `FileUploadRoutes` into its own top-level class
+- Replaced inline fully-qualified type names in `FileUploadRoutes` with proper imports (`Map`, `Set`, `InetAddress`)
+- Made `ParserFactory` parser list immutable (`List.of()` instead of mutable `ArrayList`)
+- Fixed `IncrementalAddressSpaceUpdater` to handle program-scoped tag paths (was hardcoded to `Controller:Global.` prefix only)
+
+### Added
+- Unit tests for `CsvParser` (14 tests: delimiters, headers, quoting, boolean normalization, edge cases)
+- Unit tests for `JsonPLCParser` (13 tests: schemas, metadata defaults, UDT members, error handling)
+- Unit tests for `RateLimiter` (12 tests: user/IP limits, window reset, stats, independent tracking)
+
+---
+
+## [8.2.0] - 2026-02-11 - **Security, Code Quality & Documentation Overhaul**
+
+### Security
+- Fixed authentication bypass: `getUsername()` no longer returns `"gateway-user"` fallback for unauthenticated requests
+- Sanitized all error messages returned to clients (8 endpoints) — internal details no longer leaked
+- Removed full file system path from device status API response
+- Fixed rate limiter window reset — counter now properly resets when time window expires
+- Removed unused 11.4MB ELF binary (`plc-parser-service`) from module resources
+
+### Fixed
+- **File Validator** now accepts `.l5x`, `.json`, `.csv` extensions (was rejecting all non-`.l5k` files)
+- **CSV Parser** output schema corrected (`"tags"` → `"global_tags"`, `"type"` → `"data_type"`) — CSV files now produce tags in OPC-UA address space
+- **SimpleDateFormat** thread-safety bug in FileVersionManager replaced with `DateTimeFormatter`
+- `gradle.properties` version drift removed (was `7.3.15` vs `8.2.0` in `build.gradle.kts`)
+
+### Changed
+- Replaced all reflection-based access (6 sites) in DeviceFileManager and FileUploadRoutes with public API methods on LogixEmulatorDevice
+- Cached `RockwellBuiltInTypes` as immutable static field (was allocating new map on every parse)
+- Reduced `SimulatorModuleHook.mountRouteHandlers` from 50 lines of debug logging to 3 lines
+- Removed `Thread.sleep(100)` from FileWatcher scheduled task
+- Cleaned up inline fully-qualified type names in LogixEmulatorDevice with proper imports
+- JSON parser doc comments updated to show correct schema (`global_tags`, `data_type`)
+
+### Removed
+- Unused imports: `BufferedReader`, `InputStreamReader`, `HttpURLConnection`, `URL`, `TimeUnit`, `Gson`
+- Dead code: `nodeIdCounter` map in AddressSpaceBuilder, unused `ParserException` class
+- Wildcard import in FileWatcher
+
+### Documentation
+- Updated 14 documentation files with correct module name, version, package paths
+- Removed all stale multi-vendor parser references (Siemens, Schneider, Beckhoff, ABB, Mitsubishi, Omron)
+- Fixed incorrect version source of truth references (`gradle.properties` → `build.gradle.kts`)
+- Rewrote KNOWN_ISSUES.md and PLAN.md to reflect current Rockwell-only scope
+- Updated license.html copyright to 2024-2026
+
+---
+
+## [8.1.2] - 2026-02-11 - **UI Polish & File Persistence Fix**
+
+### Fixed
+- File persistence across gateway restarts — storage directory mismatch (`plc-simulator` → `logix-emulator`) in `prepareFile()`
+- Removed all monospace font overrides — UI now uses gateway sans-serif throughout
+
+### Changed
+- Background colors shifted from blue-tinted to neutral charcoal
+- Page layout now full-width (removed `max-width: 1400px`)
+- Added collapsible device upload section with sessionStorage persistence
+
+---
+
+## [8.1.1] - 2026-02-11 - **Gateway Theme Restyle**
+
+### Changed
+- Restyled Connection Browser to match Ignition 8.3 gateway dark theme
+
+---
+
 ## [8.1.0] - 2026-02-11 - **Unified Connection Browser**
 
 ### Added

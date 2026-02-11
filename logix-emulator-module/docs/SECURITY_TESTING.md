@@ -1,7 +1,7 @@
 # Security Testing Guide - Logix PLC Emulator
 
-**Version**: 5.4.9
-**Last Updated**: 2025-11-22
+**Version**: 8.2.0
+**Last Updated**: 2026-02-11
 **Security Status**: All critical vulnerabilities resolved
 
 ---
@@ -164,7 +164,7 @@ BUILD SUCCESSFUL
 
 ### Fixed Implementation
 
-**Location**: `gateway/src/main/java/com/inductiveautomation/plcsimulator/gateway/parser/L5XParser.java:52-67`
+**Location**: `gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/parser/L5XParser.java:52-67`
 
 **Security Features**:
 ```java
@@ -312,7 +312,7 @@ File upload endpoints MUST require authentication. Unauthenticated access could 
 
 ### Fixed Implementation
 
-**Location**: `gateway/src/main/java/com/inductiveautomation/plcsimulator/gateway/web/FileUploadRoutes.java:771-858`
+**Location**: `gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/FileUploadRoutes.java:771-858`
 
 **Authentication Check**:
 ```java
@@ -445,7 +445,7 @@ Path traversal attacks allow attackers to access files outside the intended dire
 
 ### Fixed Implementation
 
-**Location**: `gateway/src/main/java/com/inductiveautomation/plcsimulator/gateway/web/FileUploadRoutes.java:859-923`
+**Location**: `gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/FileUploadRoutes.java:859-923`
 
 **Sanitization Functions**:
 ```java
@@ -905,7 +905,7 @@ Discoverer:
 
 ### Bug Bounty (If Applicable)
 
-**Scope**: Logix PLC Emulator module v5.x
+**Scope**: Logix PLC Emulator module v8.x
 
 **In Scope**:
 - XXE vulnerabilities
@@ -932,7 +932,7 @@ Discoverer:
 
 ## Version Information
 
-**Module Version**: 5.4.9
+**Module Version**: 8.2.0
 **Security Review Date**: 2025-11-22
 **Next Scheduled Review**: 2026-02-22 (quarterly)
 **Security Contact**: security@yourcompany.com

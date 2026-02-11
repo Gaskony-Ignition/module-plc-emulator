@@ -1,7 +1,7 @@
 # Tag Creation and OPC-UA Address Space Flow
 
-> **Version**: 5.4.9
-> **Last Updated**: 2025-11-22
+> **Version**: 8.2.0
+> **Last Updated**: 2026-02-11
 > **Purpose**: Complete reference for how PLC file tags become OPC-UA browseable nodes
 
 ---
@@ -597,7 +597,7 @@ FileUploadRoutes.handleFileUpload():101
 [File Processing]
 ├─ Read request body content
 ├─ Validate file format (L5K/L5X/JSON/CSV)
-├─ Save to disk: {dataDir}/plc-simulator/{deviceName}_{fileName}
+├─ Save to disk: {dataDir}/logix-emulator/{deviceName}_{fileName}
 └─ Update device configuration
       ↓
 [Device Reload]
@@ -636,7 +636,7 @@ FileUploadRoutes.handleFileUpload():101
 
 ## Version History & Changes
 
-### v5.4.9 (2025-11-22) - Current
+### v5.4.9 (2025-11-22)
 - ✅ Removed Python parser service dependency (pure Java)
 - ✅ Added comprehensive security to file upload (XXE prevention, path traversal, auth)
 - ✅ Added 40 unit tests including security tests
