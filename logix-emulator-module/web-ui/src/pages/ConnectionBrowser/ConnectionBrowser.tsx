@@ -18,8 +18,6 @@ const ConnectionBrowserPage = () => {
         src="/data/logixemulator/connection-browser"
         className="connection-browser-iframe"
         title="Logix PLC Emulator Connection Browser"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads"
-        referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   );
