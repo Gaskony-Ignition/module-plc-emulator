@@ -69,6 +69,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: .
         run: |
+          # Delete existing release if present (e.g. created manually)
+          gh release delete "${{ github.ref_name }}" --yes 2>/dev/null || true
           gh release create "${{ github.ref_name }}" \
             "logix-emulator-module/${{ steps.modl.outputs.file }}" \
             --title "Logix PLC Emulator ${{ github.ref_name }}" \
