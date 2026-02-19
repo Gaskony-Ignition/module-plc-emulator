@@ -116,6 +116,8 @@ jobs:
           VERSION = os.environ['VERSION']
           with open('README.md', 'r') as f:
               content = f.read()
+          # Migrate old tag prefix to new prefix
+          content = content.replace('plc-emulator-v', 'logix-emulator-v')
           content = re.sub(r'LogixPLCEmulator-[\d.]+\.modl', f'LogixPLCEmulator-{VERSION}.modl', content)
           content = re.sub(r'logix-emulator-v[\d.]+', f'logix-emulator-v{VERSION}', content)
           content = re.sub(
