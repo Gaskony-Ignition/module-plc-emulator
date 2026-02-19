@@ -72,7 +72,7 @@ The original "Programmable Device Simulator" has an "Edit Program" menu item bec
 ### 1. Install the Module
 - Navigate to **Gateway → Config → System → Modules**
 - Click **"Install or Upgrade a Module"**
-- Upload `LogixPLCEmulator-8.2.0.modl`
+- Upload `LogixPLCEmulator-8.2.11.modl`
 - Restart Gateway if prompted
 
 ### 2. Create Device(s)
@@ -187,7 +187,5 @@ After uploading a file:
 
 ## Version
 
-**Module Version:** 8.2.0
-**Release Date:** 2026-02-11
+**Module Version:** 8.2.11
 **Ignition Compatibility:** 8.3.0+
-**Major Release:** v8.2.0 - Ignition 8.3 Theme Restyling

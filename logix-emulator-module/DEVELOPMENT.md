@@ -258,7 +258,7 @@ private void parseMyNewFormat(String content) {
 
 **1. Update `build.gradle.kts`**:
 ```kotlin
-version = "8.2.0"
+version = "8.2.11"
 ```
 
 **2. Update CHANGELOG.md**:

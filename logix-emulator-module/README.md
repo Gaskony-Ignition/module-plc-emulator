@@ -4,7 +4,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 
 ## Current Status
 
-**Version**: v8.2.0
+**Version**: v8.2.11
 **Status**: Production Ready
 **Requires**: Ignition 8.3+ | Java 17
 
@@ -107,18 +107,6 @@ chmod +x gradlew
 ```
 
 The signed module will be at `build/LogixPLCEmulator-{version}.modl`.
-
-## Upgrading from v7.x (Enhanced PLC Simulator)
-
-v8.0.0 is a breaking change. Existing device configurations will need to be re-created:
-
-1. Note your current device settings and file paths
-2. Uninstall the old "Enhanced PLC Simulator" module
-3. Install the new "Logix PLC Emulator" module
-4. Re-create device connections with the new device type
-5. Re-upload your L5K/L5X files
-
-The storage directory is automatically migrated from `plc-simulator` to `logix-emulator`.
 
 ## License
 
