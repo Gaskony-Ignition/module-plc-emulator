@@ -53,7 +53,7 @@ const App: React.FC = () => {
     };
   }, [checkHealth]);
 
-  if (status === "auth_required") {
+  if (status === "auth_required" && !IS_DEDICATED_MODE) {
     return (
       <div className="logix-app">
         <div className="auth-required-overlay">
