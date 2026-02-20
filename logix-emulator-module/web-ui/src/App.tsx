@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Cpu, ExternalLink } from "lucide-react";
 import "./App.scss";
 
-const HEALTH_URL = "/data/logixemulator/health";
+const AUTH_PROBE_URL = "/data/logixemulator/devices";
 const STANDALONE_URL = "/res/logixemulator/standalone.html";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
 
@@ -16,7 +16,7 @@ const App: React.FC = () => {
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch(HEALTH_URL, {
+      const res = await fetch(AUTH_PROBE_URL, {
         signal: AbortSignal.timeout(5000),
         credentials: "same-origin",
       });
@@ -53,7 +53,7 @@ const App: React.FC = () => {
     };
   }, [checkHealth]);
 
-  if (status === "auth_required" && !IS_DEDICATED_MODE) {
+  if (status === "auth_required") {
     return (
       <div className="logix-app">
         <div className="auth-required-overlay">
