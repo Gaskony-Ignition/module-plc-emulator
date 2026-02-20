@@ -1,0 +1,36 @@
+/* ==========================================================================
+   Status Bar - Fixed bottom bar showing device stats
+   Scoped to .logix-app
+   ========================================================================== */
+
+.logix-app .logix-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 12px;
+  background: #11111b;
+  border-top: 1px solid var(--border-default);
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.logix-app .logix-status-bar-left,
+.logix-app .logix-status-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logix-app .logix-status-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.logix-app .logix-status-bar-item svg {
+  opacity: 0.7;
+}

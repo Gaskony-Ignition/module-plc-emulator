@@ -1,28 +1,35 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Cpu, ExternalLink } from "lucide-react";
+import { Cpu } from "lucide-react";
+import Sidebar from "./components/Sidebar";
+import StatusBar from "./components/StatusBar";
+import DashboardView from "./components/DashboardView";
+import DevicesView from "./components/DevicesView";
+import TagsView from "./components/TagsView";
+import DiagnosticsView from "./components/DiagnosticsView";
+import LogsView from "./components/LogsView";
 import "./App.scss";
 
-const AUTH_PROBE_URL = "/data/logixemulator/devices";
-const STANDALONE_URL = "/res/logixemulator/standalone.html";
+const AUTH_CHECK_URL = "/data/logixemulator/auth/check";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
+const MODULE_VERSION = "8.2.15";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
 const App: React.FC = () => {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const [activeView, setActiveView] = useState("dashboard");
   const healthTimerRef = useRef<number | null>(null);
   const attemptsRef = useRef(0);
   const intervalRef = useRef(5000);
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch(AUTH_PROBE_URL, {
+      const res = await fetch(AUTH_CHECK_URL, {
         signal: AbortSignal.timeout(5000),
         credentials: "same-origin",
       });
 
-      const contentType = res.headers.get("content-type") || "";
-      if (contentType.includes("text/html") || res.status === 401 || res.status === 403) {
+      if (res.status === 401) {
         setStatus("auth_required");
         intervalRef.current = 10000;
       } else if (res.ok) {
@@ -75,6 +82,23 @@ const App: React.FC = () => {
     );
   }
 
+  const renderActiveView = () => {
+    switch (activeView) {
+      case 'dashboard':
+        return <DashboardView onNavigate={setActiveView} />;
+      case 'devices':
+        return <DevicesView />;
+      case 'tags':
+        return <TagsView />;
+      case 'diagnostics':
+        return <DiagnosticsView />;
+      case 'logs':
+        return <LogsView />;
+      default:
+        return <DashboardView onNavigate={setActiveView} />;
+    }
+  };
+
   return (
     <div className="logix-app">
       {status === "disconnected" && (
@@ -88,31 +112,18 @@ const App: React.FC = () => {
           <span>Logix PLC Emulator</span>
         </div>
       )}
-      {!IS_DEDICATED_MODE && (
-        <div className="logix-toolbar">
-          <div className="logix-toolbar-brand">
-            <Cpu size={18} />
-            <span>Logix PLC Emulator</span>
-          </div>
-          <a
-            className="logix-toolbar-popout"
-            href={STANDALONE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Open in dedicated page"
-          >
-            <ExternalLink size={14} />
-            <span>Dedicated Page</span>
-          </a>
-        </div>
-      )}
-      <div className="logix-content">
-        <iframe
-          key="logixemulator-connection-browser"
-          src="/data/logixemulator/connection-browser"
-          className="logix-iframe"
-          title="Logix PLC Emulator Connection Browser"
+      <div className="logix-outer-layout">
+        <Sidebar
+          activeView={activeView}
+          onNavigate={setActiveView}
+          moduleVersion={MODULE_VERSION}
         />
+        <div className="logix-content-area">
+          <div className="logix-active-view">
+            {renderActiveView()}
+          </div>
+          <StatusBar />
+        </div>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ package com.inductiveautomation.logixemulator.gateway.web;
 import com.inductiveautomation.ignition.gateway.dataroutes.AccessControlStrategy;
 import com.inductiveautomation.ignition.gateway.dataroutes.HttpMethod;
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.ignition.gateway.dataroutes.RouteAccess;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook;
@@ -70,6 +71,7 @@ public class FileUploadRoutes {
         // Public routes - no authentication required
         mountPublicRoute("/health", this::handleHealthCheck);
         mountPublicRoute("/auth/status", this::handleAuthStatus);
+        mountPublicRoute("/auth/check", this::handleAuthCheck);
 
         logger.info("File upload routes mounted at /data/logixemulator/");
         logger.info("  - Connection browser: /data/logixemulator/connection-browser");
@@ -865,13 +867,48 @@ public class FileUploadRoutes {
     }
 
     private JSONObject handleAuthStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {
-        // Check if user has a session - basic auth check
-        String username = getUsername(ctx);
-        boolean isAuth = username != null && !username.isEmpty() && !username.equals("anonymous");
+        boolean isAuth = isGatewayAuthenticated(ctx);
         return new JSONObject()
             .put("authenticated", isAuth)
-            .put("username", username != null ? username : "")
             .put("loginUrl", "/web/login");
+    }
+
+    /**
+     * Auth check endpoint — returns 200 if authenticated, 401 if not.
+     * Used by the standalone page to detect whether to show the login overlay.
+     */
+    private JSONObject handleAuthCheck(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        if (!isGatewayAuthenticated(ctx)) {
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return new JSONObject().put("authenticated", false);
+        }
+        return new JSONObject().put("authenticated", true);
+    }
+
+    /**
+     * Check if the current request is authenticated via Gateway session.
+     * Checks HTTP session "user" attribute and request actor.
+     */
+    private static boolean isGatewayAuthenticated(RequestContext req) {
+        try {
+            // 1. Check HTTP session for "user" attribute (set by Gateway on login)
+            var httpSession = req.getRequest().getSession(false);
+            if (httpSession != null) {
+                var authUser = httpSession.getAttribute("user");
+                if (authUser != null) {
+                    return true;
+                }
+            }
+
+            // 2. Check actor from request context (filtering "unknown" default)
+            var actor = req.getActor();
+            if (actor != null && !actor.isEmpty() && !"unknown".equalsIgnoreCase(actor)) {
+                return true;
+            }
+        } catch (Exception e) {
+            logger.debug("Error checking authentication", e);
+        }
+        return false;
     }
 
     private Object handleConnectionBrowserPage(RequestContext ctx, HttpServletResponse resp) {

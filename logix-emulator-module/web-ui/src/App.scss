@@ -1,6 +1,6 @@
 /* ==========================================================================
    Logix PLC Emulator - Styles
-   Matches AI Terminal auth/layout patterns
+   Sidebar-driven multi-view layout matching AI Terminal design
    ========================================================================== */
 
 /* Reset - scoped to module only */
@@ -27,9 +27,26 @@
 
   --border-default: #20252e;
 
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+
+  /* Radii */
+  --radius-sm: 4px;
   --radius-md: 6px;
+
+  /* Shadows */
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+
+  /* Transitions */
   --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+
+  /* Z-index */
+  --z-sidebar: 10;
+  --z-tooltip: 100;
 
   /* Sans-serif font stack */
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
@@ -64,56 +81,31 @@
   flex-shrink: 0;
 }
 
-/* Toolbar (gateway embedded mode) */
-.logix-toolbar {
+/* Outer layout - sidebar + content */
+.logix-outer-layout {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  height: 42px;
-  min-height: 42px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-default);
-  flex-shrink: 0;
-}
-
-.logix-toolbar-brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-
-  svg {
-    color: var(--accent-primary);
-  }
-}
-
-.logix-toolbar-popout {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  text-decoration: none;
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-
-  &:hover {
-    background: var(--bg-hover);
-    color: var(--text-primary);
-  }
-}
-
-/* Content area */
-.logix-content {
   flex: 1;
+  overflow: hidden;
+}
+
+/* Content area - view + status bar */
+.logix-content-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Active view container */
+.logix-active-view {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Generic view wrapper (for iframe views) */
+.logix-view {
+  width: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
