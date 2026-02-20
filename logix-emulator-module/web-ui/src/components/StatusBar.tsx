@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Cpu, HardDrive, Activity } from 'lucide-react'
+import { Cpu, MemoryStick, HardDrive, Activity } from 'lucide-react'
 import './StatusBar.css'
 
 interface SystemStats {
@@ -86,33 +86,33 @@ function StatusBar() {
   return (
     <div className="logix-status-bar">
       <div className="logix-status-bar-left">
-        <span className="gsb-metric">
+        <div className="gsb-metric" title={`CPU: ${stats.cpuUsage.toFixed(1)}%`}>
           <Cpu size={11} />
-          <span>CPU</span>
-          <span className="gsb-bar">
-            <span
+          <div className="gsb-bar">
+            <div
               className="gsb-bar-fill"
               style={{ width: `${Math.min(stats.cpuUsage, 100)}%`, background: getUsageColor(stats.cpuUsage) }}
             />
-          </span>
-          <span>{stats.cpuUsage.toFixed(0)}%</span>
-        </span>
-        <span className="gsb-metric">
-          <span>RAM</span>
-          <span className="gsb-bar">
-            <span
+          </div>
+          <span className="gsb-value">{stats.cpuUsage.toFixed(0)}%</span>
+        </div>
+        <div className="gsb-metric" title={`RAM: ${formatBytes(stats.ramUsage)} / ${formatBytes(stats.ramTotal)}`}>
+          <MemoryStick size={11} />
+          <div className="gsb-bar">
+            <div
               className="gsb-bar-fill"
               style={{ width: `${Math.min(ramPct, 100)}%`, background: getUsageColor(ramPct) }}
             />
-          </span>
-          <span>{formatBytes(stats.ramUsage)}</span>
-        </span>
+          </div>
+          <span className="gsb-value">{formatBytes(stats.ramUsage)}</span>
+        </div>
+      </div>
+      <div className="logix-status-bar-right">
         <span className="logix-status-bar-item">
           <HardDrive size={11} />
           <span>{stats.deviceCount} device{stats.deviceCount !== 1 ? 's' : ''}</span>
         </span>
-      </div>
-      <div className="logix-status-bar-right">
+        <span className="logix-status-bar-separator">|</span>
         <span className="logix-status-bar-item">
           <Activity size={11} />
           <span>{simulatingCount} simulating</span>

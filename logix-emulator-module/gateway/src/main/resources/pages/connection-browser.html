@@ -6,21 +6,21 @@
     <title>Connection Browser - Logix PLC Emulator</title>
     <style>
         :root {
-            --bg-primary: #242428;
-            --bg-secondary: #2c2c32;
-            --bg-tertiary: #1c1c22;
-            --bg-hover: #38383f;
-            --text-primary: #e0e0e8;
-            --text-secondary: #8b8fa0;
-            --text-muted: #6b6e80;
-            --text-link: #6b9fd4;
-            --accent: #229ad6;
-            --accent-hover: #1a7fb3;
-            --success: #0aa648;
-            --warning: #cf7911;
-            --error: #e05555;
-            --border: #3c3c44;
-            --border-subtle: #33333b;
+            --bg-primary: #1e1e2e;
+            --bg-secondary: #181825;
+            --bg-tertiary: #11111b;
+            --bg-hover: #313244;
+            --text-primary: #cdd6f4;
+            --text-secondary: #a6adc8;
+            --text-muted: #6c7086;
+            --text-link: #89b4fa;
+            --accent: #89b4fa;
+            --accent-hover: #74a8f7;
+            --success: #a6e3a1;
+            --warning: #fab387;
+            --error: #f38ba8;
+            --border: #313244;
+            --border-subtle: #2a2a3c;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -121,7 +121,7 @@
         .btn {
             display: inline-block;
             background: var(--accent);
-            color: white;
+            color: #11111b;
             padding: 10px 20px;
             border-radius: 4px;
             border: none;
@@ -139,9 +139,9 @@
             transform: none;
         }
         .btn-secondary { background: var(--bg-hover); }
-        .btn-secondary:hover { background: #48484f; }
+        .btn-secondary:hover { background: #45475a; }
         .btn-success { background: var(--success); }
-        .btn-success:hover { background: #088a3b; }
+        .btn-success:hover { background: #8fd89c; }
 
         /* Device info + upload row */
         .device-upload-row {
@@ -214,7 +214,7 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        .btn-delete:hover { background: #c44545; }
+        .btn-delete:hover { background: #e67e9e; }
 
         .no-file-message {
             color: var(--text-secondary);
@@ -386,7 +386,7 @@
             height: 40px;
         }
 
-        .tag-item:nth-child(even) { background: rgba(45, 47, 62, 0.3); }
+        .tag-item:nth-child(even) { background: rgba(24, 24, 37, 0.3); }
         .tag-item:hover {
             background: var(--bg-hover);
         }
@@ -402,12 +402,12 @@
 
         .tag-name-text { overflow: hidden; text-overflow: ellipsis; }
         .tag-icon { font-size: 14px; flex-shrink: 0; }
-        .folder-icon { color: #d4a84b; }
+        .folder-icon { color: #f9e2af; }
         .bool-icon { color: var(--success); }
         .int-icon { color: var(--text-link); }
-        .real-icon { color: #7c6bc4; }
-        .string-icon { color: #c45890; }
-        .udt-icon { color: #d07830; }
+        .real-icon { color: #cba6f7; }
+        .string-icon { color: #f5c2e7; }
+        .udt-icon { color: #fab387; }
 
         .tag-type {
             color: var(--text-secondary);
@@ -434,11 +434,11 @@
             border-radius: 4px;
         }
 
-        .btn-write { background: var(--success); }
-        .btn-write:hover { background: #088a3b; }
+        .btn-write { background: var(--success); color: #11111b; }
+        .btn-write:hover { background: #8fd89c; }
 
         .folder-row { background: var(--bg-hover); cursor: pointer; }
-        .folder-row:hover { background: #424248; }
+        .folder-row:hover { background: #45475a; }
 
         .expand-icon {
             display: inline-flex;
@@ -627,7 +627,7 @@
             cursor: pointer;
             font-size: 13px;
         }
-        .view-toggle button.active { background: var(--accent); color: white; }
+        .view-toggle button.active { background: var(--accent); color: #11111b; }
         .view-toggle button:hover:not(.active) { background: var(--bg-hover); }
 
         /* Breadcrumb */
@@ -646,9 +646,9 @@
 
         /* Simulation toggle button */
         .btn-sim { background: var(--bg-hover); position: relative; }
-        .btn-sim:hover { background: #48484f; }
+        .btn-sim:hover { background: #45475a; }
         .btn-sim.active { background: var(--warning); color: var(--bg-tertiary); }
-        .btn-sim.active:hover { background: #b56a0f; }
+        .btn-sim.active:hover { background: #e5a37a; }
 
         /* Collapse toggle for device upload panel */
         .collapse-toggle {
@@ -664,7 +664,7 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .collapse-toggle:hover { border-color: var(--accent); color: var(--text-primary); }
+        .collapse-toggle:hover { border-color: var(--accent); color: var(--text-primary); background: var(--bg-hover); }
         .collapse-toggle.visible { display: inline-flex; }
         .collapse-toggle .chevron {
             display: inline-block;
@@ -746,9 +746,9 @@
         }
 
         .modal-btn-cancel { background: var(--bg-hover); color: var(--text-primary); }
-        .modal-btn-cancel:hover { background: #48484f; }
-        .modal-btn-confirm { background: var(--error); color: white; }
-        .modal-btn-confirm:hover { background: #c44545; }
+        .modal-btn-cancel:hover { background: #45475a; }
+        .modal-btn-confirm { background: var(--error); color: #11111b; }
+        .modal-btn-confirm:hover { background: #e67e9e; }
 
         /* Mode: devices — hide tag browsing */
         body.mode-devices .card:last-child { display: none; }

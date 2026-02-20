@@ -3,7 +3,6 @@ package com.inductiveautomation.logixemulator.gateway.web;
 import com.inductiveautomation.ignition.gateway.dataroutes.AccessControlStrategy;
 import com.inductiveautomation.ignition.gateway.dataroutes.HttpMethod;
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
-import com.inductiveautomation.ignition.gateway.dataroutes.RouteAccess;
 import com.inductiveautomation.ignition.gateway.dataroutes.RouteGroup;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook;
@@ -19,22 +18,26 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.RandomAccessFile;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Routes for handling PLC file uploads in the Logix Emulator device configuration.
@@ -918,149 +921,188 @@ public class FileUploadRoutes {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "8.2.15")
+            .put("moduleVersion", "8.2.17")
             .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
     }
 
+    private static final SimpleDateFormat LOG_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
     /**
-     * Gateway logs — reads the last N entries from Ignition's wrapper.log.
+     * Gateway logs — reads entries from Ignition's SQLite system_logs.idb database.
+     * This works reliably in Docker where wrapper.log is symlinked to /dev/stdout.
+     *
      * Query parameters:
      *   - limit: max entries to return (default 100, max 500)
-     *   - level: filter by level (ERROR, WARN, INFO, DEBUG)
+     *   - level: comma-separated log levels to include (ERROR, WARN, INFO, DEBUG)
+     *   - after: only return entries after this event ID (for incremental polling)
+     *   - filter: keyword filter (case-insensitive)
      */
     private JSONObject handleSystemLogs(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
         int limit = Math.min(parseIntParam(ctx, "limit", 100), 500);
-        String levelFilter = ctx.getRequest().getParameter("level");
+        String levelParam = ctx.getRequest().getParameter("level");
+        String afterParam = ctx.getRequest().getParameter("after");
+        String filterParam = ctx.getRequest().getParameter("filter");
 
-        File logFile = findWrapperLog();
-        if (logFile == null) {
-            return result.put("success", false).put("error", "Log file not found");
+        // Parse level filter
+        Set<String> levelFilter = new HashSet<>();
+        if (levelParam != null && !levelParam.isEmpty()) {
+            Arrays.stream(levelParam.split(","))
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .filter(s -> !s.isEmpty())
+                .forEach(levelFilter::add);
+        }
+
+        // Parse after event ID
+        long afterEventId = 0;
+        if (afterParam != null && !afterParam.isEmpty()) {
+            try {
+                afterEventId = Long.parseLong(afterParam);
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+
+        File logDb = findSystemLogsDb();
+        if (logDb == null) {
+            logger.warn("system_logs.idb not found");
+            return result.put("success", false).put("error", "system_logs.idb not found");
         }
 
         try {
-            List<String> tailLines = readTailLines(logFile, limit * 3); // Read extra for filtering
-            JSONArray entries = new JSONArray();
-
-            Pattern wrapperPattern = Pattern.compile(
-                "^(INFO|WARN|ERROR|DEBUG|STATUS|FATAL)\\s*\\|\\s*jvm \\d+\\s*\\|\\s*(\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2})\\s*\\|\\s*(.*)$"
-            );
-
-            for (String line : tailLines) {
-                Matcher m = wrapperPattern.matcher(line);
-                if (!m.matches()) continue;
-
-                String level = m.group(1);
-                String timestamp = m.group(2);
-                String message = m.group(3).trim();
-
-                // Apply level filter
-                if (levelFilter != null && !levelFilter.isEmpty()
-                    && !level.equalsIgnoreCase(levelFilter)) {
-                    continue;
-                }
-
-                // Extract source from message if present: [source.Name] message
-                String source = "";
-                if (message.startsWith("[") || message.contains("] [")) {
-                    int bracketStart = message.indexOf('[');
-                    int bracketEnd = message.indexOf(']', bracketStart);
-                    if (bracketEnd > bracketStart) {
-                        source = message.substring(bracketStart + 1, bracketEnd).trim();
-                        message = message.substring(bracketEnd + 1).trim();
-                        // Handle nested brackets: [timestamp] [LEVEL] [source] message
-                        while (message.startsWith("[")) {
-                            bracketEnd = message.indexOf(']');
-                            if (bracketEnd > 0) {
-                                source = message.substring(1, bracketEnd).trim();
-                                message = message.substring(bracketEnd + 1).trim();
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                JSONObject entry = new JSONObject()
-                    .put("timestamp", timestamp)
-                    .put("level", level)
-                    .put("source", source)
-                    .put("message", message);
-                entries.put(entry);
-
-                if (entries.length() >= limit) break;
+            List<JSONObject> entries = readLogEntriesFromDb(logDb, limit, filterParam, levelFilter, afterEventId);
+            JSONArray entriesArray = new JSONArray();
+            for (JSONObject entry : entries) {
+                entriesArray.put(entry);
             }
 
-            return result.put("success", true).put("entries", entries).put("count", entries.length());
+            return result.put("success", true)
+                .put("entries", entriesArray)
+                .put("count", entries.size())
+                .put("hasMore", entries.size() >= limit);
 
         } catch (Exception e) {
-            logger.warn("Error reading log file", e);
-            return result.put("success", false).put("error", "Failed to read log file");
+            logger.error("Error reading gateway logs from SQLite", e);
+            return result.put("success", false).put("error", "Failed to read gateway logs");
         }
     }
 
-    private File findWrapperLog() {
-        // Try Ignition install location system property
-        String installDir = System.getProperty("ignition.install.location");
-        if (installDir != null) {
-            File log = new File(installDir, "logs/wrapper.log");
-            if (log.exists()) return log;
+    /**
+     * Read log entries from Ignition's SQLite system_logs.idb database.
+     */
+    private List<JSONObject> readLogEntriesFromDb(File logDb, int maxLines, String filter,
+                                                   Set<String> levelFilter, long afterEventId) throws JSONException {
+        List<JSONObject> entries = new ArrayList<>();
+        String url = "jdbc:sqlite:" + logDb.getAbsolutePath();
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT event_id, timestmp, formatted_message, logger_name, level_string ");
+        sql.append("FROM logging_event WHERE 1=1 ");
+
+        List<Object> params = new ArrayList<>();
+
+        if (afterEventId > 0) {
+            sql.append("AND event_id > ? ");
+            params.add(afterEventId);
         }
 
-        // Try via data directory (typically {install}/data/)
+        if (!levelFilter.isEmpty()) {
+            sql.append("AND level_string IN (");
+            sql.append(String.join(",", Collections.nCopies(levelFilter.size(), "?")));
+            sql.append(") ");
+            params.addAll(levelFilter);
+        }
+
+        if (filter != null && !filter.isEmpty()) {
+            sql.append("AND (formatted_message LIKE ? OR logger_name LIKE ?) ");
+            params.add("%" + filter + "%");
+            params.add("%" + filter + "%");
+        }
+
+        sql.append("ORDER BY event_id DESC LIMIT ?");
+        params.add(maxLines);
+
+        try (Connection conn = DriverManager.getConnection(url);
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < params.size(); i++) {
+                Object param = params.get(i);
+                if (param instanceof Long) {
+                    stmt.setLong(i + 1, (Long) param);
+                } else if (param instanceof Integer) {
+                    stmt.setInt(i + 1, (Integer) param);
+                } else {
+                    stmt.setString(i + 1, param.toString());
+                }
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    long eventId = rs.getLong("event_id");
+                    long timestmp = rs.getLong("timestmp");
+                    String message = rs.getString("formatted_message");
+                    String loggerName = rs.getString("logger_name");
+                    String level = rs.getString("level_string");
+
+                    String formattedTime;
+                    synchronized (LOG_DATE_FORMAT) {
+                        formattedTime = LOG_DATE_FORMAT.format(new Date(timestmp));
+                    }
+
+                    // Shorten logger name for display (e.g. "com.inductiveautomation.logixemulator.gateway.GatewayHook" -> "GatewayHook")
+                    String shortSource = loggerName;
+                    if (loggerName != null && loggerName.contains(".")) {
+                        shortSource = loggerName.substring(loggerName.lastIndexOf('.') + 1);
+                    }
+
+                    JSONObject entry = new JSONObject()
+                        .put("id", String.valueOf(eventId))
+                        .put("timestamp", formattedTime)
+                        .put("level", level)
+                        .put("source", shortSource)
+                        .put("logger", loggerName)
+                        .put("message", message != null ? message : "");
+                    entries.add(entry);
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("Error reading from SQLite database: {}", e.getMessage(), e);
+        }
+
+        // Reverse to chronological order (oldest first, newest last)
+        Collections.reverse(entries);
+        return entries;
+    }
+
+    /**
+     * Find Ignition's system_logs.idb SQLite database.
+     */
+    private File findSystemLogsDb() {
+        List<File> candidates = new ArrayList<>();
+
+        // Primary: use GatewayContext to get logs directory
         try {
-            File dataDir = context.getSystemManager().getDataDir();
-            if (dataDir != null) {
-                File log = new File(dataDir.getParentFile(), "logs/wrapper.log");
-                if (log.exists()) return log;
+            File logsDir = context.getSystemManager().getLogsDir();
+            if (logsDir != null) {
+                candidates.add(new File(logsDir, "system_logs.idb"));
             }
         } catch (Exception e) {
             // ignore
         }
 
-        // Common default paths
-        for (String path : new String[]{
-            "/usr/local/bin/ignition/logs/wrapper.log",
-            "/var/lib/ignition/logs/wrapper.log",
-            "C:/Program Files/Inductive Automation/Ignition/logs/wrapper.log"
-        }) {
-            File log = new File(path);
-            if (log.exists()) return log;
-        }
-        return null;
-    }
+        // Fallback paths
+        candidates.add(new File("/usr/local/bin/ignition/logs/system_logs.idb"));
+        candidates.add(new File("/var/lib/ignition/logs/system_logs.idb"));
+        candidates.add(new File("C:/Program Files/Inductive Automation/Ignition/logs/system_logs.idb"));
 
-    /**
-     * Read the last N lines from a file efficiently using RandomAccessFile.
-     */
-    private List<String> readTailLines(File file, int maxLines) throws IOException {
-        List<String> lines = new ArrayList<>();
-        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-            long fileLength = raf.length();
-            if (fileLength == 0) return lines;
-
-            // Read last 256KB max
-            long startPos = Math.max(0, fileLength - (256 * 1024));
-            raf.seek(startPos);
-
-            // If we didn't start at beginning, skip partial first line
-            if (startPos > 0) raf.readLine();
-
-            String line;
-            while ((line = raf.readLine()) != null) {
-                // readLine returns ISO-8859-1, convert to UTF-8
-                line = new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
-                if (!line.trim().isEmpty()) {
-                    lines.add(line);
-                }
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.canRead()) {
+                logger.debug("Found system_logs.idb at: {}", candidate.getAbsolutePath());
+                return candidate;
             }
         }
-
-        // Return only the last maxLines
-        if (lines.size() > maxLines) {
-            return lines.subList(lines.size() - maxLines, lines.size());
-        }
-        return lines;
+        return null;
     }
 
     private JSONObject handleAuthStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {

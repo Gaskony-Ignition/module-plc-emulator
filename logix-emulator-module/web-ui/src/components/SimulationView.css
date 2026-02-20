@@ -1,47 +1,511 @@
 /* ==========================================================================
-   Simulation View - Placeholder
+   Simulation View - Tag simulation control panel
    Scoped to .logix-app
    ========================================================================== */
 
 .logix-app .simulation-view {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+  overflow: hidden;
   background: var(--bg-primary);
 }
 
-.logix-app .simulation-placeholder {
+/* Header */
+.logix-app .sim-header {
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.logix-app .sim-header h2 {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--text-muted);
-  text-align: center;
-  max-width: 360px;
-}
-
-.logix-app .simulation-placeholder svg {
-  opacity: 0.3;
-  color: var(--accent-warning);
-}
-
-.logix-app .simulation-placeholder h3 {
-  font-size: 18px;
+  gap: 8px;
+  font-size: 16px;
   font-weight: 600;
+  color: #cdd6f4;
+  margin: 0 0 4px 0;
+}
+
+.logix-app .sim-beta-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: rgba(250, 179, 135, 0.15);
+  color: #fab387;
+  line-height: 1.6;
+}
+
+.logix-app .sim-header p {
+  font-size: 12px;
   color: var(--text-secondary);
   margin: 0;
 }
 
-.logix-app .simulation-placeholder p {
-  font-size: 13px;
-  margin: 0;
+.logix-app .sim-header-actions {
+  display: flex;
+  gap: 8px;
 }
 
-.logix-app .simulation-placeholder-detail {
+.logix-app .sim-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #313244;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #6c7086;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.logix-app .sim-refresh-btn:hover {
+  background: #313244;
+  color: #cdd6f4;
+}
+
+/* Summary bar */
+.logix-app .sim-summary {
+  display: flex;
+  gap: 20px;
+  padding: 10px 20px;
+  background: #181825;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.logix-app .sim-summary-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a6adc8;
+}
+
+.logix-app .sim-summary-stat.sim-active {
+  color: #fab387;
+}
+
+/* Device list */
+.logix-app .sim-device-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 20px;
+}
+
+.logix-app .sim-device-card {
+  background: #181825;
+  border: 1px solid #313244;
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.logix-app .sim-device-card.selected {
+  border-color: #89b4fa;
+}
+
+.logix-app .sim-device-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.logix-app .sim-device-header:hover {
+  background: #313244;
+}
+
+.logix-app .sim-device-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logix-app .sim-device-expand {
+  display: flex;
+  align-items: center;
+  color: #6c7086;
+}
+
+.logix-app .sim-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.logix-app .sim-device-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #cdd6f4;
+}
+
+.logix-app .sim-device-status {
+  font-size: 12px;
+  color: #6c7086;
+}
+
+.logix-app .sim-device-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.logix-app .sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.logix-app .sim-badge-active {
+  background: rgba(250, 179, 135, 0.15);
+  color: #fab387;
+}
+
+.logix-app .sim-badge-disabled {
+  background: rgba(108, 112, 134, 0.15);
+  color: #6c7086;
+}
+
+/* Device body (expanded) */
+.logix-app .sim-device-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid #313244;
+}
+
+.logix-app .sim-device-loading {
+  padding: 16px 0;
+  color: #6c7086;
+  font-size: 12px;
+  text-align: center;
+}
+
+.logix-app .sim-device-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  margin-top: 12px;
+  background: rgba(250, 179, 135, 0.08);
+  border: 1px solid rgba(250, 179, 135, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: #fab387;
+  line-height: 1.5;
+}
+
+.logix-app .sim-device-notice svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Controls row */
+.logix-app .sim-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.logix-app .sim-controls-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #a6adc8;
+}
+
+.logix-app .sim-controls-label svg {
+  color: #fab387;
+}
+
+.logix-app .sim-controls-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.logix-app .sim-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.logix-app .sim-ctrl-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.logix-app .sim-ctrl-enable {
+  background: rgba(166, 227, 161, 0.15);
+  color: #a6e3a1;
+}
+
+.logix-app .sim-ctrl-enable:hover:not(:disabled) {
+  background: rgba(166, 227, 161, 0.25);
+}
+
+.logix-app .sim-ctrl-disable {
+  background: rgba(243, 139, 168, 0.15);
+  color: #f38ba8;
+}
+
+.logix-app .sim-ctrl-disable:hover:not(:disabled) {
+  background: rgba(243, 139, 168, 0.25);
+}
+
+/* Scope controls */
+.logix-app .sim-scope-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(49, 50, 68, 0.5);
+  flex-wrap: wrap;
+}
+
+.logix-app .sim-scope-label {
+  font-size: 12px;
+  color: #6c7086;
+  flex-shrink: 0;
+}
+
+.logix-app .sim-scope-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.logix-app .sim-scope-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #313244;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #a6adc8;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.logix-app .sim-scope-btn:hover:not(:disabled) {
+  background: #313244;
+  border-color: #a6e3a1;
+  color: #a6e3a1;
+}
+
+.logix-app .sim-scope-btn.sim-scope-stop:hover:not(:disabled) {
+  border-color: #f38ba8;
+  color: #f38ba8;
+}
+
+.logix-app .sim-scope-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Simulated tag list */
+.logix-app .sim-tag-list {
+  margin-top: 12px;
+  border: 1px solid #313244;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.logix-app .sim-tag-list-header {
+  padding: 8px 12px;
+  background: #11111b;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6c7086;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.logix-app .sim-tag-list-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.logix-app .sim-tag-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(49, 50, 68, 0.5);
+  font-size: 12px;
+}
+
+.logix-app .sim-tag-item:last-child {
+  border-bottom: none;
+}
+
+.logix-app .sim-tag-item:hover {
+  background: rgba(69, 71, 90, 0.2);
+}
+
+.logix-app .sim-tag-path {
+  flex: 1;
+  color: #cdd6f4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logix-app .sim-tag-pattern {
+  padding: 2px 8px;
+  background: rgba(250, 179, 135, 0.1);
+  color: #fab387;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.logix-app .sim-tag-stop-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(243, 139, 168, 0.3);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #f38ba8;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--transition-fast);
+}
+
+.logix-app .sim-tag-stop-btn:hover:not(:disabled) {
+  background: rgba(243, 139, 168, 0.15);
+}
+
+.logix-app .sim-tag-stop-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* No tags message */
+.logix-app .sim-no-tags {
+  padding: 16px 0;
+  text-align: center;
+  color: #6c7086;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--text-muted);
-  opacity: 0.7;
+}
+
+/* Empty state */
+.logix-app .sim-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 16px;
+  color: #6c7086;
+  text-align: center;
+}
+
+.logix-app .sim-empty svg {
+  opacity: 0.3;
+}
+
+.logix-app .sim-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.logix-app .sim-empty-detail {
+  font-size: 12px;
+  color: #6c7086;
+}
+
+/* Loading state */
+.logix-app .sim-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6c7086;
+  font-size: 13px;
+}
+
+/* Error state */
+.logix-app .sim-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: #f38ba8;
+  font-size: 13px;
+}
+
+.logix-app .sim-retry-btn {
+  padding: 4px 12px;
+  border: 1px solid #f38ba8;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #f38ba8;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.logix-app .sim-retry-btn:hover {
+  background: rgba(243, 139, 168, 0.15);
+}
+
+/* Scrollbar */
+.logix-app .sim-device-list::-webkit-scrollbar,
+.logix-app .sim-tag-list-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.logix-app .sim-device-list::-webkit-scrollbar-track,
+.logix-app .sim-tag-list-body::-webkit-scrollbar-track {
+  background: #1e1e2e;
+}
+
+.logix-app .sim-device-list::-webkit-scrollbar-thumb,
+.logix-app .sim-tag-list-body::-webkit-scrollbar-thumb {
+  background: #313244;
+  border-radius: 4px;
+}
+
+.logix-app .sim-device-list::-webkit-scrollbar-thumb:hover,
+.logix-app .sim-tag-list-body::-webkit-scrollbar-thumb:hover {
+  background: #45475a;
 }

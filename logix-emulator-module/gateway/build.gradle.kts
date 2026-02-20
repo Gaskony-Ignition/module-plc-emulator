@@ -32,6 +32,9 @@ dependencies {
     // Only bundle dependencies NOT provided by Ignition/modules
     modlImplementation(libs.gson)
 
+    // SQLite JDBC - for reading gateway logs from system_logs.idb
+    modlImplementation("org.xerial:sqlite-jdbc:3.45.1.0")
+
     // Testing dependencies
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
     testImplementation("org.mockito:mockito-core:5.7.0")

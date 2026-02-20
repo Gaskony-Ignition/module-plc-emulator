@@ -22,7 +22,7 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { id: 'devices', label: 'Devices', icon: HardDrive, enabled: true },
   { id: 'tags', label: 'Tags', icon: Tag, enabled: true },
-  { id: 'simulation', label: 'Simulation', icon: Zap, enabled: false },
+  { id: 'simulation', label: 'Simulation', icon: Zap, enabled: true },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, enabled: true },
   { id: 'logs', label: 'Logs', icon: FileText, enabled: true },
 ]

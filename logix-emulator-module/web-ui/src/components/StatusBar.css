@@ -38,6 +38,12 @@
   opacity: 0.7;
 }
 
+.logix-app .logix-status-bar-separator {
+  color: #45475a;
+  margin: 0 2px;
+  user-select: none;
+}
+
 /* CPU/RAM metric with mini progress bar */
 .logix-app .gsb-metric {
   display: flex;
