@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
-  LayoutDashboard, HardDrive, Tag, Activity,
+  LayoutDashboard, HardDrive, Tag, Activity, Zap,
   FileText, ChevronLeft, ChevronRight, ExternalLink
 } from 'lucide-react'
 import './Sidebar.css'
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { id: 'devices', label: 'Devices', icon: HardDrive, enabled: true },
   { id: 'tags', label: 'Tags', icon: Tag, enabled: true },
+  { id: 'simulation', label: 'Simulation', icon: Zap, enabled: false },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, enabled: true },
   { id: 'logs', label: 'Logs', icon: FileText, enabled: true },
 ]

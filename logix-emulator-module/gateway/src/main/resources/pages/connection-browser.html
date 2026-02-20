@@ -750,6 +750,25 @@
         .modal-btn-confirm { background: var(--error); color: white; }
         .modal-btn-confirm:hover { background: #c44545; }
 
+        /* Mode: devices — hide tag browsing */
+        body.mode-devices .card:last-child { display: none; }
+        body.mode-devices #statsBar { display: none !important; }
+        body.mode-devices #breadcrumb { display: none !important; }
+        body.mode-devices .search-box { display: none !important; }
+        body.mode-devices .view-toggle { display: none !important; }
+        body.mode-devices .auto-refresh-toggle { display: none !important; }
+        body.mode-devices .toolbar-divider:nth-child(4),
+        body.mode-devices .toolbar-divider:nth-child(6),
+        body.mode-devices .toolbar-divider:nth-child(8) { display: none !important; }
+
+        /* Mode: tags — hide file management + simulation */
+        body.mode-tags .upload-panel { display: none !important; }
+        body.mode-tags .upload-result-bar { display: none !important; }
+        body.mode-tags #collapseToggle { display: none !important; }
+        body.mode-tags .device-upload-row { display: none !important; }
+        body.mode-tags .btn-sim { display: none !important; }
+        body.mode-tags #simEngineStatus { display: none !important; }
+
         /* Screen reader only */
         .sr-only {
             position: absolute;
@@ -970,6 +989,18 @@
         // Initialization
         // =====================================================
         document.addEventListener('DOMContentLoaded', () => {
+            // Mode-based view filtering
+            const urlMode = new URLSearchParams(window.location.search).get('mode');
+            if (urlMode === 'devices') {
+                document.body.classList.add('mode-devices');
+                document.querySelector('h1').textContent = 'Device Manager';
+                document.querySelector('.subtitle').textContent = 'Import and manage PLC program files';
+            } else if (urlMode === 'tags') {
+                document.body.classList.add('mode-tags');
+                document.querySelector('h1').textContent = 'Tag Browser';
+                document.querySelector('.subtitle').textContent = 'Browse and inspect device tag values';
+            }
+
             loadDeviceList();
 
             document.getElementById('deviceSelect').addEventListener('change', async (e) => {

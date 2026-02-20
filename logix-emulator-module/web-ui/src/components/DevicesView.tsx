@@ -5,9 +5,9 @@ function DevicesView() {
     <div className="logix-view">
       <iframe
         key="logixemulator-devices-view"
-        src="/data/logixemulator/connection-browser"
+        src="/data/logixemulator/connection-browser?mode=devices"
         className="logix-iframe"
-        title="Logix PLC Emulator - Devices"
+        title="Logix PLC Emulator - Device Manager"
       />
     </div>
   )

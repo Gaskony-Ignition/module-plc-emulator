@@ -19,13 +19,22 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.RandomAccessFile;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryUsage;
 import java.nio.charset.StandardCharsets;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Routes for handling PLC file uploads in the Logix Emulator device configuration.
@@ -67,6 +76,10 @@ public class FileUploadRoutes {
         mountRoute("/page", this::handleUploadPage, null);
         mountRoute("/edit-program", this::handleEditProgramPage, null);
         mountRoute("/tag-browser", this::handleTagBrowserPage, null);
+
+        // System routes — authenticated
+        mountRoute("/system/stats", this::handleSystemStats, null);
+        mountRoute("/system/logs", this::handleSystemLogs, null);
 
         // Public routes - no authentication required
         mountPublicRoute("/health", this::handleHealthCheck);
@@ -864,6 +877,190 @@ public class FileUploadRoutes {
 
     private JSONObject handleHealthCheck(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         return new JSONObject().put("status", "ok").put("service", "logix-file-upload");
+    }
+
+    /**
+     * System stats — CPU usage, RAM usage, device count, module version.
+     */
+    private JSONObject handleSystemStats(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+
+        // CPU usage
+        var osBean = ManagementFactory.getOperatingSystemMXBean();
+        double cpuPercent = 0;
+
+        try {
+            // Use com.sun API for accurate CPU percentage
+            if (osBean instanceof com.sun.management.OperatingSystemMXBean sunBean) {
+                cpuPercent = sunBean.getCpuLoad() * 100;
+                if (cpuPercent < 0) cpuPercent = 0;
+
+                long ramTotal = sunBean.getTotalMemorySize();
+                long ramFree = sunBean.getFreeMemorySize();
+                result.put("ramUsage", ramTotal - ramFree);
+                result.put("ramTotal", ramTotal);
+            } else {
+                // Fallback to JVM heap
+                MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+                result.put("ramUsage", heap.getUsed());
+                result.put("ramTotal", heap.getMax());
+
+                double loadAvg = osBean.getSystemLoadAverage();
+                if (loadAvg >= 0) {
+                    cpuPercent = Math.min((loadAvg / osBean.getAvailableProcessors()) * 100, 100);
+                }
+            }
+        } catch (Exception e) {
+            MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+            result.put("ramUsage", heap.getUsed());
+            result.put("ramTotal", heap.getMax());
+        }
+
+        return result.put("success", true)
+            .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
+            .put("moduleVersion", "8.2.15")
+            .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
+    }
+
+    /**
+     * Gateway logs — reads the last N entries from Ignition's wrapper.log.
+     * Query parameters:
+     *   - limit: max entries to return (default 100, max 500)
+     *   - level: filter by level (ERROR, WARN, INFO, DEBUG)
+     */
+    private JSONObject handleSystemLogs(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        JSONObject result = new JSONObject();
+        int limit = Math.min(parseIntParam(ctx, "limit", 100), 500);
+        String levelFilter = ctx.getRequest().getParameter("level");
+
+        File logFile = findWrapperLog();
+        if (logFile == null) {
+            return result.put("success", false).put("error", "Log file not found");
+        }
+
+        try {
+            List<String> tailLines = readTailLines(logFile, limit * 3); // Read extra for filtering
+            JSONArray entries = new JSONArray();
+
+            Pattern wrapperPattern = Pattern.compile(
+                "^(INFO|WARN|ERROR|DEBUG|STATUS|FATAL)\\s*\\|\\s*jvm \\d+\\s*\\|\\s*(\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2})\\s*\\|\\s*(.*)$"
+            );
+
+            for (String line : tailLines) {
+                Matcher m = wrapperPattern.matcher(line);
+                if (!m.matches()) continue;
+
+                String level = m.group(1);
+                String timestamp = m.group(2);
+                String message = m.group(3).trim();
+
+                // Apply level filter
+                if (levelFilter != null && !levelFilter.isEmpty()
+                    && !level.equalsIgnoreCase(levelFilter)) {
+                    continue;
+                }
+
+                // Extract source from message if present: [source.Name] message
+                String source = "";
+                if (message.startsWith("[") || message.contains("] [")) {
+                    int bracketStart = message.indexOf('[');
+                    int bracketEnd = message.indexOf(']', bracketStart);
+                    if (bracketEnd > bracketStart) {
+                        source = message.substring(bracketStart + 1, bracketEnd).trim();
+                        message = message.substring(bracketEnd + 1).trim();
+                        // Handle nested brackets: [timestamp] [LEVEL] [source] message
+                        while (message.startsWith("[")) {
+                            bracketEnd = message.indexOf(']');
+                            if (bracketEnd > 0) {
+                                source = message.substring(1, bracketEnd).trim();
+                                message = message.substring(bracketEnd + 1).trim();
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                JSONObject entry = new JSONObject()
+                    .put("timestamp", timestamp)
+                    .put("level", level)
+                    .put("source", source)
+                    .put("message", message);
+                entries.put(entry);
+
+                if (entries.length() >= limit) break;
+            }
+
+            return result.put("success", true).put("entries", entries).put("count", entries.length());
+
+        } catch (Exception e) {
+            logger.warn("Error reading log file", e);
+            return result.put("success", false).put("error", "Failed to read log file");
+        }
+    }
+
+    private File findWrapperLog() {
+        // Try Ignition install location system property
+        String installDir = System.getProperty("ignition.install.location");
+        if (installDir != null) {
+            File log = new File(installDir, "logs/wrapper.log");
+            if (log.exists()) return log;
+        }
+
+        // Try via data directory (typically {install}/data/)
+        try {
+            File dataDir = context.getSystemManager().getDataDir();
+            if (dataDir != null) {
+                File log = new File(dataDir.getParentFile(), "logs/wrapper.log");
+                if (log.exists()) return log;
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+
+        // Common default paths
+        for (String path : new String[]{
+            "/usr/local/bin/ignition/logs/wrapper.log",
+            "/var/lib/ignition/logs/wrapper.log",
+            "C:/Program Files/Inductive Automation/Ignition/logs/wrapper.log"
+        }) {
+            File log = new File(path);
+            if (log.exists()) return log;
+        }
+        return null;
+    }
+
+    /**
+     * Read the last N lines from a file efficiently using RandomAccessFile.
+     */
+    private List<String> readTailLines(File file, int maxLines) throws IOException {
+        List<String> lines = new ArrayList<>();
+        try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
+            long fileLength = raf.length();
+            if (fileLength == 0) return lines;
+
+            // Read last 256KB max
+            long startPos = Math.max(0, fileLength - (256 * 1024));
+            raf.seek(startPos);
+
+            // If we didn't start at beginning, skip partial first line
+            if (startPos > 0) raf.readLine();
+
+            String line;
+            while ((line = raf.readLine()) != null) {
+                // readLine returns ISO-8859-1, convert to UTF-8
+                line = new String(line.getBytes(StandardCharsets.ISO_8859_1), StandardCharsets.UTF_8);
+                if (!line.trim().isEmpty()) {
+                    lines.add(line);
+                }
+            }
+        }
+
+        // Return only the last maxLines
+        if (lines.size() > maxLines) {
+            return lines.subList(lines.size() - maxLines, lines.size());
+        }
+        return lines;
     }
 
     private JSONObject handleAuthStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {

@@ -1,6 +1,6 @@
 /* ==========================================================================
    Logix PLC Emulator - Styles
-   Sidebar-driven multi-view layout matching AI Terminal design
+   Sidebar-driven multi-view layout — Catppuccin Mocha theme
    ========================================================================== */
 
 /* Reset - scoped to module only */
@@ -12,20 +12,22 @@
 }
 
 .logix-app {
-  /* Color Palette - Dark Theme (matching AI Terminal) */
-  --bg-primary: #0a0e14;
-  --bg-secondary: #14181f;
-  --bg-tertiary: #1a1f28;
-  --bg-hover: #20252e;
+  /* Catppuccin Mocha palette */
+  --bg-primary: #1e1e2e;
+  --bg-secondary: #181825;
+  --bg-tertiary: #11111b;
+  --bg-hover: #313244;
 
-  --text-primary: #e6e8eb;
-  --text-secondary: #b3b8c4;
-  --text-muted: #6b7280;
+  --text-primary: #cdd6f4;
+  --text-secondary: #a6adc8;
+  --text-muted: #6c7086;
 
-  --accent-primary: #61afef;
-  --accent-error: #e06c75;
+  --accent-primary: #89b4fa;
+  --accent-error: #f38ba8;
+  --accent-success: #a6e3a1;
+  --accent-warning: #fab387;
 
-  --border-default: #20252e;
+  --border-default: #313244;
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -115,7 +117,7 @@
   border: none;
 }
 
-/* Auth required overlay - full-page centered card (matches AI Terminal) */
+/* Auth required overlay - full-page centered card */
 .logix-app .auth-required-overlay {
   display: flex;
   align-items: center;
@@ -184,7 +186,7 @@
   margin-top: 20px;
   padding: 10px 24px;
   background: var(--accent-primary);
-  color: #0a0e14;
+  color: #11111b;
   border: none;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -195,14 +197,14 @@
 }
 
 .logix-app .auth-required-card .auth-login-btn:hover {
-  background: #7bc4ff;
+  background: #b4d0fb;
 }
 
 /* Disconnected banner */
 .connection-banner {
   padding: 8px 16px;
   background: var(--accent-error);
-  color: white;
+  color: #11111b;
   font-size: 13px;
   text-align: center;
   font-weight: 500;

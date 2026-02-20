@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Status Bar - Fixed bottom bar showing device stats
+   Status Bar - Fixed bottom bar with CPU/RAM + device stats
    Scoped to .logix-app
    ========================================================================== */
 
@@ -9,13 +9,15 @@
   justify-content: space-between;
   height: 28px;
   min-height: 28px;
+  max-height: 28px;
   padding: 0 12px;
   background: #11111b;
   border-top: 1px solid var(--border-default);
   font-size: 11px;
-  color: var(--text-muted);
+  color: #a6adc8;
   flex-shrink: 0;
   user-select: none;
+  z-index: 10;
 }
 
 .logix-app .logix-status-bar-left,
@@ -29,8 +31,31 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  color: #6c7086;
 }
 
 .logix-app .logix-status-bar-item svg {
   opacity: 0.7;
+}
+
+/* CPU/RAM metric with mini progress bar */
+.logix-app .gsb-metric {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #6c7086;
+}
+
+.logix-app .gsb-bar {
+  width: 48px;
+  height: 4px;
+  background: #313244;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.logix-app .gsb-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s ease;
 }
