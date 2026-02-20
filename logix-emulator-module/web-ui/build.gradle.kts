@@ -56,9 +56,26 @@ val webpack by tasks.registering(NpmTask::class) {
     outputs.files(fileTree(projectOutput))
 }
 
+// Copy standalone page and React UMD libs into mounted resources
+val copyStandaloneResources by tasks.registering(Copy::class) {
+    group = "Ignition Module"
+    description = "Copy standalone.html and React UMD libraries for dedicated page popout"
+
+    dependsOn(webpack)
+
+    // standalone.html from gateway static resources
+    from(project(":gateway").file("src/main/resources/static/standalone.html"))
+
+    // React UMD production builds from node_modules
+    from(file("node_modules/react/umd/react.production.min.js"))
+    from(file("node_modules/react-dom/umd/react-dom.production.min.js"))
+
+    into("${projectOutput}mounted/")
+}
+
 tasks {
     processResources {
-        dependsOn(webpack, yarnPackages)
+        dependsOn(webpack, yarnPackages, copyStandaloneResources)
     }
 
     clean {
@@ -75,13 +92,13 @@ val deepClean by tasks.registering {
     dependsOn(project.tasks.named("clean"))
 }
 
-// Make gateway processResources wait for webpack
+// Make gateway processResources wait for webpack + standalone resources
 project(":gateway")?.tasks?.named("processResources")?.configure {
-    dependsOn(webpack)
+    dependsOn(webpack, copyStandaloneResources)
 }
 
 sourceSets {
     main {
-        output.dir(projectOutput, "builtBy" to listOf(webpack))
+        output.dir(projectOutput, "builtBy" to listOf(webpack, copyStandaloneResources))
     }
 }

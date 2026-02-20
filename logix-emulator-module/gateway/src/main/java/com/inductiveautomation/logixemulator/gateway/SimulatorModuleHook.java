@@ -41,8 +41,8 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         // Register WebUI component for Connection Browser (combined tag browser + file upload)
         try {
             SystemJsModule connectionBrowserModule = new SystemJsModule(
-                "com.inductiveautomation.logixemulator.ConnectionBrowser",
-                "/res/logixemulator/connectionBrowser.js"
+                "LogixConnectionBrowser",
+                "/res/logixemulator/LogixConnectionBrowser.js"
             );
 
             // Add navigation menu item in the Connections section

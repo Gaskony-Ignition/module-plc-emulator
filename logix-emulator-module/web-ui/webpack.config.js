@@ -16,13 +16,13 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
   return {
     mode,
     entry: {
-      connectionBrowser: [path.join(__dirname, "src/pages/ConnectionBrowser/index.ts")],
+      LogixConnectionBrowser: path.join(__dirname, "src/index.ts"),
     },
     output: {
-      // Export as SystemJS module for Ignition gateway
-      library: {
-        type: "system",
-      },
+      library: "[name]",
+      libraryTarget: "umd",
+      umdNamedDefine: true,
+      globalObject: 'this',
       filename: "[name].js",
       publicPath: "",
       path: path.resolve(__dirname, "build/generated-resources/mounted/"),
@@ -38,7 +38,6 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
           test: /\.[tj]sx?$|\.d\.ts$/,
           use: ["ts-loader", "babel-loader"],
           exclude: /node_modules/,
-          parser: { system: false },
         },
       ],
     },
@@ -55,7 +54,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
     ],
     resolve: {
       modules: ["node_modules"],
-      extensions: [".js", ".jsx", ".scss", ".css", ".ts", ".tsx", ".d.ts"],
+      extensions: [".ts", ".tsx", ".js", ".jsx", ".scss", ".css", ".d.ts"],
     },
     externals,
   };
