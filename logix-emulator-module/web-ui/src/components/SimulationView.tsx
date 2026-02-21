@@ -94,7 +94,7 @@ function SimulationView() {
       const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/all`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ enabled: true }),
       })
       const data = await res.json()
@@ -114,7 +114,7 @@ function SimulationView() {
       const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/all`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ enabled: false }),
       })
       const data = await res.json()
@@ -134,7 +134,7 @@ function SimulationView() {
       const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/tag/simulate`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ tagPath }),
       })
       const data = await res.json()
@@ -154,7 +154,7 @@ function SimulationView() {
       const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/scope`, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ scope, enabled }),
       })
       const data = await res.json()

@@ -585,9 +585,11 @@ public class AddressSpaceBuilder {
             case "INT1", "SINT", "BYTE" -> OpcUaDataType.SByte;
             case "INT2", "INT" -> OpcUaDataType.Int16;
             case "INT4", "DINT" -> OpcUaDataType.Int32;
+            case "INT8", "LINT" -> OpcUaDataType.Int64;
             case "FLOAT4", "REAL", "FLOAT" -> OpcUaDataType.Float;
+            case "FLOAT8", "LREAL", "DOUBLE" -> OpcUaDataType.Double;
             case "STRING" -> OpcUaDataType.String;
-            default -> OpcUaDataType.String;  // Default for unknown types
+            default -> OpcUaDataType.String;
         };
     }
 
@@ -600,7 +602,9 @@ public class AddressSpaceBuilder {
             return switch (dataType.toUpperCase()) {
                 case "BOOL", "BOOLEAN" -> false;
                 case "INT1", "SINT", "BYTE", "INT2", "INT", "INT4", "DINT" -> 0;
+                case "INT8", "LINT" -> 0L;
                 case "FLOAT4", "REAL", "FLOAT" -> 0.0f;
+                case "FLOAT8", "LREAL", "DOUBLE" -> 0.0;
                 case "STRING" -> "";
                 default -> "";
             };
@@ -613,7 +617,9 @@ public class AddressSpaceBuilder {
             case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
             case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
             case "INT4", "DINT" -> initialValueElement.getAsInt();
+            case "INT8", "LINT" -> initialValueElement.getAsLong();
             case "FLOAT4", "REAL", "FLOAT" -> initialValueElement.getAsFloat();
+            case "FLOAT8", "LREAL", "DOUBLE" -> initialValueElement.getAsDouble();
             case "STRING" -> initialValueElement.getAsString();
             default -> initialValueElement.getAsString();
         };

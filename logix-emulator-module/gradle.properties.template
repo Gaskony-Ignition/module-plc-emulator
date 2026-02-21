@@ -19,7 +19,7 @@
 #   ./generate-signing-certs.sh
 
 # Module version (build.gradle.kts is source of truth, this is for reference only)
-version=5.4.9
+version=9.0.0
 
 # Signing configuration
 # Use environment variables if set, otherwise use properties below

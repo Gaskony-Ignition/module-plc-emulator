@@ -258,7 +258,7 @@ private void parseMyNewFormat(String content) {
 
 **1. Update `build.gradle.kts`**:
 ```kotlin
-version = "8.2.11"
+version = "9.0.0"
 ```
 
 **2. Update CHANGELOG.md**:
@@ -443,7 +443,7 @@ public String toString() {
 ## Release Process
 
 **1. Update Version**:
-- `build.gradle.kts`: `version = "8.x.0"`
+- `build.gradle.kts`: `version = "9.x.x"`
 - `CHANGELOG.md`: Add release notes
 
 **2. Test**:

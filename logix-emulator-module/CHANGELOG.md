@@ -9,6 +9,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.0.0] - 2026-02-21 - **Major Version: Modern React UI & Clean Slate**
+
+### Added
+- Full React + TypeScript rewrite of Connection Browser (replaced monolithic HTML)
+- Sidebar-driven multi-view layout: Dashboard, Devices, Tags, Logs, Diagnostics, Simulation
+- SQLite-backed log storage with real-time filtering and search
+- CPU/RAM status bar monitoring in gateway UI
+- Dashboard view with at-a-glance system overview
+- Simulation view with per-tag and bulk simulation controls
+- Catppuccin-inspired neutral charcoal theme throughout UI
+- React ErrorBoundary component — prevents white-screen crashes, shows themed error UI with retry
+- 21 additional tests (92 -> 113 total, 100% passing)
+
+### Security
+- **CSRF protection**: All 6 POST/DELETE endpoints now require `X-Requested-With: XMLHttpRequest` header
+- **Read rate limiting**: Added separate rate limiter for read endpoints (live tags, system logs) — 300 req/hr per user, 3000/hr per IP
+- **XSS hardening**: Wrapped dynamic content in `connection-browser.html` error handlers with `escapeHtml()`
+- **IP validation**: Replaced DNS-resolving `InetAddress.getByName()` with regex-based IP validation (prevents SSRF via DNS rebinding)
+- **File extension validation**: `FileValidator.validateContent()` now rejects files with unsupported extensions before parsing
+- **Path sanitization consolidated**: `LogixEmulatorDevice.sanitizeFileName()` now delegates to `PathSecurity.sanitizeFileName()`
+- Removed `sign.props` and `package-lock.json` from git tracking (were committed despite gitignore rules)
+
+### Changed
+- Bumped to major version 9.0.0 (clean slate for future development)
+- All v8.x releases archived as pre-releases on GitHub
+- Aligned all version references across source code, documentation, and config files
+- Updated CLAUDE_CONTEXT.md with current architecture and project structure
+- `OpcUaSimulationEngine`: `volatile boolean` replaced with `AtomicBoolean` + `compareAndSet` for race-free start/stop
+- `FileWatcher.lastModified` made `volatile` for cross-thread visibility
+- `LogixEmulatorDevice`: 6 mutable fields made `volatile` (`parsedData`, `deviceStatus`, `simulationEngine`, `fileWatcher`, `versionManager`, `currentFilePath`)
+- `RateLimiter.RequestCounter`: added `allowAndIncrement()` for atomic check-and-increment (eliminates TOCTOU race)
+- `FileUploadRoutes`: replaced `SimpleDateFormat` with thread-safe `DateTimeFormatter`
+- `.gitignore` negation rules fixed to reference actual filenames (`keystore.jks`/`certificate.der` instead of `dev-*`)
+- `SIGNING.md` table corrected — `gradle.properties` and `sign.props` now shown as gitignored
+
+### Removed
+- Unused `pages/ConnectionBrowser/` directory (dead code: ConnectionBrowser.tsx, index.ts, _styles.scss)
+- Unused `@types/react-redux` devDependency from package.json
+- All monospace fonts from UI (everything uses gateway sans-serif)
+
+### Fixed
+- **InputStream leak** in `FileUploadRoutes.serveHtmlPage()` — added try-with-resources
+- **LINT/LREAL data type mapping**: `AddressSpaceBuilder` now correctly maps INT8/LINT to Int64 and FLOAT8/LREAL/DOUBLE to Double (was silently dropping 64-bit tags)
+- **LINT/LREAL initial values**: `getInitialValue()` now returns `0L`/`0.0` defaults and parses with `getAsLong()`/`getAsDouble()`
+- `package.json` version was out of sync (8.1.0) — now matches build.gradle.kts (9.0.0)
+- `gradle.properties.template` version was stale (5.4.9) — updated to 9.0.0
+- `FileUploadRoutes.java` hardcoded moduleVersion (8.2.17) — updated to 9.0.0
+- `App.tsx` hardcoded MODULE_VERSION (8.2.18) — updated to 9.0.0
+- GitHub Issues URL in KNOWN_ISSUES.md pointed to old repository
+
+---
+
 ## [8.2.1] - 2026-02-11 - **Architecture & Test Coverage**
 
 ### Changed

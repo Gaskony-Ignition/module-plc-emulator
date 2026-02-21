@@ -25,7 +25,7 @@ public class FileWatcher {
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> watchTask;
     private volatile boolean running = false;
-    private long lastModified;
+    private volatile long lastModified;
 
     /**
      * Create a file watcher.

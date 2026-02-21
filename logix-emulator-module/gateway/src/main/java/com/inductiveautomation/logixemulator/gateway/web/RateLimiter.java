@@ -84,11 +84,8 @@ public class RateLimiter {
             k -> new RequestCounter(now)
         );
 
-        // Check if either limit is exceeded
-        boolean userLimitExceeded = !userCounter.allowRequest(now, windowMs, maxRequestsPerUser);
-        boolean ipLimitExceeded = !ipCounter.allowRequest(now, windowMs, maxRequestsPerIP);
-
-        if (userLimitExceeded) {
+        // Check user limit first — atomic check-and-increment
+        if (!userCounter.allowAndIncrement(now, windowMs, maxRequestsPerUser)) {
             logger.warn("Rate limit exceeded for user: {} ({}/{} requests in {}ms window)",
                        username, userCounter.getCount(), maxRequestsPerUser, windowMs);
 
@@ -101,7 +98,8 @@ public class RateLimiter {
             );
         }
 
-        if (ipLimitExceeded) {
+        // Check IP limit — atomic check-and-increment
+        if (!ipCounter.allowAndIncrement(now, windowMs, maxRequestsPerIP)) {
             logger.warn("Rate limit exceeded for IP: {} ({}/{} requests in {}ms window)",
                        ipAddress, ipCounter.getCount(), maxRequestsPerIP, windowMs);
 
@@ -113,10 +111,6 @@ public class RateLimiter {
                 ipCounter.getResetTimeMs(now, windowMs)
             );
         }
-
-        // Both checks passed - increment counters
-        userCounter.incrementAndGet();
-        ipCounter.incrementAndGet();
 
         // Calculate remaining requests (use the more restrictive limit)
         int userRemaining = maxRequestsPerUser - userCounter.getCount();
@@ -256,25 +250,32 @@ public class RateLimiter {
         }
 
         /**
-         * Check if a request is allowed (without incrementing).
+         * Check if a request is allowed and atomically increment if so.
          * Returns true if within limits, false if exceeded.
          * Resets the counter when the window has expired.
          */
-        public synchronized boolean allowRequest(long now, long windowMs, int maxRequests) {
+        public synchronized boolean allowAndIncrement(long now, long windowMs, int maxRequests) {
             if (isExpired(now, windowMs)) {
                 // Reset for new window
-                count.set(0);
+                count.set(1);
                 startTime = now;
                 return true;
             }
-            return count.get() < maxRequests;
+            if (count.get() < maxRequests) {
+                count.incrementAndGet();
+                return true;
+            }
+            return false;
         }
 
         /**
-         * Increment the counter.
+         * Check if a request would be allowed (without incrementing).
          */
-        public int incrementAndGet() {
-            return count.incrementAndGet();
+        public synchronized boolean allowRequest(long now, long windowMs, int maxRequests) {
+            if (isExpired(now, windowMs)) {
+                return true;
+            }
+            return count.get() < maxRequests;
         }
 
         /**

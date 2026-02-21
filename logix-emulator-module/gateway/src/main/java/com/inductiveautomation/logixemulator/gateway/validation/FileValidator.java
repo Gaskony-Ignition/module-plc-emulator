@@ -147,9 +147,17 @@ public class FileValidator {
             ));
         }
 
-        // Basic format validation based on extension
+        // Validate file extension
         if (fileName != null) {
             String lowerName = fileName.toLowerCase();
+            boolean hasValidExtension = SUPPORTED_EXTENSIONS.stream()
+                .anyMatch(lowerName::endsWith);
+            if (!hasValidExtension) {
+                return ValidationResult.failure(String.format(
+                    "Unsupported file format. Supported formats: %s",
+                    String.join(", ", SUPPORTED_EXTENSIONS)
+                ));
+            }
 
             if (lowerName.endsWith(".json")) {
                 // Quick JSON validation

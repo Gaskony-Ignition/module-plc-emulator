@@ -14,8 +14,9 @@ The following files are used for module signing:
 |------|---------|----------------|
 | `keystore.jks` | Keystore containing the private key | ✅ Yes (dev only) |
 | `certificate.der` | Public certificate in DER format | ✅ Yes |
-| `gradle.properties` | Signing configuration | ✅ Yes |
-| `sign.props` | Alternative signing config (optional) | ✅ Yes |
+| `gradle.properties` | Signing configuration | ❌ No (gitignored — copy from template) |
+| `gradle.properties.template` | Signing config template | ✅ Yes |
+| `sign.props` | Alternative signing config (optional) | ❌ No (gitignored) |
 
 ## Certificate Details
 

@@ -9,6 +9,7 @@ out/
 node_modules/
 .npm/
 yarn-error.log
+package-lock.json
 
 # IDE files
 .idea/
@@ -33,7 +34,7 @@ sign.props
 # Note: gradle.properties.template is the template (safe to commit)
 # Developers should copy template to gradle.properties and fill in credentials
 
-# Keep development signing certificates (marked as dev-only)
+# Keep development signing certificates (dev-only, public passwords)
 # Production certificates should NEVER be in version control
-!dev-keystore.jks
-!dev-certificate.der
+!keystore.jks
+!certificate.der

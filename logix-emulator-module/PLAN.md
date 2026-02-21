@@ -4,16 +4,17 @@
 
 This document outlines the development history and future direction of the Logix PLC Emulator module.
 
-## Current State (v8.2.0)
+## Current State (v9.0.0)
 
 The module is production-ready, focused on Rockwell Logix PLC emulation with the following capabilities:
 
 - **Parsers**: Rockwell L5K/L5X, JSON, CSV
 - **OPC-UA Integration**: Full device driver with hierarchical tag structure
 - **Simulation Engine**: 5 patterns (STATIC, RAMP, SINE, RANDOM, TOGGLE)
-- **Web UI**: Connection Browser with unified tag browsing and file upload
+- **Web UI**: React-based Connection Browser with sidebar navigation, dashboard, tags, devices, logs, diagnostics, and simulation views
 - **Security**: XXE prevention, path traversal protection, authentication, rate limiting
-- **Test Coverage**: 92 tests (100% passing)
+- **Logging**: SQLite-backed log storage with filtering
+- **Test Coverage**: 113 tests (100% passing)
 
 ## Completed Phases
 
@@ -66,6 +67,18 @@ The module is production-ready, focused on Rockwell Logix PLC emulation with the
 
 ---
 
+### Phase 6: Modern React UI & Observability (v8.2.11 - v9.0.0)
+
+- Full React + TypeScript rewrite of Connection Browser (replaced monolithic HTML)
+- Sidebar-driven multi-view layout (Dashboard, Devices, Tags, Logs, Diagnostics, Simulation)
+- SQLite-backed log storage with real-time filtering
+- CPU/RAM status bar monitoring
+- Catppuccin-inspired neutral charcoal theme
+- Incremental test coverage expansion (92 -> 113 tests)
+- Dead code removal, dependency cleanup, version consolidation
+
+---
+
 ## Future Plans
 
 ### Short-term
@@ -90,6 +103,7 @@ The module is production-ready, focused on Rockwell Logix PLC emulation with the
 
 | Version | Key Features |
 |---------|--------------|
+| v9.0.0 | Modern React UI, SQLite logs, dashboard, simulation view, 113 tests |
 | v8.2.0 | Restyled Connection Browser for Ignition 8.3 theme |
 | v8.1.0 | Unified Connection Browser (merged File Upload + Tag Browser) |
 | v8.0.0 | Renamed to Logix PLC Emulator, removed multi-vendor parsers |
@@ -108,4 +122,4 @@ The module is production-ready, focused on Rockwell Logix PLC emulation with the
 - Security and stability always take priority over new features
 - The module requires Ignition 8.3+
 
-**Last Updated**: February 2026 (v8.2.0 release)
+**Last Updated**: February 2026 (v9.0.0 release)

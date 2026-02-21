@@ -10,6 +10,7 @@ import com.inductiveautomation.logixemulator.gateway.OpcUaSimulationEngine;
 import com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook;
 import com.inductiveautomation.logixemulator.gateway.parser.ParserFactory;
 import com.inductiveautomation.logixemulator.gateway.parser.PLCParser;
+import com.inductiveautomation.logixemulator.gateway.web.PathSecurity;
 import org.eclipse.milo.opcua.sdk.core.Reference;
 import org.eclipse.milo.opcua.sdk.server.ManagedAddressSpaceWithLifecycle;
 import org.eclipse.milo.opcua.sdk.server.items.DataItem;
@@ -55,12 +56,12 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
     private final SubscriptionModel subscriptionModel;
 
     private UaFolderNode rootNode;
-    private JsonObject parsedData;
-    private String deviceStatus = "Initializing";
-    private OpcUaSimulationEngine simulationEngine;
-    private FileWatcher fileWatcher;
-    private FileVersionManager versionManager;
-    private String currentFilePath;
+    private volatile JsonObject parsedData;
+    private volatile String deviceStatus = "Initializing";
+    private volatile OpcUaSimulationEngine simulationEngine;
+    private volatile FileWatcher fileWatcher;
+    private volatile FileVersionManager versionManager;
+    private volatile String currentFilePath;
 
     /**
      * Creates a new Logix Emulator Device.
@@ -250,7 +251,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
 
     /**
      * Sanitizes a filename to prevent path traversal attacks.
-     * Removes path separators, parent directory references, and special characters.
+     * Delegates to {@link PathSecurity#sanitizeFileName} for consistent validation.
      *
      * @param fileName User-provided filename
      * @return Sanitized filename safe for file system operations
@@ -259,19 +260,12 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         if (fileName == null || fileName.trim().isEmpty()) {
             return "uploaded-" + context.getName() + ".L5K";
         }
-
-        // Remove path separators and parent directory references
-        String sanitized = fileName.replaceAll("[/\\\\]", "_")
-                                   .replaceAll("\\.\\.", "_")
-                                   .replaceAll("[^a-zA-Z0-9._-]", "_");
-
-        // Ensure filename isn't empty after sanitization
-        if (sanitized.trim().isEmpty()) {
-            sanitized = "uploaded-" + context.getName() + ".L5K";
+        try {
+            return PathSecurity.sanitizeFileName(fileName);
+        } catch (SecurityException | IllegalArgumentException e) {
+            logger.warn("Filename rejected by PathSecurity: {} — using default", fileName);
+            return "uploaded-" + context.getName() + ".L5K";
         }
-
-        logger.debug("Sanitized filename: {} -> {}", fileName, sanitized);
-        return sanitized;
     }
 
     /**

@@ -23,6 +23,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 /**
@@ -41,8 +42,8 @@ public class OpcUaSimulationEngine {
 
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> simulationTask;
-    private volatile boolean running = false;
-    private long startTime;
+    private final AtomicBoolean running = new AtomicBoolean(false);
+    private volatile long startTime;
 
     // Per-tag simulation state - tags NOT in this set will NOT be simulated
     private final Set<String> simulatedTags = ConcurrentHashMap.newKeySet();
@@ -62,12 +63,11 @@ public class OpcUaSimulationEngine {
      * Start the simulation engine.
      */
     public void start(List<DataItem> dataItems) {
-        if (running) {
+        if (!running.compareAndSet(false, true)) {
             logger.warn("Simulation engine already running");
             return;
         }
 
-        running = true;
         startTime = System.currentTimeMillis();
         executor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "OPC-UA-Simulation-Engine");
@@ -90,11 +90,9 @@ public class OpcUaSimulationEngine {
      * Stop the simulation engine.
      */
     public void stop() {
-        if (!running) {
+        if (!running.compareAndSet(true, false)) {
             return;
         }
-
-        running = false;
 
         if (simulationTask != null) {
             simulationTask.cancel(false);
@@ -122,7 +120,7 @@ public class OpcUaSimulationEngine {
      * and updates node values to trigger OPC-UA subscription notifications.
      */
     private void updateSimulatedValues(List<DataItem> dataItems) {
-        if (!running || dataItems == null || nodeLookup == null) {
+        if (!running.get() || dataItems == null || nodeLookup == null) {
             return;
         }
 
@@ -290,14 +288,14 @@ public class OpcUaSimulationEngine {
      * Check if simulation engine is running.
      */
     public boolean isRunning() {
-        return running;
+        return running.get();
     }
 
     /**
      * Get elapsed simulation time in seconds.
      */
     public double getElapsedSeconds() {
-        if (!running) {
+        if (!running.get()) {
             return 0.0;
         }
         return (System.currentTimeMillis() - startTime) / 1000.0;

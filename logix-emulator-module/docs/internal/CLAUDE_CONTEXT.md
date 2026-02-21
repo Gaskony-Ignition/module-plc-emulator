@@ -1,8 +1,8 @@
 # CLAUDE_CONTEXT.md - Logix PLC Emulator Module
 
 > **Purpose**: Optimized context file for AI-assisted development with Claude Code.
-> **Last Updated**: 2026-02-11
-> **Module Version**: 8.2.10
+> **Last Updated**: 2026-02-21
+> **Module Version**: 9.0.0
 
 ---
 
@@ -11,7 +11,8 @@
 **Name**: Logix PLC Emulator
 **Type**: Ignition Gateway Module (Device Driver)
 **Purpose**: Rockwell Logix PLC emulation with OPC-UA integration
-**Core Functionality**: Parses L5K/L5X/JSON/CSV files → Creates hierarchical OPC-UA tags → Simulates dynamic values
+**Core Functionality**: Parses L5K/L5X/JSON/CSV files -> Creates hierarchical OPC-UA tags -> Simulates dynamic values
+**Repository**: `Gaskony-Ignition/ignition-module-plc-emulator`
 
 **Key Value Proposition**: Allows testing HMI/SCADA applications without physical PLC hardware by simulating realistic tag structures from vendor export files.
 
@@ -19,20 +20,18 @@
 
 ## Current Development Phase
 
-**Version**: 8.2.10 (Production Ready)
+**Version**: 9.0.0 (Production Ready)
 **Phase**: Production + Quality Assurance
-**Status**: Unified Connection Browser, security hardening complete, CI/CD operational
-**Last Major Release**: v8.2.10 (2026-02-11)
+**Status**: Modern React UI, SQLite logging, comprehensive test coverage, security hardened, CI/CD operational
 
-**Recent Changes (v8.2.x)**:
-- ✅ v8.2.10: Removed broken custom auth from all data routes (Ignition handles `/data/` auth)
-- ✅ v8.2.9: Fixed missing route type/access control on page routes
-- ✅ v8.2.8: Removed iframe sandbox/referrerPolicy blocking session cookies
-- ✅ v8.2.4: Fixed webpack entry export name (`LogixConnectionBrowser`)
-- ✅ v8.2.3: Unique component export names to prevent cross-module page collision
-- ✅ v8.2.1: Security hardening, code cleanup, architecture improvements
-- ✅ v8.1.0: Merged File Upload + Tag Browser into unified Connection Browser
-- ✅ v8.0.0: Renamed module to Logix PLC Emulator, removed unused vendor parsers
+**What's new in v9.0.0 (major version bump)**:
+- Full React + TypeScript Connection Browser with sidebar-driven multi-view layout
+- Dashboard, Devices, Tags, Logs, Diagnostics, and Simulation views
+- SQLite-backed log storage with real-time filtering
+- CPU/RAM status bar monitoring
+- Catppuccin-inspired neutral charcoal theme
+- 113 tests (100% passing)
+- Dead code cleanup, dependency consolidation, version alignment
 
 ---
 
@@ -43,14 +42,17 @@
 - **AbstractGatewayModuleHook** (migrated from AbstractDeviceModuleHook in v2.0.0)
 - **Manual device registration** via extension points (no automatic scanning)
 - **OPC-UA device driver** integration with Ignition's OPC-UA server
+- **React + TypeScript** web UI bundled via webpack (UMD output)
 
 ### Technologies
 - **Java 17** (minimum)
-- **Ignition SDK 0.4.0**
-- **Gradle 7.x+** with Kotlin DSL
+- **Ignition SDK 0.5.0**
+- **Gradle 8.5** with Kotlin DSL
+- **React 18** + TypeScript + Lucide icons
 - **Jakarta Servlet API** (for web routes)
 - **Milo OPC-UA** (via Ignition SDK)
 - **Gson** for JSON parsing
+- **SQLite** for log storage
 
 ### Critical Constraints
 1. Must integrate with Ignition's OPC-UA server (cannot be standalone)
@@ -65,59 +67,82 @@
 
 ```
 /modules/ignition-module-plc-emulator/logix-emulator-module/
-├── build.gradle.kts                    # Build configuration (version: 8.2.10)
-├── gradle.properties                   # Signing config (uses environment variables)
-├── CHANGELOG.md                        # Detailed version history ⭐
-├── README.md                          # Project overview
-├── QUICK_START.md                     # User quick start guide
-├── KNOWN_ISSUES.md                    # Current limitations
-├── CLAUDE_CONTEXT.md                  # This file
+├── build.gradle.kts                    # Build configuration (version: 9.0.0)
+├── gradle.properties                   # Signing config (gitignored, uses env vars)
+├── gradle.properties.template          # Template for signing config
+├── CHANGELOG.md                        # Detailed version history
+├── README.md                           # Project overview
+├── QUICK_START.md                      # User quick start guide
+├── KNOWN_ISSUES.md                     # Current limitations
 │
 ├── docs/
-│   └── archive/                       # Historical documentation
+│   ├── ARCHITECTURE.md                 # System architecture
+│   ├── API_REFERENCE.md                # REST API documentation
+│   ├── SECURITY.md                     # Security best practices
+│   ├── SECURITY_TESTING.md             # Security testing guide
+│   ├── TAG_CREATION_FLOW.md            # Tag pipeline reference
+│   ├── internal/
+│   │   └── CLAUDE_CONTEXT.md           # This file
+│   └── archive/                        # Historical documentation
 │
-├── common/                            # Shared code (currently minimal)
+├── common/                             # Shared code (currently minimal)
 │
-├── designer/                          # Designer scope (minimal hook)
+├── designer/                           # Designer scope (minimal hook)
 │   └── src/main/java/.../designer/
 │       └── DesignerHook.java
 │
-└── gateway/                           # Main module code (Gateway scope)
+├── web-ui/                             # React + TypeScript frontend
+│   ├── package.json
+│   ├── webpack.config.js
+│   └── src/
+│       ├── index.ts                    # Entry point (exports LogixConnectionBrowser)
+│       ├── App.tsx                     # Main app with sidebar navigation
+│       ├── App.scss
+│       └── components/                 # View components
+│           ├── Sidebar.tsx
+│           ├── StatusBar.tsx
+│           ├── DashboardView.tsx
+│           ├── DevicesView.tsx
+│           ├── TagsView.tsx
+│           ├── LogsView.tsx
+│           ├── DiagnosticsView.tsx
+│           └── SimulationView.tsx
+│
+└── gateway/                            # Main module code (Gateway scope)
     └── src/main/
         ├── java/.../gateway/
-        │   ├── SimulatorModuleHook.java          # ⭐ Module lifecycle
-        │   ├── ParserService.java                # Python parser connector (fallback)
+        │   ├── SimulatorModuleHook.java          # Module lifecycle
         │   ├── FileWatcher.java                  # Hot reload monitoring
         │   ├── FileVersionManager.java           # Version history (5 versions)
-        │   ├── OpcUaSimulationEngine.java        # Value simulation (TODO)
+        │   ├── OpcUaSimulationEngine.java        # Value simulation
         │   │
         │   ├── device/
-        │   │   ├── LogixEmulatorDevice.java  # ⭐ Device driver implementation
-        │   │   ├── LogixEmulatorConfig.java  # ⭐ Configuration records
+        │   │   ├── LogixEmulatorDevice.java      # Device driver implementation
+        │   │   ├── LogixEmulatorConfig.java       # Configuration records
         │   │   ├── LogixEmulatorExtensionPoint.java  # Device registration
-        │   │   └── AddressSpaceBuilder.java      # OPC-UA address space creation
+        │   │   └── AddressSpaceBuilder.java       # OPC-UA address space creation
         │   │
-        │   ├── parser/                           # ⭐ Java parsers
-        │   │   ├── PLCParser.java                # Interface
-        │   │   ├── ParserFactory.java            # Factory pattern
-        │   │   ├── L5XParser.java                # Rockwell L5K/L5X
-        │   │   ├── JsonPLCParser.java            # Generic JSON
-        │   │   └── CsvParser.java                # CSV format
+        │   ├── parser/                            # Java parsers
+        │   │   ├── PLCParser.java                 # Interface
+        │   │   ├── ParserFactory.java             # Factory pattern
+        │   │   ├── L5XParser.java                 # Rockwell L5K/L5X
+        │   │   ├── JsonPLCParser.java             # Generic JSON
+        │   │   └── CsvParser.java                 # CSV format
         │   │
         │   ├── validation/
-        │   │   └── FileValidator.java            # File size/format validation
+        │   │   └── FileValidator.java             # File size/format validation
         │   │
-        │   └── web/                              # Web routes and UI
-        │       └── FileUploadRoutes.java         # REST API endpoints
+        │   └── web/                               # Web routes and UI
+        │       └── FileUploadRoutes.java          # REST API endpoints
         │
         └── resources/
-            ├── LogixEmulator.properties      # i18n display names
-            ├── mounted/                          # Public web resources
-            │   ├── index.html                    # Landing page
-            │   └── plc-file-upload.js            # Client-side enhancement
-            └── pages/                            # Authenticated HTML pages
-                ├── connection-browser.html        # Unified tag browser + file upload
-                └── edit-program.html              # PLC program editor
+            ├── LogixEmulator.properties           # i18n display names
+            ├── mounted/                           # Public web resources
+            │   ├── index.html                     # Landing page
+            │   └── plc-file-upload.js             # Client-side enhancement
+            └── pages/                             # Authenticated HTML pages
+                ├── connection-browser.html         # React mount point
+                └── edit-program.html               # PLC program editor
 ```
 
 ---
@@ -127,238 +152,48 @@
 ### Module Lifecycle
 **File**: `SimulatorModuleHook.java`
 **Extends**: `AbstractGatewayModuleHook`
-**Responsibilities**:
-- Module startup/shutdown
-- Route mounting (`/main/data/logixemulator/*`)
-- Extension point registration
-- Device registry management
+**Responsibilities**: Module startup/shutdown, route mounting, extension point registration, device registry management
 
 ### Device Implementation
-**File**: `LogixEmulatorDevice.java` (601 lines - marked for refactoring)
-**Extends**: `ManagedAddressSpaceWithLifecycle`
-**Implements**: `Device`
-**Responsibilities**:
-- File preparation and storage
-- Parser coordination
-- OPC-UA address space lifecycle
-- Hot reload handling
-- Simulation engine management
+**File**: `LogixEmulatorDevice.java`
+**Extends**: `ManagedAddressSpaceWithLifecycle` implements `Device`
+**Responsibilities**: File preparation/storage, parser coordination, OPC-UA address space lifecycle, hot reload, simulation engine
 
-### Configuration
-**File**: `LogixEmulatorConfig.java`
-**Type**: Java records (nested)
-**Structure**:
-```java
-LogixEmulatorConfig(
-    General(deviceName, enabled),
-    ParserSettings(programManagerUrl, fileName, fileContent, parserType, hotReload, reloadInterval),
-    SimulationSettings(enabled, updateInterval, defaultPattern)
-)
-```
+### Web UI
+**Entry**: `web-ui/src/index.ts` -> exports `LogixConnectionBrowser`
+**Webpack**: UMD output, entry name must match `.mount()` call in Java ModuleHook
+**Key Pattern**: Resolve extensions `.ts`/`.tsx` MUST come before `.scss`
 
-### Parser System
-**File**: `ParserFactory.java` + parser implementations
-**Pattern**: Factory + Strategy
-**Parsers**: L5XParser (Rockwell), JsonPLCParser, CsvParser
-**Returns**: `JsonObject` with standardized structure (global_tags, programs, udts)
+### REST API
+**File**: `FileUploadRoutes.java`
+**Routes**: All under `/data/logixemulator/`
+**Auth**: Uses `OPEN_ROUTE` access control — Ignition handles `/data/` auth at higher level
 
 ---
 
-## Common Development Tasks
+## Build & Deploy
 
-### Building
 ```bash
 cd /modules/ignition-module-plc-emulator/logix-emulator-module
 ./gradlew clean build
-# Output: build/LogixPLCEmulator-8.2.10.modl (~12MB)
+# Output: build/LogixPLCEmulator-9.0.0.modl (~14MB)
 ```
 
-### Testing
-```bash
-# Copy to Ignition
-cp build/*.modl /path/to/ignition/user-lib/modules/
-
-# Restart Gateway (or use Module API)
-systemctl restart ignition
-
-# Check logs
-tail -f /var/log/ignition/wrapper.log
-```
-
-### Adding a New Parser
-1. Create class implementing `PLCParser` interface
-2. Add to `ParserFactory.getAllParsers()` static block
-3. Add enum to `LogixEmulatorConfig.ParserType`
-4. Implement `parse()` and `parseContent()` methods
-5. Return standardized JsonObject with: `global_tags`, `programs`, `udts`
-6. Add tests and update documentation
-
----
-
-## Critical Code Patterns
-
-### Parser Output Format
-```json
-{
-  "controller": "ControllerName",
-  "vendor": "rockwell",
-  "global_tags": [
-    {
-      "name": "TagName",
-      "data_type": "DINT",
-      "initial_value": 0,
-      "udt_members": [/* for UDT instances */]
-    }
-  ],
-  "programs": [
-    {
-      "name": "MainProgram",
-      "tags": [/* program-scoped tags */]
-    }
-  ],
-  "udts": [/* UDT definitions */]
-}
-```
-
-### Address Space Structure
-```
-[DeviceName]/
-├── Controller:Global/
-│   ├── Motor1/              (UDT instance folder)
-│   │   ├── Speed            (member variable)
-│   │   └── Running          (member variable)
-│   └── Tank1_Level          (atomic tag)
-└── Programs/
-    └── MainProgram/
-        └── Counter
-```
-
-### REST API Endpoints
-- `POST /main/data/logixemulator/upload` - Upload file
-- `GET /main/data/logixemulator/devices` - List devices
-- `GET /main/data/logixemulator/device/{name}/status` - Get device status
-- `GET /main/data/logixemulator/health` - Health check
-
----
-
-## Known Issues & TODOs
-
-### Security (RESOLVED) ✅
-- ✅ Authentication via Ignition's `/data/` route infrastructure (custom auth removed in v8.2.10)
-- ✅ Path traversal protection implemented
-- ✅ XXE protection complete with 6 security features (L5XParser)
-- ✅ Hardcoded credentials removed (gradle.properties uses environment variables)
-- ✅ File size DoS prevention
-- ✅ Comprehensive security tests (18 tests in FileUploadRoutesSecurityTest)
-- ✅ Reflection removed — all public API methods on LogixEmulatorDevice (v8.2.1)
-
-### Testing (Added in v5.4.9) ✅
-- ✅ L5XParserTest: 12 tests including XXE prevention
-- ✅ FileValidatorTest: 10 tests for file validation
-- ✅ FileUploadRoutesSecurityTest: 18 security-focused tests
-- ✅ Total: 40 tests, 100% passing
-- ✅ CI/CD: GitHub Actions pipeline with automated testing
-
-### Code Quality (Medium Priority)
-- LogixEmulatorDevice.java too large (800+ lines, should be <500)
-- L5KParser.java too large (843 lines, target 400)
-- FileUploadRoutes.java too large (932 lines, target 300)
-- Simulation engine incomplete (OpcUaSimulationEngine:105-117 stubbed out)
-- Hot reload uses full rebuild (should be incremental)
-- Static device registry (should use instance-based)
-
-### Features (Future Enhancements)
-- Siemens TIA Portal parser
-- Schneider Electric parser
-- Beckhoff TwinCAT parser
-- Simulation value updates (infrastructure exists, logic TODO)
+**Important**: Always bump version in `build.gradle.kts` before building — Ignition requires a different version each time a module is installed.
 
 ---
 
 ## Common Troubleshooting
 
-### Issue: "Display names show as ?EnhancedSimulator...?"
-**Cause**: i18n bundle not registered
-**Fix**: Verify `BundleUtil.get().addBundle()` in `SimulatorModuleHook.startup()`
+### Issue: Routes not mounting or unexpected auth behavior
+**Fix**: Use `.handler().accessControl(OPEN_ROUTE).mount()` — do NOT add custom auth wrappers
 
-### Issue: "Routes not mounting" or "Authentication required" on data routes
-**Cause**: Do NOT add custom `isAuthenticated()` wrappers — `getRemoteUser()`/`getUserPrincipal()` are not populated by Ignition's data route infrastructure
-**Fix**: Use `.handler().accessControl(AccessControlStrategy.OPEN_ROUTE).mount()` — Ignition handles auth for `/data/` routes
-
-### Issue: "Device not in dropdown"
-**Cause**: Extension point not registered
+### Issue: Device not in dropdown
 **Fix**: Verify `registerExtensionPoint()` in `SimulatorModuleHook.startup()`
 
-### Issue: "Tags not appearing in OPC-UA browser"
-**Cause**: Address space build failed or parser returned null
-**Fix**: Check Gateway logs for parser errors; verify file format
-
-### Issue: "Hot reload not working"
-**Cause**: FileWatcher not started or config disabled
-**Fix**: Check `hotReload` config setting; verify FileWatcher logs
-
----
-
-## Token Optimization Strategy
-
-### Always Load First:
-1. CLAUDE_CONTEXT.md (this file)
-2. CHANGELOG.md (recent changes section only)
-3. README.md (overview only)
-
-### Load for Specific Tasks:
-- **Module lifecycle**: SimulatorModuleHook.java
-- **Device logic**: LogixEmulatorDevice.java, LogixEmulatorConfig.java
-- **Parsing**: ParserFactory.java + specific parser file
-- **Web/API**: FileUploadRoutes.java
-- **OPC-UA**: AddressSpaceBuilder.java
-
-### Rarely Load (only when specifically needed):
-- Build files (build.gradle.kts, gradle.properties)
-- Web resources (HTML, JS)
-- Historical documentation
-- Test files
-
----
-
-## Success Metrics
-
-**Production Readiness**:
-- ✅ Core functionality complete
-- ✅ Parser system operational
-- ✅ Security hardened (v5.4.9+)
-- ✅ Unified Connection Browser (v8.1.0)
-- ✅ Documentation comprehensive
-
----
-
-## Quick Reference Commands
-
-```bash
-# Build
-./gradlew build
-
-# Clean build
-./gradlew clean build
-
-# Install locally
-cp build/LogixPLCEmulator-8.2.10.modl ~/ignition/user-lib/modules/
-
-# Check what changed
-git status
-git diff
-
-# Commit
-git add .
-git commit -m "feat: description"
-git push origin master
-
-# View logs in Ignition
-tail -f /var/log/ignition/wrapper.log | grep logixemulator
-```
+### Issue: Webpack export name mismatch
+**Fix**: Export name in `index.ts` must match second arg to `.mount()` in Java hook
 
 ---
 
 **End of Context File**
-
-This file should be the first thing loaded in any Claude Code session for efficient development.

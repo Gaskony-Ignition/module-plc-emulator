@@ -18,22 +18,24 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 import java.nio.charset.StandardCharsets;
-import java.net.InetAddress;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
+import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -50,13 +52,31 @@ public class FileUploadRoutes {
     private final GatewayContext context;
     private final RouteGroup routes;
     private final RateLimiter rateLimiter;
+    private final RateLimiter readRateLimiter;
     private final DeviceFileManager deviceManager;
 
     public FileUploadRoutes(GatewayContext context, RouteGroup routes) {
         this.context = context;
         this.routes = routes;
         this.rateLimiter = new RateLimiter();
+        this.readRateLimiter = new RateLimiter(300, 3000, java.util.concurrent.TimeUnit.HOURS.toMillis(1));
         this.deviceManager = new DeviceFileManager(context);
+    }
+
+    /**
+     * Validates CSRF protection on state-changing requests.
+     * Requires X-Requested-With header to prevent cross-origin form submissions.
+     */
+    private boolean requireCSRFToken(RequestContext ctx, HttpServletResponse resp) throws JSONException, IOException {
+        String xRequestedWith = ctx.getRequest().getHeader("X-Requested-With");
+        if (!"XMLHttpRequest".equals(xRequestedWith)) {
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            new JSONObject().put("success", false)
+                .put("error", "CSRF validation failed — X-Requested-With header required")
+                .write(resp.getWriter());
+            return false;
+        }
+        return true;
     }
 
     public void mountRoutes() {
@@ -138,6 +158,14 @@ public class FileUploadRoutes {
 
     private JSONObject handleFileUpload(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        // CSRF protection
+        try {
+            if (!requireCSRFToken(ctx, resp)) return null;
+        } catch (Exception e) {
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return result.put("success", false).put("error", "CSRF validation failed");
+        }
 
         // Rate limiting
         String username = getUsername(ctx);
@@ -435,6 +463,11 @@ public class FileUploadRoutes {
      */
     private JSONObject handleGetLiveTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        // Read rate limiting for expensive endpoint
+        RateLimiter.RateLimitResult readRate = readRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!readRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -492,6 +525,10 @@ public class FileUploadRoutes {
      */
     private JSONObject handleWriteTag(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        try { if (!requireCSRFToken(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -561,6 +598,10 @@ public class FileUploadRoutes {
      */
     private JSONObject handleToggleTagSimulation(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        try { if (!requireCSRFToken(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -674,6 +715,10 @@ public class FileUploadRoutes {
      */
     private JSONObject handleBulkSimulationByScope(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        try { if (!requireCSRFToken(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -729,6 +774,10 @@ public class FileUploadRoutes {
      */
     private JSONObject handleBulkSimulationAll(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        try { if (!requireCSRFToken(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -821,6 +870,10 @@ public class FileUploadRoutes {
 
     private JSONObject handleDeleteFile(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        try { if (!requireCSRFToken(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
+
         String deviceName = ctx.getParameter("name");
 
         if (deviceName == null || deviceName.trim().isEmpty()) {
@@ -921,11 +974,12 @@ public class FileUploadRoutes {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "8.2.17")
+            .put("moduleVersion", "9.0.0")
             .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
     }
 
-    private static final SimpleDateFormat LOG_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter LOG_DATE_FORMAT =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
     /**
      * Gateway logs — reads entries from Ignition's SQLite system_logs.idb database.
@@ -939,6 +993,11 @@ public class FileUploadRoutes {
      */
     private JSONObject handleSystemLogs(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         JSONObject result = new JSONObject();
+
+        // Read rate limiting for expensive SQLite query endpoint
+        RateLimiter.RateLimitResult readRate = readRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!readRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         int limit = Math.min(parseIntParam(ctx, "limit", 100), 500);
         String levelParam = ctx.getRequest().getParameter("level");
         String afterParam = ctx.getRequest().getParameter("after");
@@ -1045,10 +1104,7 @@ public class FileUploadRoutes {
                     String loggerName = rs.getString("logger_name");
                     String level = rs.getString("level_string");
 
-                    String formattedTime;
-                    synchronized (LOG_DATE_FORMAT) {
-                        formattedTime = LOG_DATE_FORMAT.format(new Date(timestmp));
-                    }
+                    String formattedTime = LOG_DATE_FORMAT.format(Instant.ofEpochMilli(timestmp));
 
                     // Shorten logger name for display (e.g. "com.inductiveautomation.logixemulator.gateway.GatewayHook" -> "GatewayHook")
                     String shortSource = loggerName;
@@ -1174,8 +1230,7 @@ public class FileUploadRoutes {
      * through authenticated data routes.
      */
     private Object serveHtmlPage(String resourcePath, String pageName, HttpServletResponse resp) {
-        try {
-            var stream = getClass().getResourceAsStream(resourcePath);
+        try (var stream = getClass().getResourceAsStream(resourcePath)) {
             if (stream == null) {
                 resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
                 resp.getWriter().write(pageName + " not found");
@@ -1270,18 +1325,19 @@ public class FileUploadRoutes {
         return remoteAddr != null ? remoteAddr : "unknown";
     }
 
+    private static final Pattern IPV4_PATTERN = Pattern.compile(
+        "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$");
+    private static final Pattern IPV6_PATTERN = Pattern.compile(
+        "^[0-9a-fA-F:]+$");
+
     /**
-     * Basic IP address validation to prevent header injection attacks.
+     * Validates that the string is a literal IP address (not a hostname).
+     * Uses regex instead of InetAddress.getByName() to avoid DNS resolution.
      */
     private boolean isValidIPAddress(String ip) {
         if (ip == null || ip.isEmpty() || ip.length() > 45) {
             return false;
         }
-        try {
-            InetAddress.getByName(ip);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        return IPV4_PATTERN.matcher(ip).matches() || IPV6_PATTERN.matcher(ip).matches();
     }
 }

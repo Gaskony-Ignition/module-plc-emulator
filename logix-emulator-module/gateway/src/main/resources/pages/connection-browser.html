@@ -1151,11 +1151,11 @@
                     const data = await response.json();
                     displayFileStatus(data);
                 } else {
-                    container.innerHTML = `<p class="no-file-message">Unable to fetch device status (HTTP ${response.status})</p>`;
+                    container.innerHTML = `<p class="no-file-message">Unable to fetch device status (HTTP ${escapeHtml(String(response.status))})</p>`;
                 }
             } catch (error) {
                 console.error('Error loading device status:', error);
-                container.innerHTML = `<p class="no-file-message">Error loading status: ${error.message}</p>`;
+                container.innerHTML = `<p class="no-file-message">Error loading status: ${escapeHtml(error.message)}</p>`;
             }
         }
 
@@ -1266,7 +1266,8 @@
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'text/plain',
-                        'X-Filename': fileName
+                        'X-Filename': fileName,
+                        'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: currentFileContent
                 });
@@ -1331,7 +1332,8 @@
             try {
                 const response = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/delete`, {
                     method: 'DELETE',
-                    credentials: 'include'
+                    credentials: 'include',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
 
                 const result = await response.json();
@@ -1845,7 +1847,7 @@
                     {
                         method: 'POST',
                         credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                         body: JSON.stringify({ tagPath: tagPath })
                     }
                 );
@@ -1975,7 +1977,7 @@
                     {
                         method: 'POST',
                         credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                         body: JSON.stringify({
                             tagPath: currentWriteTag.path,
                             value: value,

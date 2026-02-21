@@ -8,11 +8,12 @@ import TagsView from "./components/TagsView";
 import DiagnosticsView from "./components/DiagnosticsView";
 import LogsView from "./components/LogsView";
 import SimulationView from "./components/SimulationView";
+import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
 const AUTH_CHECK_URL = "/data/logixemulator/auth/check";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "8.2.18";
+const MODULE_VERSION = "9.0.0";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
@@ -103,32 +104,34 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="logix-app">
-      {status === "disconnected" && (
-        <div className="connection-banner">
-          Unable to connect to Logix PLC Emulator gateway. Retrying...
-        </div>
-      )}
-      {IS_DEDICATED_MODE && (
-        <div className="dedicated-header">
-          <Cpu size={16} />
-          <span>Logix PLC Emulator</span>
-        </div>
-      )}
-      <div className="logix-outer-layout">
-        <Sidebar
-          activeView={activeView}
-          onNavigate={setActiveView}
-          moduleVersion={MODULE_VERSION}
-        />
-        <div className="logix-content-area">
-          <div className="logix-active-view">
-            {renderActiveView()}
+    <ErrorBoundary>
+      <div className="logix-app">
+        {status === "disconnected" && (
+          <div className="connection-banner">
+            Unable to connect to Logix PLC Emulator gateway. Retrying...
           </div>
-          <StatusBar />
+        )}
+        {IS_DEDICATED_MODE && (
+          <div className="dedicated-header">
+            <Cpu size={16} />
+            <span>Logix PLC Emulator</span>
+          </div>
+        )}
+        <div className="logix-outer-layout">
+          <Sidebar
+            activeView={activeView}
+            onNavigate={setActiveView}
+            moduleVersion={MODULE_VERSION}
+          />
+          <div className="logix-content-area">
+            <div className="logix-active-view">
+              {renderActiveView()}
+            </div>
+            <StatusBar />
+          </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 

@@ -1,6 +1,6 @@
 # Known Issues and Limitations
 
-## Current Version: v8.2.0
+## Current Version: v9.0.0
 
 ### Known Limitations
 
@@ -58,17 +58,17 @@ Hot reload performs full address space rebuild when PLC file changes. For very l
 If you encounter issues not listed here:
 
 1. **Check Gateway Logs**: `Status > Logs > Gateway` (filter for "logixemulator")
-2. **Verify Module Version**: Config > Modules (should show v8.2.0)
+2. **Verify Module Version**: Config > Modules (should show v9.0.0)
 3. **Check Device Status**: Config > Devices > Edit device (status field shows current state)
 
 **Report Issues With:**
 - Ignition version (e.g., 8.3.2)
-- Module version (e.g., v8.2.0)
+- Module version (e.g., v9.0.0)
 - Parser type being used
 - Steps to reproduce
 - Relevant log excerpts
 
-**GitHub Issues**: https://github.com/nigelgwork/ignition-plc-simulator/issues
+**GitHub Issues**: https://github.com/Gaskony-Ignition/ignition-module-plc-emulator/issues
 
 ---
 
