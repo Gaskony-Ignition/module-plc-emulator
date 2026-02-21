@@ -106,7 +106,7 @@
 }
 
 .logix-app .sim-device-card {
-  background: #181825;
+  background: #1e1e2e;
   border: 1px solid #313244;
   border-radius: var(--radius-md);
   margin-bottom: 8px;
@@ -496,7 +496,7 @@
 
 .logix-app .sim-device-list::-webkit-scrollbar-track,
 .logix-app .sim-tag-list-body::-webkit-scrollbar-track {
-  background: #1e1e2e;
+  background: var(--bg-primary);
 }
 
 .logix-app .sim-device-list::-webkit-scrollbar-thumb,

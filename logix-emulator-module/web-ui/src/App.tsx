@@ -13,7 +13,7 @@ import "./App.scss";
 
 const AUTH_CHECK_URL = "/data/logixemulator/auth/check";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.0.0";
+const MODULE_VERSION = "9.0.1";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 

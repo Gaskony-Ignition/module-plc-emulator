@@ -974,7 +974,7 @@ public class FileUploadRoutes {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.0.0")
+            .put("moduleVersion", "9.0.1")
             .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
     }
 
@@ -1280,7 +1280,9 @@ public class FileUploadRoutes {
         var req = ctx.getRequest();
         if (req.getRemoteUser() != null) return req.getRemoteUser();
         if (req.getUserPrincipal() != null) return req.getUserPrincipal().getName();
-        return null;
+        // Ignition data routes don't populate remoteUser/userPrincipal —
+        // fall back to IP to avoid null keys in ConcurrentHashMap
+        return "anon-" + getClientIP(ctx);
     }
 
     /**

@@ -12,10 +12,10 @@
 }
 
 .logix-app {
-  /* Catppuccin Mocha palette */
-  --bg-primary: #1e1e2e;
+  /* Catppuccin Mocha palette — dark page bg with lighter cards for contrast */
+  --bg-primary: #11111b;
   --bg-secondary: #181825;
-  --bg-tertiary: #11111b;
+  --bg-surface: #1e1e2e;
   --bg-hover: #313244;
 
   --text-primary: #cdd6f4;

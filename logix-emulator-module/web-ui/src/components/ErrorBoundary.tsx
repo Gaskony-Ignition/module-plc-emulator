@@ -37,7 +37,7 @@ class ErrorBoundary extends Component<Props, State> {
           alignItems: 'center',
           justifyContent: 'center',
           height: '100vh',
-          background: '#1e1e2e',
+          background: '#11111b',
           color: '#cdd6f4',
           fontFamily: 'sans-serif',
           gap: '16px',

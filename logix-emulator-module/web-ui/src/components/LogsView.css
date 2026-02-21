@@ -9,7 +9,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #1e1e2e;
+  background: var(--bg-primary);
 }
 
 /* Header */
@@ -208,7 +208,7 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  background: #1e1e2e;
+  background: var(--bg-primary);
 }
 
 /* Individual log entry */
@@ -318,7 +318,7 @@
 }
 
 .logix-app .logs-content::-webkit-scrollbar-track {
-  background: #1e1e2e;
+  background: var(--bg-primary);
 }
 
 .logix-app .logs-content::-webkit-scrollbar-thumb {
