@@ -17,19 +17,37 @@
 
 /* Dashboard header */
 .logix-app .dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
   margin-bottom: 24px;
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: 8px;
+}
+
+.logix-app .dashboard-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logix-app .dashboard-header-left > svg {
+  color: #89b4fa;
+  flex-shrink: 0;
 }
 
 .logix-app .dashboard-header h2 {
   font-size: 20px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 4px 0;
+  color: #cdd6f4;
+  margin: 0;
 }
 
 .logix-app .dashboard-header p {
   font-size: 13px;
-  color: var(--text-muted);
+  color: #a6adc8;
   margin: 0;
 }
 

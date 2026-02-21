@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { Activity, AlertCircle, RefreshCw } from 'lucide-react'
 import './DiagnosticsView.css'
 
 interface DeviceInfo {
@@ -105,18 +105,23 @@ function DiagnosticsView() {
   return (
     <div className="diagnostics-view">
       <div className="diagnostics-header">
-        <div>
-          <h2>Diagnostics</h2>
-          <p>Device health and configuration status</p>
+        <div className="diagnostics-header-left">
+          <Activity size={20} />
+          <div>
+            <h2>Diagnostics</h2>
+            <p>Device health and configuration status</p>
+          </div>
         </div>
-        <button
-          className="diagnostics-refresh-btn"
-          onClick={() => fetchData(true)}
-          disabled={refreshing}
-          title="Refresh"
-        >
-          <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
-        </button>
+        <div className="diagnostics-header-actions">
+          <button
+            className="diagnostics-refresh-btn"
+            onClick={() => fetchData(true)}
+            disabled={refreshing}
+            title="Refresh"
+          >
+            <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
+          </button>
+        </div>
       </div>
 
       {error && (

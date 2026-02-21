@@ -974,7 +974,7 @@ public class FileUploadRoutes {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.0.1")
+            .put("moduleVersion", "9.0.2")
             .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
     }
 

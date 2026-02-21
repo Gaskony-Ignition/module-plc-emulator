@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { AlertCircle, RefreshCw, Download, Trash2, Pause, Play, Search, X } from 'lucide-react'
+import { FileText, AlertCircle, RefreshCw, Download, Trash2, Pause, Play, Search, X } from 'lucide-react'
 import './LogsView.css'
 
 interface LogEntry {
@@ -195,9 +195,12 @@ function LogsView() {
   return (
     <div className="logs-view">
       <div className="logs-header">
-        <div>
-          <h2>Gateway Logs</h2>
-          <p>Real-time log viewer for Ignition Gateway events</p>
+        <div className="logs-header-left">
+          <FileText size={20} />
+          <div>
+            <h2>Gateway Logs</h2>
+            <p>Real-time log viewer for Ignition Gateway events</p>
+          </div>
         </div>
         <div className="logs-toolbar">
           <div className="logs-filter-input-wrap">

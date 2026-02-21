@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  HardDrive, Tag, Activity, AlertCircle, ArrowRight
+  LayoutDashboard, HardDrive, Tag, Activity, AlertCircle, ArrowRight
 } from 'lucide-react'
 import './DashboardView.css'
 
@@ -120,8 +120,13 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
   return (
     <div className="dashboard-view">
       <div className="dashboard-header">
-        <h2>Dashboard</h2>
-        <p>Logix PLC Emulator overview</p>
+        <div className="dashboard-header-left">
+          <LayoutDashboard size={20} />
+          <div>
+            <h2>Dashboard</h2>
+            <p>Logix PLC Emulator overview</p>
+          </div>
+        </div>
       </div>
 
       {error && (

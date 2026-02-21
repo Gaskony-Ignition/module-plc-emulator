@@ -17,22 +17,43 @@
 
 .logix-app .diagnostics-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
+  padding: 16px 20px;
   margin-bottom: 24px;
+  background: #1e1e2e;
+  border: 1px solid #313244;
+  border-radius: 8px;
+}
+
+.logix-app .diagnostics-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logix-app .diagnostics-header-left > svg {
+  color: #89b4fa;
+  flex-shrink: 0;
 }
 
 .logix-app .diagnostics-header h2 {
   font-size: 20px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 4px 0;
+  color: #cdd6f4;
+  margin: 0;
 }
 
 .logix-app .diagnostics-header p {
   font-size: 13px;
-  color: var(--text-muted);
+  color: #a6adc8;
   margin: 0;
+}
+
+.logix-app .diagnostics-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .logix-app .diagnostics-refresh-btn {
@@ -42,21 +63,22 @@
   width: 32px;
   height: 32px;
   border: 1px solid #313244;
-  border-radius: var(--radius-sm);
-  background: #1e1e2e;
-  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: #a6adc8;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .logix-app .diagnostics-refresh-btn:hover {
   background: #313244;
-  color: var(--text-primary);
+  border-color: #45475a;
+  color: #cdd6f4;
 }
 
 .logix-app .diagnostics-refresh-btn:disabled {
   opacity: 0.5;
-  cursor: default;
+  cursor: not-allowed;
 }
 
 .logix-app .diagnostics-refresh-btn .spinning {

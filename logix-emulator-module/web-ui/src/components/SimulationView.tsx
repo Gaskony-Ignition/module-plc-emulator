@@ -201,9 +201,12 @@ function SimulationView() {
   return (
     <div className="simulation-view">
       <div className="sim-header">
-        <div>
-          <h2>Simulation Control <span className="sim-beta-badge">Beta</span></h2>
-          <p>Manage tag simulation across devices</p>
+        <div className="sim-header-left">
+          <Zap size={20} />
+          <div>
+            <h2>Simulation Control <span className="sim-beta-badge">Beta</span></h2>
+            <p>Manage tag simulation across devices</p>
+          </div>
         </div>
         <div className="sim-header-actions">
           <button className="sim-refresh-btn" onClick={fetchDevices} title="Refresh devices">
