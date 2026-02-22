@@ -74,6 +74,30 @@ public class TagTreeBuilder {
                 }
             }
         }
+
+        // Sort all child lists once after indexing is complete
+        sortAllChildLists();
+    }
+
+    /**
+     * Sort all child lists once during construction: folders first, then alphabetically by name.
+     * This avoids mutating shared lists on every call to getChildrenOf().
+     */
+    private void sortAllChildLists() {
+        for (List<JSONObject> children : childrenByPath.values()) {
+            children.sort((a, b) -> {
+                try {
+                    boolean aFolder = a.optBoolean("isFolder", false);
+                    boolean bFolder = b.optBoolean("isFolder", false);
+                    if (aFolder != bFolder) {
+                        return aFolder ? -1 : 1;
+                    }
+                    return a.optString("name", "").compareToIgnoreCase(b.optString("name", ""));
+                } catch (Exception e) {
+                    return 0;
+                }
+            });
+        }
     }
 
     private void indexTag(JsonObject tag, String parentPath) throws JSONException {
@@ -155,20 +179,6 @@ public class TagTreeBuilder {
         if (children == null || children.isEmpty()) {
             return result;
         }
-
-        // Sort children: folders first, then alphabetically
-        children.sort((a, b) -> {
-            try {
-                boolean aFolder = a.optBoolean("isFolder", false);
-                boolean bFolder = b.optBoolean("isFolder", false);
-                if (aFolder != bFolder) {
-                    return aFolder ? -1 : 1;
-                }
-                return a.optString("name", "").compareToIgnoreCase(b.optString("name", ""));
-            } catch (Exception e) {
-                return 0;
-            }
-        });
 
         // Apply pagination
         int end = Math.min(offset + limit, children.size());

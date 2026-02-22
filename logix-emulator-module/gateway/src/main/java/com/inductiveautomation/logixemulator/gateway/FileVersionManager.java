@@ -55,13 +55,17 @@ public class FileVersionManager {
             // Create versions directory
             File versionsDir = new File(storageDir, "versions");
             if (!versionsDir.exists()) {
-                versionsDir.mkdirs();
+                if (!versionsDir.mkdirs() && !versionsDir.exists()) {
+                    logger.warn("Failed to create versions directory: {}", versionsDir.getAbsolutePath());
+                }
             }
 
             // Create device-specific version directory
             File deviceVersionsDir = new File(versionsDir, sanitizeFileName(deviceName));
             if (!deviceVersionsDir.exists()) {
-                deviceVersionsDir.mkdirs();
+                if (!deviceVersionsDir.mkdirs() && !deviceVersionsDir.exists()) {
+                    logger.warn("Failed to create versions directory: {}", deviceVersionsDir.getAbsolutePath());
+                }
             }
 
             // Generate version filename with timestamp

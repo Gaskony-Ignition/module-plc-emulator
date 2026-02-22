@@ -481,13 +481,13 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
                         "name": "DemoTag1",
                         "dataType": "DINT",
                         "value": 0,
-                        "description": "Demo tag - Parser service unavailable"
+                        "description": "Demo tag — no PLC file loaded"
                     },
                     {
                         "name": "DemoTag2",
                         "dataType": "REAL",
                         "value": 0.0,
-                        "description": "Demo tag - Install Python parser for full functionality"
+                        "description": "Demo tag — no PLC file loaded"
                     },
                     {
                         "name": "DemoStatus",
@@ -864,7 +864,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
                             values.put(nodeIdStr, dataValue.getValue().getValue());
                         }
                     } catch (Exception e) {
-                        // Skip nodes that can't be read
+                        logger.trace("Could not read value for node {}: {}", browseName, e.getMessage());
                     }
                 }
             });

@@ -41,9 +41,8 @@ export IGNITION_CERT_PASSWORD="${{ secrets.PROD_CERT_PASSWORD }}"
 For production use, generate new certificates with private passwords:
 
 ```bash
-./generate-signing-certs.sh
-# Follow prompts and use STRONG passwords
-# Store passwords in your organization's secret management system
+# See SIGNING.md for the full keytool commands to generate new certificates.
+# Use STRONG passwords and store them in your organization's secret management system.
 ```
 
 ### Current Certificates

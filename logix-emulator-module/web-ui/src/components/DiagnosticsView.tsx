@@ -1,15 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Activity, AlertCircle, RefreshCw } from 'lucide-react'
+import { API } from '../constants/api'
+import { apiGet, apiFetch } from '../utils/apiClient'
+import { DeviceInfo } from '../types/device'
+import { getStatusColor } from '../utils/statusColor'
+import { formatBytes } from '../utils/format'
 import './DiagnosticsView.css'
-
-interface DeviceInfo {
-  name: string
-  status: string
-  enabled: boolean
-  fileName: string
-  parserType: string
-  simulationEnabled: boolean
-}
 
 interface DeviceDetail {
   deviceName: string
@@ -46,20 +42,12 @@ function DiagnosticsView() {
       if (isManual) setRefreshing(true)
       setError(null)
 
-      const res = await fetch('/data/logixemulator/devices', {
-        credentials: 'same-origin',
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await apiGet<{ devices: DeviceInfo[] }>(API.DEVICES)
       const deviceList: DeviceInfo[] = data.devices || []
 
       const details = await Promise.allSettled(
         deviceList.map(d =>
-          fetch(`/data/logixemulator/device/${encodeURIComponent(d.name)}/status`, {
-            credentials: 'same-origin',
-            signal: AbortSignal.timeout(5000),
-          }).then(r => r.ok ? r.json() as Promise<DeviceDetail> : null)
+          apiFetch(API.DEVICE_STATUS(d.name)).then(r => r.ok ? r.json() as Promise<DeviceDetail> : null)
         )
       )
 
@@ -93,10 +81,7 @@ function DiagnosticsView() {
 
   const fetchLogs = useCallback(async () => {
     try {
-      const res = await fetch('/data/logixemulator/system/logs?limit=100', {
-        credentials: 'same-origin',
-        signal: AbortSignal.timeout(5000),
-      })
+      const res = await apiFetch(API.SYSTEM_LOGS(100))
       if (!res.ok) return
       const data = await res.json()
       if (data.success && data.entries) {
@@ -128,21 +113,6 @@ function DiagnosticsView() {
       if (logsTimerRef.current !== null) clearInterval(logsTimerRef.current)
     }
   }, [fetchLogs])
-
-  const getStatusColor = (status: string) => {
-    const s = status?.toLowerCase() || ''
-    if (s.includes('connect') || s.includes('running')) return '#98c379'
-    if (s.includes('fault') || s.includes('error')) return '#e06c75'
-    if (s.includes('disabled')) return '#6b7280'
-    return '#e5c07b'
-  }
-
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '--'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
 
   const getLevelClass = (level: string) => {
     switch ((level || '').toUpperCase()) {
@@ -220,7 +190,7 @@ function DiagnosticsView() {
                 </div>
                 <div className="diagnostics-field">
                   <span className="diagnostics-field-label">File Size</span>
-                  <span className="diagnostics-field-value">{formatFileSize(device.fileSize)}</span>
+                  <span className="diagnostics-field-value">{formatBytes(device.fileSize) || '--'}</span>
                 </div>
                 <div className="diagnostics-field">
                   <span className="diagnostics-field-label">Simulation</span>

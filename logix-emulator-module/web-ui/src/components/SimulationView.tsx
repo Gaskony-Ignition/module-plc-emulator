@@ -3,14 +3,11 @@ import {
   Zap, HardDrive, RefreshCw, Play, Square,
   AlertCircle, ChevronDown, ChevronRight
 } from 'lucide-react'
+import { API } from '../constants/api'
+import { apiGet, apiPost } from '../utils/apiClient'
+import { DeviceInfo } from '../types/device'
+import { getStatusColor } from '../utils/statusColor'
 import './SimulationView.css'
-
-interface DeviceInfo {
-  name: string
-  status: string
-  enabled: boolean
-  simulationEnabled: boolean
-}
 
 interface SimulatedTag {
   path: string
@@ -36,12 +33,7 @@ function SimulationView() {
 
   const fetchDevices = useCallback(async () => {
     try {
-      const res = await fetch('/data/logixemulator/devices', {
-        credentials: 'same-origin',
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await apiGet<{ devices: DeviceInfo[] }>(API.DEVICES)
       setDevices(data.devices || [])
       setError(null)
     } catch {
@@ -54,12 +46,7 @@ function SimulationView() {
   const fetchSimState = useCallback(async (deviceName: string) => {
     setSimLoading(true)
     try {
-      const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/tags/simulated`, {
-        credentials: 'same-origin',
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await apiGet<DeviceSimState>(API.DEVICE_TAGS_SIMULATED(deviceName))
       setSimState({
         simulationEngineAvailable: data.simulationEngineAvailable || false,
         simulatedTags: data.simulatedTags || [],
@@ -91,18 +78,12 @@ function SimulationView() {
   const handleEnableAll = useCallback(async (deviceName: string) => {
     setActionLoading('enableAll')
     try {
-      const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/all`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ enabled: true }),
-      })
-      const data = await res.json()
+      const data = await apiPost<{ success: boolean }>(API.DEVICE_SIMULATION_ALL(deviceName), { enabled: true })
       if (data.success) {
         await fetchSimState(deviceName)
       }
-    } catch {
-      // silently ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Enable all failed')
     } finally {
       setActionLoading(null)
     }
@@ -111,18 +92,12 @@ function SimulationView() {
   const handleDisableAll = useCallback(async (deviceName: string) => {
     setActionLoading('disableAll')
     try {
-      const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/all`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ enabled: false }),
-      })
-      const data = await res.json()
+      const data = await apiPost<{ success: boolean }>(API.DEVICE_SIMULATION_ALL(deviceName), { enabled: false })
       if (data.success) {
         await fetchSimState(deviceName)
       }
-    } catch {
-      // silently ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Disable all failed')
     } finally {
       setActionLoading(null)
     }
@@ -131,18 +106,12 @@ function SimulationView() {
   const handleToggleTag = useCallback(async (deviceName: string, tagPath: string) => {
     setActionLoading(tagPath)
     try {
-      const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/tag/simulate`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ tagPath }),
-      })
-      const data = await res.json()
+      const data = await apiPost<{ success: boolean }>(API.DEVICE_TAG_SIMULATE(deviceName), { tagPath })
       if (data.success) {
         await fetchSimState(deviceName)
       }
-    } catch {
-      // silently ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tag toggle failed')
     } finally {
       setActionLoading(null)
     }
@@ -151,30 +120,16 @@ function SimulationView() {
   const handleScopeAction = useCallback(async (deviceName: string, scope: string, enabled: boolean) => {
     setActionLoading(`scope-${scope}-${enabled}`)
     try {
-      const res = await fetch(`/data/logixemulator/device/${encodeURIComponent(deviceName)}/simulation/scope`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ scope, enabled }),
-      })
-      const data = await res.json()
+      const data = await apiPost<{ success: boolean }>(API.DEVICE_SIMULATION_SCOPE(deviceName), { scope, enabled })
       if (data.success) {
         await fetchSimState(deviceName)
       }
-    } catch {
-      // silently ignore
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scope action failed')
     } finally {
       setActionLoading(null)
     }
   }, [fetchSimState])
-
-  const getStatusColor = (status: string) => {
-    const s = status.toLowerCase()
-    if (s === 'connected' || s === 'running') return '#98c379'
-    if (s === 'fault' || s === 'error') return '#e06c75'
-    if (s === 'disabled') return '#6b7280'
-    return '#e5c07b'
-  }
 
   const simEnabledDevices = devices.filter(d => d.simulationEnabled)
 

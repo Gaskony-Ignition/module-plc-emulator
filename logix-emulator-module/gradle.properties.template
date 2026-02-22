@@ -15,16 +15,15 @@
 #   2. Fill in credentials in gradle.properties (NOT committed)
 #   3. Or use environment variables as above
 #
-# To generate new certificates:
-#   ./generate-signing-certs.sh
+# To generate new certificates, see SIGNING.md for keytool commands
 
 # Module version (build.gradle.kts is source of truth, this is for reference only)
-version=9.0.0
+version=9.0.7
 
+# Replace ALL placeholder values below before using this file
 # Signing configuration
-# Use environment variables if set, otherwise use properties below
 ignition.signing.keystoreFile=keystore.jks
-ignition.signing.keystorePassword=${IGNITION_KEYSTORE_PASSWORD:-REPLACE_WITH_YOUR_PASSWORD}
+ignition.signing.keystorePassword=REPLACE_WITH_YOUR_KEYSTORE_PASSWORD
 ignition.signing.certFile=certificate.der
 ignition.signing.certAlias=plcsimulator
-ignition.signing.certPassword=${IGNITION_CERT_PASSWORD:-REPLACE_WITH_YOUR_PASSWORD}
+ignition.signing.certPassword=REPLACE_WITH_YOUR_CERT_PASSWORD

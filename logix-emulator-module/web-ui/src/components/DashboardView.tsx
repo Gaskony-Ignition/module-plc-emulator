@@ -2,26 +2,13 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
   LayoutDashboard, HardDrive, Tag, Activity, Zap, AlertCircle, ArrowRight
 } from 'lucide-react'
+import { API } from '../constants/api'
+import { apiGet, apiFetch } from '../utils/apiClient'
+import { DeviceInfo, DeviceStatus } from '../types/device'
 import './DashboardView.css'
 
 interface DashboardViewProps {
   onNavigate: (view: string) => void
-}
-
-interface DeviceInfo {
-  name: string
-  status: string
-  enabled: boolean
-  simulationEnabled: boolean
-}
-
-interface DeviceStatus {
-  deviceName: string
-  status: string
-  fileName: string
-  parserType: string
-  hasFile: boolean
-  simulationEnabled: boolean
 }
 
 interface DashboardStats {
@@ -45,21 +32,13 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
   const fetchData = useCallback(async () => {
     try {
       setError(null)
-      const res = await fetch('/data/logixemulator/devices', {
-        credentials: 'same-origin',
-        signal: AbortSignal.timeout(5000),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = await apiGet<{ devices: DeviceInfo[] }>(API.DEVICES)
       const devices: DeviceInfo[] = data.devices || []
 
       // Fetch status for each device in parallel
       const statusResults = await Promise.allSettled(
         devices.map(d =>
-          fetch(`/data/logixemulator/device/${encodeURIComponent(d.name)}/status`, {
-            credentials: 'same-origin',
-            signal: AbortSignal.timeout(5000),
-          }).then(r => r.ok ? r.json() : null)
+          apiFetch(API.DEVICE_STATUS(d.name)).then(r => r.ok ? r.json() : null)
         )
       )
 
@@ -74,10 +53,7 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
       // Also try to get actual tag counts per device
       const tagResults = await Promise.allSettled(
         devices.map(d =>
-          fetch(`/data/logixemulator/device/${encodeURIComponent(d.name)}/tags?limit=1`, {
-            credentials: 'same-origin',
-            signal: AbortSignal.timeout(5000),
-          }).then(r => r.ok ? r.json() : null)
+          apiFetch(API.DEVICE_TAGS(d.name) + '?limit=1').then(r => r.ok ? r.json() : null)
         )
       )
 

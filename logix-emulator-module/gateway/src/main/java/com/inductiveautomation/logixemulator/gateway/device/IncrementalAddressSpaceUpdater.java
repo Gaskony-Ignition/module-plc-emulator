@@ -89,9 +89,26 @@ public class IncrementalAddressSpaceUpdater {
         Map<String, JsonObject> newTags = extractAllTags(newData);
 
         int unchangedCount = 0;
-        CompareResult result = new CompareResult(unchangedCount);
 
         // Find changed and removed tags
+        for (Map.Entry<String, JsonObject> entry : oldTags.entrySet()) {
+            String tagPath = entry.getKey();
+            JsonObject oldTag = entry.getValue();
+
+            if (!newTags.containsKey(tagPath)) {
+                // tag was removed
+            } else {
+                JsonObject newTag = newTags.get(tagPath);
+                TagChange change = compareTag(tagPath, oldTag, newTag);
+                if (change == null) {
+                    unchangedCount++;
+                }
+            }
+        }
+
+        CompareResult result = new CompareResult(unchangedCount);
+
+        // Re-iterate to populate result (unchangedCount must be final for CompareResult constructor)
         for (Map.Entry<String, JsonObject> entry : oldTags.entrySet()) {
             String tagPath = entry.getKey();
             JsonObject oldTag = entry.getValue();
@@ -116,7 +133,7 @@ public class IncrementalAddressSpaceUpdater {
 
         logger.info("Compare result: {} changed, {} new, {} removed, {} unchanged",
             result.changedTags.size(), result.newTags.size(), result.removedTags.size(),
-            oldTags.size() - result.changedTags.size() - result.removedTags.size());
+            result.unchangedCount);
 
         return result;
     }

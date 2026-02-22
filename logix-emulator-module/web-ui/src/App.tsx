@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Cpu } from "lucide-react";
+import { API } from "./constants/api";
+import { apiFetch } from "./utils/apiClient";
 import Sidebar from "./components/Sidebar";
 import StatusBar from "./components/StatusBar";
 import DashboardView from "./components/DashboardView";
-import DevicesView from "./components/DevicesView";
-import TagsView from "./components/TagsView";
+import DeviceManagerView from "./components/DeviceManagerView";
+import TagBrowserView from "./components/TagBrowserView";
 import DiagnosticsView from "./components/DiagnosticsView";
 import SimulationView from "./components/SimulationView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
-const AUTH_CHECK_URL = "/data/logixemulator/auth/check";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.0.3";
+const MODULE_VERSION = "9.0.7";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
@@ -25,10 +26,7 @@ const App: React.FC = () => {
 
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch(AUTH_CHECK_URL, {
-        signal: AbortSignal.timeout(5000),
-        credentials: "same-origin",
-      });
+      const res = await apiFetch(API.AUTH_CHECK);
 
       if (res.status === 401) {
         setStatus("auth_required");
@@ -88,9 +86,9 @@ const App: React.FC = () => {
       case 'dashboard':
         return <DashboardView onNavigate={setActiveView} />;
       case 'devices':
-        return <DevicesView />;
+        return <DeviceManagerView />;
       case 'tags':
-        return <TagsView />;
+        return <TagBrowserView />;
       case 'diagnostics':
         return <DiagnosticsView />;
       case 'simulation':

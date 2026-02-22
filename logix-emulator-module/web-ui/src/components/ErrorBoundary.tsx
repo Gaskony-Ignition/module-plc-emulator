@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertCircle, RefreshCw } from 'lucide-react'
+import './ErrorBoundary.css'
 
 interface Props {
   children: ReactNode
@@ -31,56 +32,20 @@ class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: '#11111b',
-          color: '#cdd6f4',
-          fontFamily: 'sans-serif',
-          gap: '16px',
-          padding: '24px',
-          textAlign: 'center',
-        }}>
+        <div className="error-boundary-overlay">
           <AlertCircle size={48} color="#f38ba8" />
-          <h2 style={{ margin: 0, fontSize: '20px', color: '#f38ba8' }}>
+          <h2 className="error-boundary-title">
             Something went wrong
           </h2>
-          <p style={{ margin: 0, color: '#a6adc8', maxWidth: '480px', fontSize: '14px' }}>
+          <p className="error-boundary-message">
             The Logix PLC Emulator UI encountered an unexpected error.
           </p>
           {this.state.error && (
-            <pre style={{
-              background: '#181825',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              color: '#f38ba8',
-              maxWidth: '600px',
-              overflow: 'auto',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-            }}>
+            <pre className="error-boundary-pre">
               {this.state.error.message}
             </pre>
           )}
-          <button
-            onClick={this.handleReset}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 16px',
-              background: '#313244',
-              color: '#cdd6f4',
-              border: '1px solid #45475a',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '13px',
-            }}
-          >
+          <button className="error-boundary-btn" onClick={this.handleReset}>
             <RefreshCw size={14} />
             Retry
           </button>

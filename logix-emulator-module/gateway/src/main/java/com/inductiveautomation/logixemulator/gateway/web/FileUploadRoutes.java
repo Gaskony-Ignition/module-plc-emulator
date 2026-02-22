@@ -53,6 +53,7 @@ public class FileUploadRoutes {
     private final RouteGroup routes;
     private final RateLimiter rateLimiter;
     private final RateLimiter readRateLimiter;
+    private final RateLimiter writeRateLimiter;
     private final DeviceFileManager deviceManager;
 
     public FileUploadRoutes(GatewayContext context, RouteGroup routes) {
@@ -60,7 +61,23 @@ public class FileUploadRoutes {
         this.routes = routes;
         this.rateLimiter = new RateLimiter();
         this.readRateLimiter = new RateLimiter(300, 3000, java.util.concurrent.TimeUnit.HOURS.toMillis(1));
+        this.writeRateLimiter = new RateLimiter(60, 600, java.util.concurrent.TimeUnit.HOURS.toMillis(1));
         this.deviceManager = new DeviceFileManager(context);
+    }
+
+    /**
+     * Validates that the request comes from an authenticated gateway user.
+     * Checks HTTP session and request actor. On failure, writes a 401 response.
+     */
+    private boolean requireAuthentication(RequestContext ctx, HttpServletResponse resp) throws JSONException, IOException {
+        if (!isGatewayAuthenticated(ctx)) {
+            resp.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            new JSONObject().put("success", false)
+                .put("error", "Authentication required")
+                .write(resp.getWriter());
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -79,43 +96,55 @@ public class FileUploadRoutes {
         return true;
     }
 
+    /**
+     * Validates that a device name is safe to use — alphanumeric, hyphens, underscores, max 100 chars.
+     * Returns null if valid; returns an error JSONObject (with resp status already set) if invalid.
+     */
+    private JSONObject validateDeviceName(String deviceName, HttpServletResponse resp) throws JSONException {
+        if (deviceName == null || deviceName.trim().isEmpty()) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return new JSONObject().put("success", false).put("error", "Device name required");
+        }
+        if (!deviceName.matches("^[a-zA-Z0-9_\\- ]{1,100}$")) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return new JSONObject().put("success", false).put("error", "Invalid device name");
+        }
+        return null;
+    }
+
+    /** Removes CR/LF from user-controlled strings to prevent log injection. */
+    private static String sanitizeForLog(String value) {
+        if (value == null) return "null";
+        return value.replace("\r", "\\r").replace("\n", "\\n");
+    }
+
     public void mountRoutes() {
         // API routes — authentication is handled by Ignition's /data/ route infrastructure
-        mountRoute("/upload", this::handleFileUpload, HttpMethod.POST);
-        mountRoute("/devices", this::handleListDevices, null);
-        mountRoute("/device/:name/status", this::handleDeviceStatus, null);
-        mountRoute("/device/:name/tags", this::handleGetTags, null);
-        mountRoute("/device/:name/tags/children", this::handleGetTagChildren, null);
-        mountRoute("/device/:name/tags/live", this::handleGetLiveTags, null);
-        mountRoute("/device/:name/tags/simulated", this::handleGetSimulatedTags, null);
-        mountRoute("/device/:name/tag/write", this::handleWriteTag, HttpMethod.POST);
-        mountRoute("/device/:name/tag/simulate", this::handleToggleTagSimulation, HttpMethod.POST);
-        mountRoute("/device/:name/simulation/scope", this::handleBulkSimulationByScope, HttpMethod.POST);
-        mountRoute("/device/:name/simulation/all", this::handleBulkSimulationAll, HttpMethod.POST);
-        mountRoute("/device/:name/delete", this::handleDeleteFile, HttpMethod.DELETE);
-
-        // HTML page routes
-        mountRoute("/connection-browser", this::handleConnectionBrowserPage, null);
-        mountRoute("/page", this::handleUploadPage, null);
-        mountRoute("/edit-program", this::handleEditProgramPage, null);
-        mountRoute("/tag-browser", this::handleTagBrowserPage, null);
+        mountRoute(Routes.UPLOAD,                  this::handleFileUpload,            HttpMethod.POST);
+        mountRoute(Routes.DEVICES,                 this::handleListDevices,           null);
+        mountRoute(Routes.DEVICE_STATUS,           this::handleDeviceStatus,          null);
+        mountRoute(Routes.DEVICE_TAGS,             this::handleGetTags,               null);
+        mountRoute(Routes.DEVICE_TAGS_CHILDREN,    this::handleGetTagChildren,        null);
+        mountRoute(Routes.DEVICE_TAGS_LIVE,        this::handleGetLiveTags,           null);
+        mountRoute(Routes.DEVICE_TAGS_SIMULATED,   this::handleGetSimulatedTags,      null);
+        mountRoute(Routes.DEVICE_TAG_WRITE,        this::handleWriteTag,              HttpMethod.POST);
+        mountRoute(Routes.DEVICE_TAG_SIMULATE,     this::handleToggleTagSimulation,   HttpMethod.POST);
+        mountRoute(Routes.DEVICE_SIMULATION_SCOPE, this::handleBulkSimulationByScope, HttpMethod.POST);
+        mountRoute(Routes.DEVICE_SIMULATION_ALL,   this::handleBulkSimulationAll,     HttpMethod.POST);
+        mountRoute(Routes.DEVICE_DELETE,           this::handleDeleteFile,            HttpMethod.DELETE);
 
         // System routes — authenticated
-        mountRoute("/system/stats", this::handleSystemStats, null);
-        mountRoute("/system/logs", this::handleSystemLogs, null);
+        mountRoute(Routes.SYSTEM_STATS, this::handleSystemStats, null);
+        mountRoute(Routes.SYSTEM_LOGS,  this::handleSystemLogs,  null);
 
         // Public routes - no authentication required
-        mountPublicRoute("/health", this::handleHealthCheck);
-        mountPublicRoute("/auth/status", this::handleAuthStatus);
-        mountPublicRoute("/auth/check", this::handleAuthCheck);
+        mountPublicRoute(Routes.HEALTH,       this::handleHealthCheck);
+        mountPublicRoute(Routes.AUTH_STATUS,  this::handleAuthStatus);
+        mountPublicRoute(Routes.AUTH_CHECK,   this::handleAuthCheck);
 
         logger.info("File upload routes mounted at /data/logixemulator/");
-        logger.info("  - Connection browser: /data/logixemulator/connection-browser");
-        logger.info("  - Upload page:        /data/logixemulator/page");
-        logger.info("  - Edit program:       /data/logixemulator/edit-program");
-        logger.info("  - Tag browser:        /data/logixemulator/tag-browser");
-        logger.info("  - Live tags API:      /data/logixemulator/device/:name/tags/live");
-        logger.info("  - Write tag API:      /data/logixemulator/device/:name/tag/write");
+        logger.info("  - Live tags API: /data/logixemulator/device/:name/tags/live");
+        logger.info("  - Write tag API: /data/logixemulator/device/:name/tag/write");
     }
 
     /**
@@ -157,6 +186,9 @@ public class FileUploadRoutes {
     }
 
     private JSONObject handleFileUpload(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         // CSRF protection
@@ -195,7 +227,9 @@ public class FileUploadRoutes {
             }
 
             String filename = Optional.ofNullable(ctx.getRequest().getHeader("X-Filename"))
-                .filter(s -> !s.isEmpty()).orElse("uploaded_file.txt");
+                .filter(s -> !s.isEmpty())
+                .map(PathSecurity::sanitizeFileName)
+                .orElse("uploaded_file.txt");
 
             FileValidator.ValidationResult validation = FileValidator.validateContent(fileContent, filename);
             if (!validation.isValid()) {
@@ -205,6 +239,8 @@ public class FileUploadRoutes {
 
             String deviceName = ctx.getRequest().getParameter("device");
             if (deviceName != null && !deviceName.trim().isEmpty()) {
+                JSONObject nameError = validateDeviceName(deviceName, resp);
+                if (nameError != null) return nameError;
                 return processDeviceUpload(resp, result, deviceName, fileContent, filename);
             }
 
@@ -242,6 +278,9 @@ public class FileUploadRoutes {
     }
 
     private JSONObject handleListDevices(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
         JSONArray devices = new JSONArray();
 
@@ -260,13 +299,14 @@ public class FileUploadRoutes {
     }
 
     private JSONObject handleDeviceStatus(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -304,13 +344,14 @@ public class FileUploadRoutes {
      *   - flat: If true, return flat list for virtual scrolling (default: false)
      */
     private JSONObject handleGetTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -377,7 +418,7 @@ public class FileUploadRoutes {
                 .put("udtInstances", stats.udtCount);
 
         } catch (Exception e) {
-            logger.warn("Could not access parsed data for device: {}", deviceName, e);
+            logger.warn("Could not access parsed data for device: {}", sanitizeForLog(deviceName), e);
             return result.put("success", false).put("error", "Failed to read tag data");
         }
     }
@@ -390,14 +431,15 @@ public class FileUploadRoutes {
      *   - limit: Max items (default: 100)
      */
     private JSONObject handleGetTagChildren(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
         String deviceName = ctx.getParameter("name");
         String parentPath = ctx.getRequest().getParameter("path");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         if (parentPath == null) {
             resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -439,7 +481,7 @@ public class FileUploadRoutes {
                 .put("hasMore", (offset + limit) < totalChildren);
 
         } catch (Exception e) {
-            logger.warn("Could not get children for path: {} on device: {}", parentPath, deviceName, e);
+            logger.warn("Could not get children for path: {} on device: {}", sanitizeForLog(parentPath), sanitizeForLog(deviceName), e);
             return result.put("success", false).put("error", "Failed to read children");
         }
     }
@@ -462,6 +504,9 @@ public class FileUploadRoutes {
      * Paths are normalized to use slash notation to match /tags endpoint.
      */
     private JSONObject handleGetLiveTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         // Read rate limiting for expensive endpoint
@@ -470,10 +515,8 @@ public class FileUploadRoutes {
 
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -509,7 +552,7 @@ public class FileUploadRoutes {
                 }
             }
         } catch (Exception e) {
-            logger.warn("Could not get live tag values for device: {}", deviceName, e);
+            logger.warn("Could not get live tag values for device: {}", sanitizeForLog(deviceName), e);
         }
 
         return result.put("success", true)
@@ -524,17 +567,21 @@ public class FileUploadRoutes {
      * Note: tagPath uses slash notation (UI display format), converted to dot notation for OPC-UA.
      */
     private JSONObject handleWriteTag(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         try { if (!requireCSRFToken(ctx, resp)) return null; }
         catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
 
+        RateLimiter.RateLimitResult writeRate = writeRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!writeRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -597,17 +644,21 @@ public class FileUploadRoutes {
      * Pattern is optional: sine, ramp, random, toggle, static
      */
     private JSONObject handleToggleTagSimulation(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         try { if (!requireCSRFToken(ctx, resp)) return null; }
         catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
 
+        RateLimiter.RateLimitResult writeRate = writeRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!writeRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -678,13 +729,14 @@ public class FileUploadRoutes {
      * Get list of all tags that have simulation enabled for a device.
      */
     private JSONObject handleGetSimulatedTags(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -714,17 +766,21 @@ public class FileUploadRoutes {
      * Request body: { "scope": "Controller:Global", "enabled": true }
      */
     private JSONObject handleBulkSimulationByScope(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         try { if (!requireCSRFToken(ctx, resp)) return null; }
         catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
 
+        RateLimiter.RateLimitResult writeRate = writeRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!writeRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -773,17 +829,21 @@ public class FileUploadRoutes {
      * Request body: { "enabled": true }
      */
     private JSONObject handleBulkSimulationAll(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         try { if (!requireCSRFToken(ctx, resp)) return null; }
         catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
 
+        RateLimiter.RateLimitResult writeRate = writeRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!writeRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -869,17 +929,21 @@ public class FileUploadRoutes {
     }
 
     private JSONObject handleDeleteFile(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         try { if (!requireCSRFToken(ctx, resp)) return null; }
         catch (Exception e) { resp.setStatus(HttpServletResponse.SC_FORBIDDEN); return result.put("success", false).put("error", "CSRF validation failed"); }
 
+        RateLimiter.RateLimitResult writeRate = writeRateLimiter.checkRequest(getUsername(ctx), getClientIP(ctx));
+        if (!writeRate.isAllowed()) { resp.setStatus(429); return result.put("success", false).put("error", "Rate limit exceeded"); }
+
         String deviceName = ctx.getParameter("name");
 
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return result.put("success", false).put("error", "Device name required");
-        }
+        JSONObject nameError = validateDeviceName(deviceName, resp);
+        if (nameError != null) return nameError;
 
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -911,7 +975,7 @@ public class FileUploadRoutes {
             }
 
             if (deviceFile.exists() && deviceFile.delete()) {
-                logger.info("Deleted file for device {}: {}", deviceName, deviceFile.getAbsolutePath());
+                logger.info("Deleted file for device {}: {}", sanitizeForLog(deviceName), deviceFile.getAbsolutePath());
 
                 // Clear the device's file path and rebuild address space to remove tags
                 deviceManager.clearDeviceFile(device);
@@ -925,7 +989,7 @@ public class FileUploadRoutes {
             resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             return result.put("success", false).put("error", "Invalid file path");
         } catch (Exception e) {
-            logger.error("Error deleting file for device {}", deviceName, e);
+            logger.error("Error deleting file for device {}", sanitizeForLog(deviceName), e);
             resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             return result.put("success", false).put("error", "An internal error occurred while deleting file");
         }
@@ -939,6 +1003,9 @@ public class FileUploadRoutes {
      * System stats — CPU usage, RAM usage, device count, module version.
      */
     private JSONObject handleSystemStats(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         // CPU usage
@@ -974,7 +1041,7 @@ public class FileUploadRoutes {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.0.2")
+            .put("moduleVersion", "9.0.7")
             .put("deviceCount", SimulatorModuleHook.getRegisteredDevices().size());
     }
 
@@ -992,6 +1059,9 @@ public class FileUploadRoutes {
      *   - filter: keyword filter (case-insensitive)
      */
     private JSONObject handleSystemLogs(RequestContext ctx, HttpServletResponse resp) throws JSONException {
+        try { if (!requireAuthentication(ctx, resp)) return null; }
+        catch (Exception e) { resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); return null; }
+
         JSONObject result = new JSONObject();
 
         // Read rate limiting for expensive SQLite query endpoint
@@ -1074,9 +1144,12 @@ public class FileUploadRoutes {
         }
 
         if (filter != null && !filter.isEmpty()) {
-            sql.append("AND (formatted_message LIKE ? OR logger_name LIKE ?) ");
-            params.add("%" + filter + "%");
-            params.add("%" + filter + "%");
+            // Limit length and escape SQL wildcards to prevent unbounded pattern matching
+            String safeFilter = filter.length() > 200 ? filter.substring(0, 200) : filter;
+            String escapedFilter = safeFilter.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+            sql.append("AND (formatted_message LIKE ? ESCAPE '\\' OR logger_name LIKE ? ESCAPE '\\') ");
+            params.add("%" + escapedFilter + "%");
+            params.add("%" + escapedFilter + "%");
         }
 
         sql.append("ORDER BY event_id DESC LIMIT ?");
@@ -1206,45 +1279,6 @@ public class FileUploadRoutes {
         return false;
     }
 
-    private Object handleConnectionBrowserPage(RequestContext ctx, HttpServletResponse resp) {
-        return serveHtmlPage("/pages/connection-browser.html", "Connection browser page", resp);
-    }
-
-    private Object handleUploadPage(RequestContext ctx, HttpServletResponse resp) {
-        // Redirect legacy route to the new connection browser
-        return serveHtmlPage("/pages/connection-browser.html", "Upload page", resp);
-    }
-
-    private Object handleEditProgramPage(RequestContext ctx, HttpServletResponse resp) {
-        return serveHtmlPage("/pages/edit-program.html", "Edit program page", resp);
-    }
-
-    private Object handleTagBrowserPage(RequestContext ctx, HttpServletResponse resp) {
-        // Redirect legacy route to the new connection browser
-        return serveHtmlPage("/pages/connection-browser.html", "Tag browser page", resp);
-    }
-
-    /**
-     * Serve an HTML page from the /pages/ resource directory.
-     * This directory is NOT publicly mounted, so pages are only accessible
-     * through authenticated data routes.
-     */
-    private Object serveHtmlPage(String resourcePath, String pageName, HttpServletResponse resp) {
-        try (var stream = getClass().getResourceAsStream(resourcePath)) {
-            if (stream == null) {
-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                resp.getWriter().write(pageName + " not found");
-                return null;
-            }
-            String html = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            resp.setContentType("text/html; charset=UTF-8");
-            resp.getWriter().write(html);
-        } catch (Exception e) {
-            logger.error("Error serving {}", pageName, e);
-        }
-        return null;
-    }
-
     private String readRequestContent(RequestContext ctx, long maxSize) throws Exception {
         StringBuilder content = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
@@ -1269,7 +1303,7 @@ public class FileUploadRoutes {
         resp.setHeader("X-RateLimit-Reset", String.valueOf(rateResult.getResetTimeMs()));
         long retryAfter = (rateResult.getResetTimeMs() - System.currentTimeMillis()) / 1000;
         resp.setHeader("Retry-After", String.valueOf(retryAfter));
-        logger.warn("Rate limit exceeded for user {} from IP {}", user, ip);
+        logger.warn("Rate limit exceeded for user {} from IP {}", sanitizeForLog(user), sanitizeForLog(ip));
         return result.put("success", false)
             .put("error", String.format("Rate limit exceeded: %s limit of %d uploads per hour",
                 rateResult.getLimitType(), rateResult.getLimit()))
@@ -1330,7 +1364,7 @@ public class FileUploadRoutes {
     private static final Pattern IPV4_PATTERN = Pattern.compile(
         "^((25[0-5]|2[0-4]\\d|[01]?\\d\\d?)\\.){3}(25[0-5]|2[0-4]\\d|[01]?\\d\\d?)$");
     private static final Pattern IPV6_PATTERN = Pattern.compile(
-        "^[0-9a-fA-F:]+$");
+        "^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$");
 
     /**
      * Validates that the string is a literal IP address (not a hostname).

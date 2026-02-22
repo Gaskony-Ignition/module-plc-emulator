@@ -149,9 +149,7 @@ public class OpcUaSimulationEngine {
                 // Look up the actual node in the address space
                 UaNode node = nodeLookup.apply(nodeId);
 
-                if (node instanceof UaVariableNode) {
-                    UaVariableNode variableNode = (UaVariableNode) node;
-
+                if (node instanceof UaVariableNode variableNode) {
                     // Get current value
                     DataValue currentDataValue = variableNode.getValue();
                     Object currentValue = currentDataValue.getValue().getValue();
@@ -182,6 +180,10 @@ public class OpcUaSimulationEngine {
                     logger.warn("Error updating simulated value for node: {}", item.getReadValueId().getNodeId(), e);
                 }
             }
+        }
+
+        if (errorCount > 5) {
+            logger.debug("Suppressed {} additional simulation errors this tick", errorCount - 5);
         }
 
         if (updateCount > 0) {

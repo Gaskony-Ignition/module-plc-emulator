@@ -76,7 +76,7 @@ function Sidebar({ activeView, onNavigate, moduleVersion }: SidebarProps) {
               key={item.id}
               className={classNames}
               onClick={() => handleItemClick(item)}
-              title={!isCollapsed && item.enabled ? item.label : undefined}
+              title={isCollapsed ? item.label : undefined}
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               disabled={!item.enabled}

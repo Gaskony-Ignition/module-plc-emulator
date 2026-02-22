@@ -117,19 +117,6 @@
   overflow: hidden;
 }
 
-/* Generic view wrapper (for iframe views) */
-.logix-view {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-}
-
-.logix-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-}
-
 /* Auth required overlay - full-page centered card */
 .logix-app .auth-required-overlay {
   display: flex;
@@ -210,7 +197,7 @@
 }
 
 .logix-app .auth-required-card .auth-login-btn:hover {
-  background: #89b4fa;
+  background: var(--accent-blue);
 }
 
 /* Disconnected banner */

@@ -1,0 +1,15 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Binary files - never modify line endings
+*.jks binary
+*.der binary
+*.p12 binary
+*.modl binary
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.jar binary
+*.class binary

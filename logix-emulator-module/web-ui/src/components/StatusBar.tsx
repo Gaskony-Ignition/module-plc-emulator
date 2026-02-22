@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Cpu, MemoryStick, HardDrive, Activity } from 'lucide-react'
+import { API } from '../constants/api'
+import { apiGet } from '../utils/apiClient'
+import { formatBytes } from '../utils/format'
 import './StatusBar.css'
 
 interface SystemStats {
@@ -21,12 +24,7 @@ function StatusBar() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await fetch('/data/logixemulator/system/stats', {
-          credentials: 'same-origin',
-          signal: AbortSignal.timeout(5000),
-        })
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await apiGet<SystemStats & { deviceCount: number }>(API.SYSTEM_STATS)
         setStats({
           cpuUsage: data.cpuUsage ?? 0,
           ramUsage: data.ramUsage ?? 0,
@@ -48,12 +46,7 @@ function StatusBar() {
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const res = await fetch('/data/logixemulator/devices', {
-          credentials: 'same-origin',
-          signal: AbortSignal.timeout(5000),
-        })
-        if (!res.ok) return
-        const data = await res.json()
+        const data = await apiGet<{ devices: { simulationEnabled: boolean }[] }>(API.DEVICES)
         const devices = data.devices || []
         setSimulatingCount(devices.filter((d: { simulationEnabled: boolean }) => d.simulationEnabled).length)
       } catch {
@@ -66,14 +59,6 @@ function StatusBar() {
       if (devicesTimerRef.current !== null) clearInterval(devicesTimerRef.current)
     }
   }, [])
-
-  const formatBytes = (bytes: number) => {
-    if (!bytes) return '0 B'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`
-  }
 
   const getUsageColor = (pct: number) => {
     if (pct < 50) return '#98c379'

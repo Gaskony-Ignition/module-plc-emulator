@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 /**
@@ -24,7 +25,7 @@ public class FileWatcher {
 
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> watchTask;
-    private volatile boolean running = false;
+    private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long lastModified;
 
     /**
@@ -45,17 +46,16 @@ public class FileWatcher {
      * Start watching the file.
      */
     public void start() {
-        if (running) {
+        if (!running.compareAndSet(false, true)) {
             logger.warn("File watcher already running for: {}", watchedFile.getAbsolutePath());
             return;
         }
 
         if (!watchedFile.exists()) {
+            running.set(false);
             logger.warn("Cannot watch non-existent file: {}", watchedFile.getAbsolutePath());
             return;
         }
-
-        running = true;
         lastModified = watchedFile.lastModified();
 
         executor = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -79,11 +79,9 @@ public class FileWatcher {
      * Stop watching the file.
      */
     public void stop() {
-        if (!running) {
+        if (!running.compareAndSet(true, false)) {
             return;
         }
-
-        running = false;
 
         if (watchTask != null) {
             watchTask.cancel(false);
@@ -108,7 +106,7 @@ public class FileWatcher {
      * Check if file has been modified.
      */
     private void checkForChanges() {
-        if (!running || !watchedFile.exists()) {
+        if (!running.get() || !watchedFile.exists()) {
             return;
         }
 
@@ -130,7 +128,7 @@ public class FileWatcher {
      * Check if watcher is running.
      */
     public boolean isRunning() {
-        return running;
+        return running.get();
     }
 
     /**

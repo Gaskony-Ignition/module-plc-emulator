@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -31,7 +32,7 @@ public class RateLimiter {
     private final Map<String, RequestCounter> ipRequests = new ConcurrentHashMap<>();
 
     // Cleanup task runs periodically to remove expired entries
-    private volatile long lastCleanupTime = System.currentTimeMillis();
+    private final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
     private static final long CLEANUP_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5);
 
     /**
@@ -132,7 +133,8 @@ public class RateLimiter {
     private void periodicCleanup() {
         long now = System.currentTimeMillis();
 
-        if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+        long lastClean = lastCleanupTime.get();
+        if (now - lastClean > CLEANUP_INTERVAL_MS && lastCleanupTime.compareAndSet(lastClean, now)) {
             int usersBefore = userRequests.size();
             int ipsBefore = ipRequests.size();
 
@@ -153,8 +155,6 @@ public class RateLimiter {
                 logger.debug("Rate limiter cleanup: removed {} expired user entries, {} expired IP entries",
                             usersRemoved, ipsRemoved);
             }
-
-            lastCleanupTime = now;
         }
     }
 

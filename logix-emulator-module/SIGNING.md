@@ -100,10 +100,7 @@ keytool -exportcert \
 keytool -printcert -file certificate.der
 ```
 
-Or use the provided script:
-```bash
-./generate-signing-certs.sh
-```
+Use the keytool commands above to regenerate certificates.
 
 ## Build Process
 
@@ -232,4 +229,4 @@ Yes, but you may need to enable "Allow unsigned modules" in Gateway Config > Sys
 10 years (2025-2035). You can regenerate with different validity using the `-validity` parameter to keytool.
 
 ### What if my certificate expires?
-Simply regenerate using the commands above or run `./generate-signing-certs.sh`. Then rebuild the module.
+Simply regenerate using the keytool commands above. Then rebuild the module.

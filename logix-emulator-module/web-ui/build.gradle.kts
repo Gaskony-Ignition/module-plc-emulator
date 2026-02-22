@@ -27,7 +27,7 @@ node {
 // Install npm dependencies using yarn
 val yarnPackages by tasks.registering(YarnTask::class) {
     description = "Install npm dependencies"
-    args.set(listOf("install", "--verbose"))
+    args.set(listOf("install", "--frozen-lockfile", "--verbose"))
 
     inputs.files(
         fileTree(project.projectDir).matching {

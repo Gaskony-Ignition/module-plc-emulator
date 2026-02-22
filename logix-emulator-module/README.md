@@ -4,7 +4,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 
 ## Current Status
 
-**Version**: v9.0.0
+**Version**: v9.0.7
 **Status**: Production Ready
 **Requires**: Ignition 8.3+ | Java 17
 
@@ -110,4 +110,4 @@ The signed module will be at `build/LogixPLCEmulator-{version}.modl`.
 
 ## License
 
-Proprietary - Gaskony
+Free / Open Source - Gaskony

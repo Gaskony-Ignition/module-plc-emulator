@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.5.0"
 }
 
-version = "9.0.4"
+version = "9.0.7"
 group = "com.gaskony"
 
 ignitionModule {
@@ -38,4 +38,35 @@ ignitionModule {
     // Enable module signing with self-signed certificate
     // Signing configured via gradle.properties
     skipModlSigning.set(false)
+}
+
+// ── Version sync ──────────────────────────────────────────────────────────────
+tasks.register("syncVersion") {
+    group = "versioning"
+    description = "Syncs project.version to all files that embed it"
+    doLast {
+        val ver = project.version.toString()
+        fun sync(f: File, pattern: Regex, replacement: String) {
+            val text = f.readText()
+            val updated = text.replace(pattern, replacement)
+            if (updated != text) { f.writeText(updated); logger.lifecycle("  synced ${f.name} → $ver") }
+        }
+        sync(file("web-ui/package.json"),
+            Regex(""""version":\s*"[^"]+""""), """"version": "$ver"""")
+        sync(file("gradle.properties.template"),
+            Regex("""(?m)^version=.+$"""), "version=$ver")
+        sync(file("gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/FileUploadRoutes.java"),
+            Regex("""\.put\("moduleVersion",\s*"[^"]+"\)"""), """.put("moduleVersion", "$ver")""")
+        sync(file("web-ui/src/App.tsx"),
+            Regex("""const MODULE_VERSION = "[^"]+""""), """const MODULE_VERSION = "$ver"""")
+        sync(file("license.html"),
+            Regex("""(?<=<strong>Version:</strong> )[0-9.]+"""), ver)
+        sync(file("README.md"),
+            Regex("""(?m)^\*\*Version\*\*:\s*v[\d.]+"""), "**Version**: v${ver}")
+        logger.lifecycle("syncVersion: all files set to $ver")
+    }
+}
+
+tasks.named("assembleModlStructure") {
+    dependsOn("syncVersion")
 }

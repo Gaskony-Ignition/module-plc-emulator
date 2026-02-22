@@ -256,10 +256,12 @@ private void parseMyNewFormat(String content) {
 
 ### Changing Module Version
 
-**1. Update `build.gradle.kts`**:
+**1. Update `build.gradle.kts`** (this is the single source of truth):
 ```kotlin
 version = "9.0.0"
 ```
+
+> **Note**: The `syncVersion` Gradle task runs automatically on every build (as part of `assembleModlStructure`). It propagates the version from `build.gradle.kts` to all other files that embed it — `web-ui/package.json`, `gradle.properties.template`, `gateway/.../FileUploadRoutes.java`, `web-ui/src/App.tsx`, `license.html`, and `README.md`. You only need to manually update `build.gradle.kts`.
 
 **2. Update CHANGELOG.md**:
 ```markdown
@@ -443,7 +445,7 @@ public String toString() {
 ## Release Process
 
 **1. Update Version**:
-- `build.gradle.kts`: `version = "9.x.x"`
+- `build.gradle.kts`: `version = "9.x.x"` (source of truth — `syncVersion` task propagates to all other files automatically on build)
 - `CHANGELOG.md`: Add release notes
 
 **2. Test**:

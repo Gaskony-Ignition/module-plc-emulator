@@ -29,6 +29,13 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'yarn'
+          cache-dependency-path: 'logix-emulator-module/web-ui/yarn.lock'
+
       - name: Set up module signing
         run: |
           SIGNING_DIR="${HOME}/.ignition-signing"
@@ -61,6 +68,11 @@ jobs:
         id: modl
         run: |
           MODL_FILE=$(find build -maxdepth 1 -name "LogixPLCEmulator-*.modl" ! -name "*.unsigned.modl" | head -1)
+          if [ -z "$MODL_FILE" ]; then
+            echo "ERROR: No signed .modl file found in build directory"
+            ls -la build/ || true
+            exit 1
+          fi
           echo "file=$MODL_FILE" >> $GITHUB_OUTPUT
           echo "Found: $MODL_FILE"
 

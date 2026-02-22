@@ -153,10 +153,10 @@ public class AddressSpaceBuilder {
         // Validate that at least some tags were created
         int totalTags = countTotalTags(plcData);
         if (totalTags == 0) {
-            logger.warn("⚠️  WARNING: Zero tags created in address space! File may be invalid, empty, or incorrectly formatted.");
+            logger.warn("[WARNING] Zero tags created in address space! File may be invalid, empty, or incorrectly formatted.");
             logger.warn("Check that your file contains valid PLC tag definitions.");
         } else {
-            logger.info("✓ Address space building complete - {} total tags created", totalTags);
+            logger.info("[OK] Address space building complete - {} total tags created", totalTags);
         }
     }
 
