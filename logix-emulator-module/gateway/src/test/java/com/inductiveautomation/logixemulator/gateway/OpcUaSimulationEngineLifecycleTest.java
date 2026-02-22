@@ -4,8 +4,10 @@ import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
 import org.junit.jupiter.api.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 /**
  * Lifecycle tests for OpcUaSimulationEngine.
@@ -38,14 +40,15 @@ class OpcUaSimulationEngineLifecycleTest {
     // -------------------------------------------------------------------------
     @Test
     @DisplayName("start() sets isRunning() to true and getElapsedSeconds() becomes positive")
-    void testStartSetsRunning() throws InterruptedException {
+    void testStartSetsRunning() {
         engine.start(List.of());
 
         assertThat(engine.isRunning()).isTrue();
 
-        // Wait a short while for the clock to advance
-        Thread.sleep(150);
-        assertThat(engine.getElapsedSeconds()).isGreaterThan(0.0);
+        // Wait for the clock to advance
+        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+            assertThat(engine.getElapsedSeconds()).isGreaterThan(0.0)
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -53,9 +56,13 @@ class OpcUaSimulationEngineLifecycleTest {
     // -------------------------------------------------------------------------
     @Test
     @DisplayName("stop() after start sets isRunning() false and resets getElapsedSeconds() to 0")
-    void testStopResetsState() throws InterruptedException {
+    void testStopResetsState() {
         engine.start(List.of());
-        Thread.sleep(100);
+
+        // Wait for the engine to accumulate some elapsed time
+        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+            assertThat(engine.getElapsedSeconds()).isGreaterThan(0.0)
+        );
 
         engine.stop();
 
@@ -93,13 +100,14 @@ class OpcUaSimulationEngineLifecycleTest {
     // -------------------------------------------------------------------------
     @Test
     @DisplayName("getElapsedSeconds() increases monotonically while the engine is running")
-    void testElapsedSecondsIncreasesOverTime() throws InterruptedException {
+    void testElapsedSecondsIncreasesOverTime() {
         engine.start(List.of());
 
         double first = engine.getElapsedSeconds();
-        Thread.sleep(200);
-        double second = engine.getElapsedSeconds();
 
-        assertThat(second).isGreaterThan(first);
+        // Wait until the elapsed time exceeds the initial reading
+        await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+            assertThat(engine.getElapsedSeconds()).isGreaterThan(first)
+        );
     }
 }

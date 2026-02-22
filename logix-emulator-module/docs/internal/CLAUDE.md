@@ -1,4 +1,4 @@
-# CLAUDE_CONTEXT.md - Logix PLC Emulator Module
+# CLAUDE.md - Logix PLC Emulator Module
 
 > **Purpose**: Optimized context file for AI-assisted development with Claude Code.
 > **Last Updated**: 2026-02-21
@@ -82,7 +82,7 @@
 │   ├── SECURITY_TESTING.md             # Security testing guide
 │   ├── TAG_CREATION_FLOW.md            # Tag pipeline reference
 │   ├── internal/
-│   │   └── CLAUDE_CONTEXT.md           # This file
+│   │   └── CLAUDE.md                   # This file
 │   └── archive/                        # Historical documentation
 │
 ├── common/                             # Shared code (currently minimal)

@@ -18,13 +18,13 @@ dependencies {
 
     // OPC-UA device driver API - NOT bundled, provided by OPC-UA module at runtime
     // Using compileOnly instead of modlImplementation to avoid classloader conflicts
-    compileOnly("com.inductiveautomation.opcua:opc-ua-gateway-api:10.3.0")
+    compileOnly(libs.opc.ua.gateway.api)
 
-    compileOnly("javax.servlet:javax.servlet-api:3.1.0")
+    compileOnly(libs.javax.servlet)
 
     // Gateway web UI dependencies for config pages
-    compileOnly("com.inductiveautomation.ignition:gateway-web:8.3.0")
-    compileOnly("org.apache.wicket:wicket-core:9.8.0")
+    compileOnly(libs.gateway.web)
+    compileOnly(libs.wicket.core)
 
     // Include web-ui component bundle
     modlImplementation(projects.webUi)
@@ -33,20 +33,21 @@ dependencies {
     modlImplementation(libs.gson)
 
     // SQLite JDBC - for reading gateway logs from system_logs.idb
-    modlImplementation("org.xerial:sqlite-jdbc:3.47.1.0")
+    modlImplementation(libs.sqlite.jdbc)
 
     // Testing dependencies
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
-    testImplementation("org.mockito:mockito-core:5.7.0")
-    testImplementation("org.mockito:mockito-junit-jupiter:5.7.0")
-    testImplementation("org.assertj:assertj-core:3.24.2")
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.junit.jupiter)
+    testImplementation(libs.assertj.core)
+    testImplementation(libs.awaitility)
 
     // Make compile-only dependencies available for tests
     testImplementation(libs.ignition.common)
     testImplementation(libs.ignition.gateway.api)
-    testImplementation("javax.servlet:javax.servlet-api:3.1.0")
+    testImplementation(libs.javax.servlet)
     testImplementation(libs.gson)
-    testImplementation("com.inductiveautomation.opcua:opc-ua-gateway-api:10.3.0")
+    testImplementation(libs.opc.ua.gateway.api)
 }
 
 tasks.test {

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.awaitility.Awaitility.await;
 
 class RateLimiterTest {
 
@@ -165,15 +166,9 @@ class RateLimiterTest {
         RateLimiter.RateLimitResult blocked = limiter.checkRequest("user1", "1.2.3.4");
         assertThat(blocked.isAllowed()).isFalse();
 
-        // Wait for window to expire
-        try {
-            Thread.sleep(100);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-
-        // Should be allowed again after window reset
-        RateLimiter.RateLimitResult allowed = limiter.checkRequest("user1", "1.2.3.4");
-        assertThat(allowed.isAllowed()).isTrue();
+        // Wait for window to expire, then verify requests are allowed again
+        await().atMost(1, TimeUnit.SECONDS).until(() ->
+            limiter.checkRequest("user1", "1.2.3.4").isAllowed()
+        );
     }
 }

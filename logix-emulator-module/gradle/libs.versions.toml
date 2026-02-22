@@ -1,6 +1,15 @@
 [versions]
 ignition = "8.3.0"
 gson = "2.11.0"
+opc-ua-gateway-api = "10.3.0"
+javax-servlet = "3.1.0"
+gateway-web = "8.3.0"
+wicket = "9.8.0"
+sqlite-jdbc = "3.47.1.0"
+junit-jupiter = "5.10.1"
+mockito = "5.7.0"
+assertj = "3.24.2"
+awaitility = "4.2.0"
 
 [libraries]
 ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
@@ -8,3 +17,13 @@ ignition-gateway-api = { module = "com.inductiveautomation.ignitionsdk:gateway-a
 ignition-designer-api = { module = "com.inductiveautomation.ignitionsdk:designer-api", version.ref = "ignition" }
 ignition-driver-api = { module = "com.inductiveautomation.ignitionsdk:driver-api", version.ref = "ignition" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+opc-ua-gateway-api = { module = "com.inductiveautomation.opcua:opc-ua-gateway-api", version.ref = "opc-ua-gateway-api" }
+javax-servlet = { module = "javax.servlet:javax.servlet-api", version.ref = "javax-servlet" }
+gateway-web = { module = "com.inductiveautomation.ignition:gateway-web", version.ref = "gateway-web" }
+wicket-core = { module = "org.apache.wicket:wicket-core", version.ref = "wicket" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }

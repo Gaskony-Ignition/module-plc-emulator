@@ -40,6 +40,20 @@ ignitionModule {
     skipModlSigning.set(false)
 }
 
+// ── Checkstyle ───────────────────────────────────────────────────────────────
+subprojects {
+    afterEvaluate {
+        if (plugins.hasPlugin("java") || plugins.hasPlugin("java-library")) {
+            apply(plugin = "checkstyle")
+            configure<CheckstyleExtension> {
+                configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+                toolVersion = "10.12.5"
+                isIgnoreFailures = true
+            }
+        }
+    }
+}
+
 // ── Version sync ──────────────────────────────────────────────────────────────
 tasks.register("syncVersion") {
     group = "versioning"
@@ -115,13 +129,13 @@ tasks.register("syncVersion") {
         sync(file("docs/TAG_CREATION_FLOW.md"),
             Regex("""(?m)^>\s*\*\*Version\*\*:\s+[\d.]+"""), "> **Version**: ${ver}")
 
-        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+        sync(file("docs/internal/CLAUDE.md"),
             Regex("""(?m)^>\s*\*\*Module Version\*\*:\s+[\d.]+"""), "> **Module Version**: ${ver}")
-        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+        sync(file("docs/internal/CLAUDE.md"),
             Regex("""(?m)^\*\*Version\*\*:\s+[\d.]+"""), "**Version**: ${ver}")
-        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+        sync(file("docs/internal/CLAUDE.md"),
             Regex("""\(version: [\d.]+\)"""), "(version: ${ver})")
-        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+        sync(file("docs/internal/CLAUDE.md"),
             Regex("""LogixPLCEmulator-[\d.]+\.modl"""), "LogixPLCEmulator-${ver}.modl")
 
         logger.lifecycle("syncVersion: all files set to $ver")
