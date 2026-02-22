@@ -9,6 +9,125 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.0.9] - 2026-02-22 - **Bug Fix: Tag Tree + Camera-Driver-Style Logs**
+
+### Fixed
+- **Tag tree expand was broken** — `handleGetTagChildren` returned the array under the key `"children"` but the frontend's `toggleExpand()` and `loadMoreChildren()` both read `data.tags`. Every folder expanded to empty. Fixed by returning `"tags"` (with backward-compat `"children"` removed).
+- **Flat-mode pagination never loaded more** — `handleGetTags` (flat) returned `totalAtLevel` but the frontend read `data.total`. Added `total` field: equals `totalAtLevel` in flat mode, `stats.totalTags` in tree mode.
+- **Stats bar showed wrong tag / UDT counts** — Added `udt_instances` snake_case alias alongside `udtInstances` so the TypeScript interface matched.
+
+### Changed
+- **Diagnostics log panel** fully reworked to mirror Camera Driver `GatewayLogHandler` pattern:
+  - `handleSystemLogs` now accepts `moduleOnly` param (default `true`) — adds SQL `WHERE logger_name LIKE 'com.inductiveautomation.logixemulator%'` server-side, replacing fragile client-side "contains logix" filter.
+  - Returns `lastEventId` for incremental polling.
+  - DiagnosticsView polls every **5 s** (was 15 s) with `after=lastEventId`, appending new entries instead of replacing the whole list.
+  - Level filter pills: **ALL / ERROR / WARN / INFO / DEBUG**.
+  - Auto-scroll toggle (keeps panel pinned to bottom) and **Clear** button.
+  - Log panel height increased to 480 px, in-memory cap 500 entries.
+
+---
+
+## [9.0.8] - 2026-02-22 - **Refactor: Split FileUploadRoutes, DeviceRegistry DI, Tests**
+
+### Added
+- `DeviceRegistry` interface — `findDeviceByName`, `getRegisteredDevices`, `register`, `unregister`. `SimulatorModuleHook` implements it and exposes a static `getInstance()` singleton.
+- `GatewayAuthHelper` — static auth/CSRF/IP/logging utilities extracted from `FileUploadRoutes`.
+- Controller layer: `DeviceController`, `TagController`, `SimulationController`, `SystemController` — each ~100-275 lines.
+- `FileUploadRoutes` reduced to thin router (~100 lines).
+- `DeviceFileManager` now accepts `DeviceRegistry` via constructor (no static coupling).
+- `OpcUaSimulationEngineLifecycleTest` — 5 lifecycle tests.
+- `GatewayAuthHelperTest`, `DeviceControllerTest`, `TagControllerTest`, `SimulationControllerTest`.
+- `AddressSpaceBuilderTest` — 19 tests covering `countTotalTags`, `mapDataType`, `getInitialValue`.
+- **285 tests total, 0 failures.**
+
+### Changed
+- CI: exclude `gradle.properties` from hardcoded-credential security scan grep.
+- `LogixEmulatorConfig`: removed emoji from `@Description` annotation.
+- `moduleVersion` string moved from `FileUploadRoutes` to `SystemController`; `syncVersion` target updated.
+
+---
+
+## [9.0.7] - 2026-02-22 - **Hardening: Security, Quality, Frontend, CI**
+
+### Security
+- `requireAuthentication()` guard added to all 14 sensitive API handlers.
+- SQL LIKE wildcard escaping in log filter (`%`, `_`, `\`) to prevent injection.
+- `validateDeviceName()` helper — rejects null/empty/oversized/non-alphanumeric names on every mutating endpoint.
+- Write rate limiter: 60 req/user, 600 req/IP per hour on all POST/DELETE endpoints.
+- Stricter IPv6 regex: `^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$`.
+- `sanitizeForLog()` — strips CRLF from log interpolations (log injection prevention).
+- `PathSecurity.sanitizeFileName` applied to all file reads.
+- `RateLimiter.lastCleanupTime` → `AtomicLong.compareAndSet` (thread-safe window reset).
+
+### Added
+- `Routes.java` — centralised route path constants mirroring `api.ts`.
+- `syncVersion` Gradle task wired to `assembleModlStructure` — syncs version to `package.json`, `gradle.properties.template`, `SystemController.java`, `App.tsx`, `license.html`, `README.md` on every build.
+- `src/types/device.ts` — shared `DeviceInfo`, `DeviceStatus`, `TagStats` TypeScript interfaces.
+- `src/utils/apiClient.ts` — typed `apiFetch`/`apiGet`/`apiPost` wrappers (5 s timeout, credentials).
+- `src/utils/statusColor.ts`, `format.ts` — shared colour/format helpers.
+- `src/constants/api.ts` — single `API` object with all endpoint URLs.
+- `DeviceManagerView.tsx` + `TagBrowserView.tsx` — native React views (replaced iframe wrappers).
+- Root `.gitattributes` + `.gitignore` added; unused PNGs removed.
+
+### Changed
+- `FileWatcher`: `volatile boolean` → `AtomicBoolean` with `compareAndSet`.
+- `IncrementalAddressSpaceUpdater`: fixed double-iteration bug in unchanged-count.
+- `TagTreeBuilder`: child lists sorted at construction, not on every read.
+- `OpcUaSimulationEngine`: instanceof pattern matching; suppressed-error summary at debug.
+- `FileVersionManager`: checked `mkdirs()` return value.
+- `auto-tag.yml`: switched from PAT to `GITHUB_TOKEN`.
+- `web-ui/build.gradle.kts`: `--frozen-lockfile` for reproducible yarn installs.
+- `sqlite-jdbc` dependency updated in `gateway/build.gradle.kts`.
+
+### Removed
+- Legacy HTML pages: `connection-browser.html`, `edit-program.html` (now pure React).
+- `LogsView.tsx` / `LogsView.css` — merged into `DiagnosticsView`.
+- `DevicesView.tsx` / `TagsView.tsx` iframe wrappers.
+- `ErrorBoundary.tsx` inline styles → `ErrorBoundary.css`.
+- `scripts/sync-version.sh` (superseded by `syncVersion` Gradle task).
+- Redundant `./gradlew test` step from `ci.yml` (covered by `build`).
+
+---
+
+## [9.0.6] - 2026-02-22 - **Test: TagTreeBuilder, OpcUaSimulationEngine, DeviceFileManager**
+
+### Added
+- `TagTreeBuilderTest` — 43 tests: empty data, global tags, programs, UDT recursion, pagination (offset/limit/depth), flat mode, sort order, stats accuracy, `childCount`/`hasChildren` metadata.
+- `OpcUaSimulationEngineTest` — 23 tests: lifecycle, enable/disable/toggle simulation, pattern overrides, defensive copy, bulk scope operations.
+- `DeviceFileManagerTest` — 13 tests: storage path, save/read/clear, path-traversal rejection, reload lifecycle.
+- **242 tests total, 0 failures.**
+
+---
+
+## [9.0.4] - 2026-02-22 - **Theme: Full CSS Variable System**
+
+### Changed
+- Added `--accent-blue`, `--accent-orange`, `--border-hover`, `--bg-statusbar` variables to `App.scss`.
+- Swept all component CSS — replaced hardcoded palette hex values with CSS variables.
+- Simulation sidebar nav item now carries an orange **BETA** badge via `var(--accent-orange)`.
+- `LogsView` component removed — log entries merged into the Diagnostics view.
+- `connection-browser.html` palette updated to One Dark Pro equivalents (removing leftover Catppuccin colours).
+
+---
+
+## [9.0.2] - 2026-02-21 - **Style: Consistent View Headers**
+
+### Changed
+- Standardised all view headers to icon + title + description pattern matching AI Terminal module style.
+- Uniform text sizes, colours, button styles, and card backgrounds across Dashboard, Diagnostics, Logs, and Simulation views.
+
+---
+
+## [9.0.1] - 2026-02-21 - **Fix: Logs NPE + Dark Background Contrast**
+
+### Fixed
+- **Gateway logs endpoint crash** — `getUsername()` returned `null` for Ignition data routes (remoteUser/userPrincipal not populated), causing NPE in `ConcurrentHashMap`-backed rate limiter. Now falls back to `"anon-{ip}"`.
+
+### Changed
+- Page background shifted from `#1e1e2e` to `#11111b` (Catppuccin Crust) so cards/panels at `#1e1e2e` contrast against the darker page, matching the AI Terminal module pattern.
+
+---
+
 ## [9.0.0] - 2026-02-21 - **Major Version: Modern React UI & Clean Slate**
 
 ### Added
