@@ -1,6 +1,6 @@
 # Tag Creation and OPC-UA Address Space Flow
 
-> **Version**: 9.0.0
+> **Version**: 9.1.1
 > **Last Updated**: 2026-02-21
 > **Purpose**: Complete reference for how PLC file tags become OPC-UA browseable nodes
 

@@ -2,7 +2,7 @@
 
 > **Purpose**: Optimized context file for AI-assisted development with Claude Code.
 > **Last Updated**: 2026-02-21
-> **Module Version**: 9.0.0
+> **Module Version**: 9.1.1
 
 ---
 
@@ -20,7 +20,7 @@
 
 ## Current Development Phase
 
-**Version**: 9.0.0 (Production Ready)
+**Version**: 9.1.1 (Production Ready)
 **Phase**: Production + Quality Assurance
 **Status**: Modern React UI, SQLite logging, comprehensive test coverage, security hardened, CI/CD operational
 
@@ -67,7 +67,7 @@
 
 ```
 /modules/ignition-module-plc-emulator/logix-emulator-module/
-├── build.gradle.kts                    # Build configuration (version: 9.0.0)
+├── build.gradle.kts                    # Build configuration (version: 9.1.1)
 ├── gradle.properties                   # Signing config (gitignored, uses env vars)
 ├── gradle.properties.template          # Template for signing config
 ├── CHANGELOG.md                        # Detailed version history
@@ -176,7 +176,7 @@
 ```bash
 cd /modules/ignition-module-plc-emulator/logix-emulator-module
 ./gradlew clean build
-# Output: build/LogixPLCEmulator-9.0.0.modl (~14MB)
+# Output: build/LogixPLCEmulator-9.1.1.modl (~14MB)
 ```
 
 **Important**: Always bump version in `build.gradle.kts` before building — Ignition requires a different version each time a module is installed.

@@ -63,6 +63,67 @@ tasks.register("syncVersion") {
             Regex("""(?<=<strong>Version:</strong> )[0-9.]+"""), ver)
         sync(file("README.md"),
             Regex("""(?m)^\*\*Version\*\*:\s*v[\d.]+"""), "**Version**: v${ver}")
+
+        // ── Markdown docs ────────────────────────────────────────────────────
+        sync(file("QUICK_START.md"),
+            Regex("""LogixPLCEmulator-[\d.]+\.modl"""), "LogixPLCEmulator-${ver}.modl")
+        sync(file("QUICK_START.md"),
+            Regex("""(?m)^\*\*Module Version:\*\*\s+[\d.]+"""), "**Module Version:** ${ver}")
+
+        sync(file("TESTING.md"),
+            Regex("""Testing Guide v[\d.]+"""), "Testing Guide v${ver}")
+        sync(file("TESTING.md"),
+            Regex("""(?m)^\*\*Version\*\*:\s+[\d.]+"""), "**Version**: ${ver}")
+        sync(file("TESTING.md"),
+            Regex("""(?m)^\*\*Module Version\*\*:\s+[\d.]+"""), "**Module Version**: ${ver}")
+        sync(file("TESTING.md"),
+            Regex("""(?m)^- \*\*Version\*\*:\s+[\d.]+"""), "- **Version**: ${ver}")
+
+        sync(file("DEVELOPMENT.md"),
+            Regex("""version = "[\d.]+""""), """version = "${ver}"""")
+
+        sync(file("BUILD.md"),
+            Regex("""version = "[\d.]+""""), """version = "${ver}"""")
+
+        sync(file("KNOWN_ISSUES.md"),
+            Regex("""(?m)^## Current Version:\s+v[\d.]+"""), "## Current Version: v${ver}")
+        sync(file("KNOWN_ISSUES.md"),
+            Regex("""should show v[\d.]+"""), "should show v${ver}")
+        sync(file("KNOWN_ISSUES.md"),
+            Regex("""e\.g\., v[\d.]+"""), "e.g., v${ver}")
+
+        sync(file("PLAN.md"),
+            Regex("""(?m)^## Current State \(v[\d.]+\)"""), "## Current State (v${ver})")
+        sync(file("PLAN.md"),
+            Regex("""\(v[\d.]+ release\)"""), "(v${ver} release)")
+
+        sync(file("docs/ARCHITECTURE.md"),
+            Regex("""Logix PLC Emulator \(v[\d.]+\)"""), "Logix PLC Emulator (v${ver})")
+        sync(file("docs/ARCHITECTURE.md"),
+            Regex("""(?m)^\*\*Module Version\*\*:\s+[\d.]+"""), "**Module Version**: ${ver}")
+
+        sync(file("docs/API_REFERENCE.md"),
+            Regex("""(?m)^\*\*Version\*\*:\s+[\d.]+"""), "**Version**: ${ver}")
+        sync(file("docs/API_REFERENCE.md"),
+            Regex(""""moduleVersion":\s*"[\d.]+""""), """"moduleVersion": "${ver}"""")
+
+        sync(file("docs/SECURITY_TESTING.md"),
+            Regex("""(?m)^\*\*Version\*\*:\s+[\d.]+"""), "**Version**: ${ver}")
+        sync(file("docs/SECURITY_TESTING.md"),
+            Regex("""(?m)^\*\*Module Version\*\*:\s+[\d.]+"""), "**Module Version**: ${ver}")
+
+        sync(file("docs/TAG_CREATION_FLOW.md"),
+            Regex("""(?m)^>\s*\*\*Version\*\*:\s+[\d.]+"""), "> **Version**: ${ver}")
+
+        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+            Regex("""(?m)^>\s*\*\*Module Version\*\*:\s+[\d.]+"""), "> **Module Version**: ${ver}")
+        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+            Regex("""(?m)^\*\*Version\*\*:\s+[\d.]+"""), "**Version**: ${ver}")
+        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+            Regex("""\(version: [\d.]+\)"""), "(version: ${ver})")
+        sync(file("docs/internal/CLAUDE_CONTEXT.md"),
+            Regex("""LogixPLCEmulator-[\d.]+\.modl"""), "LogixPLCEmulator-${ver}.modl")
+
         logger.lifecycle("syncVersion: all files set to $ver")
     }
 }
