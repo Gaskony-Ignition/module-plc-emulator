@@ -97,7 +97,7 @@ public class SystemController {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.1.0")
+            .put("moduleVersion", "9.1.1")
             .put("deviceCount", registry.getRegisteredDevices().size());
     }
 

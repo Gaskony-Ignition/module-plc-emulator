@@ -46,7 +46,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook implements Dev
         this.context = context;
         logger.info("Logix PLC Emulator module setup - GatewayContext initialized: {}", (context != null));
 
-        // Register WebUI component for Connection Browser (combined tag browser + file upload)
+        // Register WebUI component for the Devices page (combined tag browser + file upload)
         try {
             SystemJsModule connectionBrowserModule = new SystemJsModule(
                 "LogixConnectionBrowser",
@@ -57,14 +57,14 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook implements Dev
             context.getWebResourceManager().getNavigationModel().getConnections()
                 .addCategory("logixemulator", cat -> cat
                     .label("Logix PLC Emulator")
-                    .addPage("Connection Browser", page -> page
+                    .addPage("Devices", page -> page
                         .position(10)
                         .mount("/logix-connection-browser", "LogixConnectionBrowser", connectionBrowserModule)
                     )
                 );
 
             logger.info("Added 'Logix PLC Emulator' menu item to Gateway Config:");
-            logger.info("  - Connection Browser: /app/logix-connection-browser");
+            logger.info("  - Devices: /app/logix-connection-browser");
         } catch (Exception e) {
             logger.error("Failed to add WebUI navigation menu item", e);
         }
