@@ -21,6 +21,7 @@ interface DeviceDetail {
 interface LogEntry {
   id: string
   timestamp: string
+  epochMs?: number
   level: string
   source: string
   logger: string
@@ -140,10 +141,10 @@ function DiagnosticsView() {
     }
   }, [levelFilter])
 
-  // Auto-scroll to bottom when new entries arrive
+  // Auto-scroll to top when new entries arrive (newest-first layout)
   useEffect(() => {
     if (autoScroll && logsBodyRef.current) {
-      logsBodyRef.current.scrollTop = logsBodyRef.current.scrollHeight
+      logsBodyRef.current.scrollTop = 0
     }
   }, [moduleLogs, autoScroll])
 
@@ -306,7 +307,7 @@ function DiagnosticsView() {
             {/* Auto-scroll toggle */}
             <button
               className={`diag-control-btn ${autoScroll ? 'active' : ''}`}
-              title={autoScroll ? 'Auto-scroll on' : 'Auto-scroll off'}
+              title={autoScroll ? 'Auto-scroll to newest (on)' : 'Auto-scroll to newest (off)'}
               onClick={() => setAutoScroll(v => !v)}
             >
               <ChevronsDown size={13} />
@@ -339,12 +340,16 @@ function DiagnosticsView() {
                 {levelFilter && ` for level ${levelFilter}`}
               </div>
             ) : (
-              moduleLogs.map(entry => (
+              [...moduleLogs].reverse().map(entry => (
                 <div
                   key={entry.id || entry.timestamp + entry.message}
                   className={`diagnostics-log-row ${getLevelClass(entry.level)}`}
                 >
-                  <span className="diag-log-col-time">{entry.timestamp}</span>
+                  <span className="diag-log-col-time">
+                    {entry.epochMs
+                      ? new Date(entry.epochMs).toLocaleString()
+                      : entry.timestamp}
+                  </span>
                   <span className={`diag-log-col-level diag-log-badge ${getLevelClass(entry.level)}`}>
                     {entry.level}
                   </span>

@@ -97,7 +97,7 @@ public class SystemController {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.0.9")
+            .put("moduleVersion", "9.1.0")
             .put("deviceCount", registry.getRegisteredDevices().size());
     }
 
@@ -288,6 +288,7 @@ public class SystemController {
                     entries.add(new JSONObject()
                         .put("id", String.valueOf(eventId))
                         .put("timestamp", formattedTime)
+                        .put("epochMs", timestmp)
                         .put("level", level)
                         .put("source", shortSource)
                         .put("logger", loggerName)

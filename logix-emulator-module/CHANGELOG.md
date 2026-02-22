@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.1.0] - 2026-02-22 - **Log UX: Newest-First + Local Timestamps**
+
+### Changed
+- **Module logs now display newest entries at the top** — render order reversed so developers see the latest activity without scrolling. Auto-scroll now moves to the top of the panel when enabled.
+- **Log timestamps are now in the browser's local timezone** — backend returns raw `epochMs` alongside the server-formatted string; frontend formats with `new Date(epochMs).toLocaleString()` so the time reflects the user's locale and timezone, not the Ignition server's.
+
+---
+
 ## [9.0.9] - 2026-02-22 - **Bug Fix: Tag Tree + Camera-Driver-Style Logs**
 
 ### Fixed
