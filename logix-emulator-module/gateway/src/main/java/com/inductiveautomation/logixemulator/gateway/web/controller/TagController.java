@@ -120,10 +120,12 @@ public class TagController {
                 .put("limit", limit)
                 .put("count", tags.length())
                 .put("totalAtLevel", totalAtLevel)
+                .put("total", flat ? totalAtLevel : stats.totalTags)
                 .put("hasMore", hasMore)
                 .put("totalTags", stats.totalTags)
                 .put("folders", stats.folderCount)
-                .put("udtInstances", stats.udtCount);
+                .put("udtInstances", stats.udtCount)
+                .put("udt_instances", stats.udtCount);
 
         } catch (Exception e) {
             logger.warn("Could not access parsed data for device: {}", GatewayAuthHelper.sanitizeForLog(deviceName), e);
@@ -168,7 +170,8 @@ public class TagController {
             if (parsedData == null) {
                 return result.put("success", true)
                     .put("path", parentPath)
-                    .put("children", new JSONArray())
+                    .put("tags", new JSONArray())
+                    .put("total", 0)
                     .put("totalChildren", 0);
             }
 
@@ -178,10 +181,11 @@ public class TagController {
 
             return result.put("success", true)
                 .put("path", parentPath)
-                .put("children", children)
+                .put("tags", children)
                 .put("offset", offset)
                 .put("limit", limit)
                 .put("count", children.length())
+                .put("total", totalChildren)
                 .put("totalChildren", totalChildren)
                 .put("hasMore", (offset + limit) < totalChildren);
 

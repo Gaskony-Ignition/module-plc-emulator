@@ -4,7 +4,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 
 ## Current Status
 
-**Version**: v9.0.8
+**Version**: v9.0.9
 **Status**: Production Ready
 **Requires**: Ignition 8.3+ | Java 17
 

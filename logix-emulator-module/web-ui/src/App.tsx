@@ -13,7 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.0.8";
+const MODULE_VERSION = "9.0.9";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 

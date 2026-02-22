@@ -97,18 +97,22 @@ public class SystemController {
 
         return result.put("success", true)
             .put("cpuUsage", Math.round(cpuPercent * 10) / 10.0)
-            .put("moduleVersion", "9.0.8")
+            .put("moduleVersion", "9.0.9")
             .put("deviceCount", registry.getRegisteredDevices().size());
     }
 
+    private static final String MODULE_LOGGER_PREFIX = "com.inductiveautomation.logixemulator";
+
     /**
      * Gateway logs — reads entries from Ignition's SQLite system_logs.idb database.
+     * Mirrors the Camera Driver's GatewayLogHandler pattern.
      *
      * Query parameters:
-     *   - limit: max entries to return (default 100, max 500)
-     *   - level: comma-separated log levels to include (ERROR, WARN, INFO, DEBUG)
-     *   - after: only return entries after this event ID (for incremental polling)
-     *   - filter: keyword filter (case-insensitive)
+     *   - limit:      max entries to return (default 100, max 500)
+     *   - level:      comma-separated log levels to include (ERROR, WARN, INFO, DEBUG)
+     *   - after:      only return entries after this event ID (for incremental polling)
+     *   - filter:     keyword filter (case-insensitive, message or logger)
+     *   - moduleOnly: "false" to show all loggers; default true (filters to module prefix)
      */
     public JSONObject handleSystemLogs(RequestContext ctx, HttpServletResponse resp) throws JSONException {
         try { if (!GatewayAuthHelper.requireAuthentication(ctx, resp)) return null; }
@@ -124,6 +128,8 @@ public class SystemController {
         String levelParam = ctx.getRequest().getParameter("level");
         String afterParam = ctx.getRequest().getParameter("after");
         String filterParam = ctx.getRequest().getParameter("filter");
+        String moduleOnlyParam = ctx.getRequest().getParameter("moduleOnly");
+        boolean moduleOnly = moduleOnlyParam == null || !"false".equalsIgnoreCase(moduleOnlyParam);
 
         Set<String> levelFilter = new HashSet<>();
         if (levelParam != null && !levelParam.isEmpty()) {
@@ -150,15 +156,22 @@ public class SystemController {
         }
 
         try {
-            List<JSONObject> entries = readLogEntriesFromDb(logDb, limit, filterParam, levelFilter, afterEventId);
+            List<JSONObject> entries = readLogEntriesFromDb(logDb, limit, filterParam, levelFilter, afterEventId, moduleOnly);
             JSONArray entriesArray = new JSONArray();
+            long lastEventId = 0;
             for (JSONObject entry : entries) {
                 entriesArray.put(entry);
+                // Track the last event_id for client-side incremental polling
+                try {
+                    long id = Long.parseLong(entry.getString("id"));
+                    if (id > lastEventId) lastEventId = id;
+                } catch (Exception ignored) { /* ignore */ }
             }
 
             return result.put("success", true)
                 .put("entries", entriesArray)
                 .put("count", entries.size())
+                .put("lastEventId", lastEventId)
                 .put("hasMore", entries.size() >= limit);
 
         } catch (Exception e) {
@@ -202,7 +215,8 @@ public class SystemController {
     }
 
     private List<JSONObject> readLogEntriesFromDb(File logDb, int maxLines, String filter,
-                                                   Set<String> levelFilter, long afterEventId)
+                                                   Set<String> levelFilter, long afterEventId,
+                                                   boolean moduleOnly)
             throws JSONException {
         List<JSONObject> entries = new ArrayList<>();
         String url = "jdbc:sqlite:" + logDb.getAbsolutePath();
@@ -223,6 +237,12 @@ public class SystemController {
             sql.append(String.join(",", Collections.nCopies(levelFilter.size(), "?")));
             sql.append(") ");
             params.addAll(levelFilter);
+        }
+
+        // Filter to module loggers only (mirrors Camera Driver moduleOnly=true behaviour)
+        if (moduleOnly) {
+            sql.append("AND logger_name LIKE ? ");
+            params.add(MODULE_LOGGER_PREFIX + "%");
         }
 
         if (filter != null && !filter.isEmpty()) {
