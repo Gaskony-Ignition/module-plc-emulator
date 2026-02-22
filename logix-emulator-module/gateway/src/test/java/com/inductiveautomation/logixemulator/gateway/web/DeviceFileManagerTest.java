@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.web;
 
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.system.SystemManager;
+import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,9 @@ class DeviceFileManagerTest {
     @Mock
     GatewayContext context;
 
+    @Mock
+    DeviceRegistry registry;
+
     SystemManager systemManager;
 
     @Mock
@@ -46,7 +50,7 @@ class DeviceFileManagerTest {
 
         // Constructor calls migrateStorageDirectory() — safe because neither
         // "plc-simulator" nor "logix-emulator" dirs exist yet in tempDir
-        manager = new DeviceFileManager(context);
+        manager = new DeviceFileManager(context, registry);
     }
 
     // ========== getStorageDirectory() ==========
@@ -220,7 +224,7 @@ class DeviceFileManagerTest {
     @DisplayName("Constructor does not throw when neither old nor new storage dir exists")
     void testConstructorDoesNotThrowWhenNoDirsExist() {
         // Neither "plc-simulator" nor "logix-emulator" exist in tempDir — normal first-run case
-        assertThatCode(() -> new DeviceFileManager(context))
+        assertThatCode(() -> new DeviceFileManager(context, registry))
             .doesNotThrowAnyException();
     }
 }

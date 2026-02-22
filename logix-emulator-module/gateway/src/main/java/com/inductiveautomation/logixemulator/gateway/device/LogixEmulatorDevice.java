@@ -155,7 +155,12 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
 
             // Register device with module hook so FileUploadRoutes can find it
             // This must happen BEFORE any early returns to ensure all devices are discoverable
-            SimulatorModuleHook.registerDevice(context.getName(), this);
+            SimulatorModuleHook hook = SimulatorModuleHook.getInstance();
+            if (hook != null) {
+                hook.registerDevice(context.getName(), this);
+            } else {
+                logger.warn("SimulatorModuleHook not yet initialized — device '{}' registration skipped", context.getName());
+            }
 
             // Save uploaded file content if provided
             currentFilePath = prepareFile();
@@ -226,7 +231,10 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         logger.info("Shutting down Logix PLC Emulator device: {}", context.getName());
 
         // Unregister device from module hook
-        SimulatorModuleHook.unregisterDevice(context.getName());
+        SimulatorModuleHook hook = SimulatorModuleHook.getInstance();
+        if (hook != null) {
+            hook.unregisterDevice(context.getName());
+        }
 
         // Stop file watcher
         if (fileWatcher != null && fileWatcher.isRunning()) {

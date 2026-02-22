@@ -3,7 +3,7 @@ plugins {
     id("io.ia.sdk.modl") version "0.5.0"
 }
 
-version = "9.0.7"
+version = "9.0.8"
 group = "com.gaskony"
 
 ignitionModule {
@@ -55,7 +55,7 @@ tasks.register("syncVersion") {
             Regex(""""version":\s*"[^"]+""""), """"version": "$ver"""")
         sync(file("gradle.properties.template"),
             Regex("""(?m)^version=.+$"""), "version=$ver")
-        sync(file("gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/FileUploadRoutes.java"),
+        sync(file("gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/controller/SystemController.java"),
             Regex("""\.put\("moduleVersion",\s*"[^"]+"\)"""), """.put("moduleVersion", "$ver")""")
         sync(file("web-ui/src/App.tsx"),
             Regex("""const MODULE_VERSION = "[^"]+""""), """const MODULE_VERSION = "$ver"""")

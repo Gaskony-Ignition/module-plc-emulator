@@ -1,7 +1,7 @@
 package com.inductiveautomation.logixemulator.gateway.web;
 
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
-import com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook;
+import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,9 +22,11 @@ public class DeviceFileManager {
     private static final String OLD_STORAGE_DIR_NAME = "plc-simulator";
 
     private final GatewayContext context;
+    private final DeviceRegistry registry;
 
-    public DeviceFileManager(GatewayContext context) {
+    public DeviceFileManager(GatewayContext context, DeviceRegistry registry) {
         this.context = context;
+        this.registry = registry;
         migrateStorageDirectory();
     }
 
@@ -61,11 +63,11 @@ public class DeviceFileManager {
     }
 
     /**
-     * Find a device by name in the registry.
+     * Find a device by name using the injected registry.
      */
     public Optional<LogixEmulatorDevice> findDeviceByName(String name) {
         try {
-            return SimulatorModuleHook.findDeviceByName(name);
+            return registry.findDeviceByName(name);
         } catch (Exception e) {
             logger.error("Error finding device: {}", name, e);
             return Optional.empty();

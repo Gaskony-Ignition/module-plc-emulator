@@ -89,8 +89,7 @@ public class AddressSpaceBuilder {
         if (plcData.has("global_tags")) {
             JsonArray globalTags = plcData.getAsJsonArray("global_tags");
             if (globalTags.size() > 0) {
-                UaFolderNode controllerFolder = createFolder(
-                    context,
+                UaFolderNode controllerFolder = context.createFolder(
                     "Controller:Global",
                     "Controller:Global"
                 );
@@ -112,8 +111,7 @@ public class AddressSpaceBuilder {
             JsonArray programs = plcData.getAsJsonArray("programs");
             if (programs.size() > 0) {
                 // Create "Programs" parent folder to match real PLC structure
-                UaFolderNode programsParentFolder = createFolder(
-                    context,
+                UaFolderNode programsParentFolder = context.createFolder(
                     "Programs",
                     "Programs"
                 );
@@ -125,9 +123,7 @@ public class AddressSpaceBuilder {
                     JsonObject program = programElement.getAsJsonObject();
                     String programName = program.get("name").getAsString();
 
-                    // Use just the program name (not "Program:ProgramName")
-                    UaFolderNode programFolder = createFolder(
-                        context,
+                    UaFolderNode programFolder = context.createFolder(
                         "Programs/" + programName,
                         programName
                     );
@@ -193,41 +189,18 @@ public class AddressSpaceBuilder {
             JsonArray members = tag.getAsJsonArray("udt_members");
             if (members.size() > 0) {
                 // HIERARCHICAL STRUCTURE: Create UDT instance as Object node with member children
-                // This matches real Rockwell PLC behavior:
-                // - Browse hierarchy: Motor1 (Object) → Speed, Running (Variables)
-                // - NodeId format: Uses DOTS → "Controller:Global.Motor1.Speed"
-                // - BrowseName: Simple names → "Speed" (not "Motor1.Speed")
-                // - Short path: [Device]Motor1.Speed (via duplicate nodes)
-                // - Long path: [Device]Controller:Global.Motor1.Speed (via dot resolution)
-
-                // Create Object node for UDT instance (using DOT notation in NodeId)
                 String udtNodeId = pathPrefix.replace("/", ".") + "." + tagName;
-                UaObjectNode udtObject = UaObjectNode.build(context.nodeContext, b ->
-                    b.setNodeId(context.nodeId(udtNodeId))
-                        .setBrowseName(context.qualifiedName(tagName))  // Simple name
-                        .setDisplayName(new LocalizedText(tagName))
-                        .setTypeDefinition(NodeIds.BaseObjectType)
-                        .build()
-                );
+                UaObjectNode udtObject = context.createObjectNode(udtNodeId, tagName);
 
                 nodeAdder.accept(udtObject);
-                parentFolder.addComponent(udtObject);  // Use HasComponent reference
+                parentFolder.addComponent(udtObject);
 
                 // For Controller:Global tags, create DUPLICATE nodes with short NodeIds
-                // This is how real Rockwell PLCs work - not aliases, but duplicate nodes
                 UaObjectNode shortPathObject = null;
                 if (rootNode != null && pathPrefix.equals("Controller:Global")) {
-                    // Create a DUPLICATE Object node with SHORT NodeId at device root
-                    shortPathObject = UaObjectNode.build(context.nodeContext, b ->
-                        b.setNodeId(context.nodeId(tagName))  // SHORT NodeId: just "Motor1"
-                            .setBrowseName(context.qualifiedName(tagName))
-                            .setDisplayName(new LocalizedText(tagName))
-                            .setTypeDefinition(NodeIds.BaseObjectType)
-                            .build()
-                    );
-
+                    shortPathObject = context.createObjectNode(tagName, tagName);
                     nodeAdder.accept(shortPathObject);
-                    rootNode.addComponent(shortPathObject);  // Add to device root
+                    rootNode.addComponent(shortPathObject);
                     logger.debug("Created duplicate UDT instance '{}' with short NodeId at device root", tagName);
                 }
 
@@ -235,35 +208,20 @@ public class AddressSpaceBuilder {
                 for (JsonElement memberElement : members) {
                     JsonObject member = memberElement.getAsJsonObject();
 
-                    // Create the member in the main UDT object
                     UaVariableNode longPathMember = addUdtMember(member, udtObject, context, udtNodeId, tagName);
 
-                    // Also add member to the short path object if it exists, with synchronized writes
                     if (shortPathObject != null && longPathMember != null) {
-                        // Create duplicate member with short NodeId path
                         String memberName = member.get("name").getAsString();
                         String memberDataType = member.get("data_type").getAsString();
                         OpcUaDataType opcType = mapDataType(memberDataType);
                         Object initialValue = getInitialValue(member, memberDataType);
 
-                        // Short NodeId: just "Motor1.ENABLE" instead of "Controller:Global.Motor1.ENABLE"
                         String shortMemberNodeId = tagName + "." + memberName;
 
-                        UaVariableNode shortMemberVariable = UaVariableNode.build(context.nodeContext, b ->
-                            b.setNodeId(context.nodeId(shortMemberNodeId))
-                                .setBrowseName(context.qualifiedName(memberName))
-                                .setDisplayName(new LocalizedText(memberName))
-                                .setDataType(opcType.getNodeId())
-                                .setTypeDefinition(NodeIds.BaseDataVariableType)
-                                .setAccessLevel(AccessLevel.READ_WRITE)
-                                .setUserAccessLevel(AccessLevel.READ_WRITE)
-                                .build()
-                        );
-
-                        // Set same initial value
+                        UaVariableNode shortMemberVariable = context.createVariableNode(
+                            shortMemberNodeId, memberName, opcType.getNodeId());
                         shortMemberVariable.setValue(new DataValue(new Variant(initialValue)));
 
-                        // Enable synchronized writes between both nodes
                         enableSynchronizedWrites(longPathMember, shortMemberVariable);
 
                         nodeAdder.accept(shortMemberVariable);
@@ -283,17 +241,14 @@ public class AddressSpaceBuilder {
             if (tag.has("dimensions")) {
                 String dimensions = tag.get("dimensions").getAsString();
                 try {
-                    // Parse dimensions (e.g., "10" for 1D array, "5,3" for 2D array)
                     String[] dims = dimensions.split(",");
                     int arraySize = Integer.parseInt(dims[0].trim());
 
-                    // Create individual array element nodes
                     for (int i = 0; i < arraySize; i++) {
                         JsonObject arrayElement = new JsonObject();
                         arrayElement.addProperty("name", tagName + "[" + i + "]");
                         arrayElement.addProperty("data_type", dataType);
 
-                        // Copy initial value if present
                         if (tag.has("initial_value")) {
                             arrayElement.add("initial_value", tag.get("initial_value"));
                         }
@@ -316,17 +271,7 @@ public class AddressSpaceBuilder {
 
     /**
      * Adds a UDT member as a child of a UDT Object node.
-     * If the member is itself a nested UDT (has udt_members), creates a nested Object node.
-     * Otherwise creates a variable node.
-     * Uses DOT notation in NodeId and simple BrowseName to match real Rockwell PLC behavior.
      * Returns the created variable node so it can be synchronized with duplicate nodes.
-     *
-     * @param member Member tag data
-     * @param udtObject Parent UDT Object node
-     * @param context Device context
-     * @param udtNodeId NodeId of parent UDT (e.g., "Controller:Global.Motor1")
-     * @param udtName Name of parent UDT (e.g., "Motor1") for logging
-     * @return The UaVariableNode created for this member (for synchronizing with duplicate nodes), or null for nested UDTs
      */
     private UaVariableNode addUdtMember(
         JsonObject member,
@@ -335,7 +280,6 @@ public class AddressSpaceBuilder {
         String udtNodeId,
         String udtName) {
 
-        // Defensive null checks
         if (member.get("name") == null) {
             logger.warn("Skipping UDT member without 'name' field in UDT '{}'", udtName);
             return null;
@@ -350,23 +294,15 @@ public class AddressSpaceBuilder {
         String dataType = member.get("data_type").getAsString();
         String memberNodeId = udtNodeId + "." + memberName;
 
-        // Check if this member is itself a nested UDT (has udt_members)
+        // Check if this member is itself a nested UDT
         if (member.has("udt_members")) {
             JsonArray nestedMembers = member.getAsJsonArray("udt_members");
             if (nestedMembers.size() > 0) {
-                // Create nested Object node for the nested UDT
-                UaObjectNode nestedObject = UaObjectNode.build(context.nodeContext, b ->
-                    b.setNodeId(context.nodeId(memberNodeId))
-                        .setBrowseName(context.qualifiedName(memberName))
-                        .setDisplayName(new LocalizedText(memberName))
-                        .setTypeDefinition(NodeIds.BaseObjectType)
-                        .build()
-                );
+                UaObjectNode nestedObject = context.createObjectNode(memberNodeId, memberName);
 
                 nodeAdder.accept(nestedObject);
                 udtObject.addComponent(nestedObject);
 
-                // Recursively add nested UDT members
                 for (JsonElement nestedMemberElement : nestedMembers) {
                     JsonObject nestedMember = nestedMemberElement.getAsJsonObject();
                     addUdtMember(nestedMember, nestedObject, context, memberNodeId, memberName);
@@ -374,8 +310,6 @@ public class AddressSpaceBuilder {
 
                 logger.debug("Created nested UDT: {}.{} of type {} with {} members",
                     udtName, memberName, dataType, nestedMembers.size());
-
-                // Return null for nested UDTs (they're Object nodes, not Variable nodes)
                 return null;
             }
         }
@@ -384,40 +318,22 @@ public class AddressSpaceBuilder {
         OpcUaDataType opcType = mapDataType(dataType);
         Object initialValue = getInitialValue(member, dataType);
 
-        UaVariableNode memberVariable = UaVariableNode.build(context.nodeContext, b ->
-            b.setNodeId(context.nodeId(memberNodeId))
-                .setBrowseName(context.qualifiedName(memberName))  // Simple name, NOT "Motor1.Speed"
-                .setDisplayName(new LocalizedText(memberName))
-                .setDataType(opcType.getNodeId())
-                .setTypeDefinition(NodeIds.BaseDataVariableType)
-                .setAccessLevel(AccessLevel.READ_WRITE)
-                .setUserAccessLevel(AccessLevel.READ_WRITE)
-                .build()
-        );
+        UaVariableNode memberVariable = context.createVariableNode(memberNodeId, memberName, opcType.getNodeId());
 
-        // Create DataValue and set initial value
         DataValue dataValue = new DataValue(new Variant(initialValue));
         memberVariable.setValue(dataValue);
 
-        // Note: Write handling is configured later via enableSynchronizedWrites()
-        // to coordinate updates with duplicate short-path nodes
-
-        // Add to node manager
         nodeAdder.accept(memberVariable);
-
-        // Add as component of UDT Object (creates HasComponent reference)
         udtObject.addComponent(memberVariable);
 
         logger.trace("Created UDT member: {}.{} (NodeId={}, Type={})",
             udtName, memberName, memberNodeId, dataType);
 
-        return memberVariable;  // Return for synchronizing with duplicate nodes
+        return memberVariable;
     }
 
     /**
      * Adds an atomic (non-UDT) tag as a variable node.
-     *
-     * @param rootNode Root node for creating aliases (pass null for nested tags to skip aliasing)
      */
     private void addAtomicTag(
         JsonObject tag,
@@ -426,7 +342,6 @@ public class AddressSpaceBuilder {
         String pathPrefix,
         UaFolderNode rootNode) {
 
-        // Defensive null checks - parser might not provide all fields
         if (tag.get("name") == null) {
             logger.warn("Skipping atomic tag without 'name' field: {}", tag);
             return;
@@ -439,61 +354,29 @@ public class AddressSpaceBuilder {
         String tagName = tag.get("name").getAsString();
         String dataType = tag.get("data_type").getAsString();
 
-        // Map data type to OPC-UA type
         OpcUaDataType opcType = mapDataType(dataType);
-
-        // Get initial value if present
         Object initialValue = getInitialValue(tag, dataType);
 
-        // Build NodeId with DOT notation for consistency (Controller:Global.TagName)
         String nodeIdPath = pathPrefix.replace("/", ".") + "." + tagName;
 
-        // Create variable node
-        UaVariableNode variableNode = UaVariableNode.build(context.nodeContext, b ->
-            b.setNodeId(context.nodeId(nodeIdPath))
-                .setBrowseName(context.qualifiedName(tagName))
-                .setDisplayName(new LocalizedText(tagName))
-                .setDataType(opcType.getNodeId())
-                .setTypeDefinition(NodeIds.BaseDataVariableType)
-                .setAccessLevel(AccessLevel.READ_WRITE)
-                .setUserAccessLevel(AccessLevel.READ_WRITE)
-                .build()
-        );
+        UaVariableNode variableNode = context.createVariableNode(nodeIdPath, tagName, opcType.getNodeId());
 
-        // Set initial value
         DataValue dataValue = new DataValue(new Variant(initialValue));
         variableNode.setValue(dataValue);
 
-        // Add to node manager and parent folder
         nodeAdder.accept(variableNode);
         parentFolder.addOrganizes(variableNode);
 
-        // For Controller:Global atomic tags, create DUPLICATE node with short NodeId
-        // This matches real Rockwell PLC behavior - not an alias, but a duplicate node
         if (rootNode != null && pathPrefix.equals("Controller:Global")) {
-            // Create duplicate variable with SHORT NodeId (just tagName, no prefix)
-            UaVariableNode shortPathVariable = UaVariableNode.build(context.nodeContext, b ->
-                b.setNodeId(context.nodeId(tagName))  // SHORT NodeId: just "TagName"
-                    .setBrowseName(context.qualifiedName(tagName))
-                    .setDisplayName(new LocalizedText(tagName))
-                    .setDataType(opcType.getNodeId())
-                    .setTypeDefinition(NodeIds.BaseDataVariableType)
-                    .setAccessLevel(AccessLevel.READ_WRITE)
-                    .setUserAccessLevel(AccessLevel.READ_WRITE)
-                    .build()
-            );
-
-            // Set same initial value
+            UaVariableNode shortPathVariable = context.createVariableNode(tagName, tagName, opcType.getNodeId());
             shortPathVariable.setValue(new DataValue(new Variant(initialValue)));
 
-            // Enable synchronized writes between both nodes
             enableSynchronizedWrites(variableNode, shortPathVariable);
 
             nodeAdder.accept(shortPathVariable);
             rootNode.addOrganizes(shortPathVariable);
             logger.debug("Created duplicate atomic tag '{}' with synchronized writes at device root", tagName);
         } else {
-            // For non-duplicated tags (e.g., program tags), enable regular writes
             enableWrites(variableNode);
         }
 
@@ -501,29 +384,14 @@ public class AddressSpaceBuilder {
     }
 
     /**
-     * Creates a folder node.
-     * Note: Folders still use slash notation in paths for hierarchical structure,
-     * while tags/UDTs use dot notation in their NodeIds for tag path resolution.
-     */
-    private UaFolderNode createFolder(NodeContext context, String path, String displayName) {
-        return new UaFolderNode(
-            context.nodeContext,
-            context.nodeId(path),  // Keep slash notation for folders
-            context.qualifiedName(displayName),
-            new LocalizedText(displayName)
-        );
-    }
-
-    /**
      * Enable write operations for a variable node.
-     * Adds a filter to handle incoming OPC-UA write requests.
      */
     private void enableWrites(UaVariableNode variableNode) {
         variableNode.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
                     variableNode.setValue(value);
-                    ctx.setAttribute(AttributeId.Value, value);  // Signal write completion
+                    ctx.setAttribute(AttributeId.Value, value);
                 }
             )
         );
@@ -531,25 +399,20 @@ public class AddressSpaceBuilder {
 
     /**
      * Enable synchronized writes for a pair of duplicate nodes (long path + short path).
-     * When either node is written to, both nodes are updated to keep them in sync.
-     * Uses ThreadLocal to prevent infinite recursion.
      */
     private void enableSynchronizedWrites(UaVariableNode node1, UaVariableNode node2) {
         node1.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    // Prevent recursion: only update the other node if we're not already in a write operation
                     NodeId currentlyWriting = currentlyWritingNode.get();
                     if (currentlyWriting == null) {
                         currentlyWritingNode.set(node1.getNodeId());
                         try {
-                            // Update the synchronized node
                             node2.setValue(value);
                         } finally {
                             currentlyWritingNode.remove();
                         }
                     }
-                    // Complete this node's write
                     ctx.setAttribute(AttributeId.Value, value);
                 }
             )
@@ -558,18 +421,15 @@ public class AddressSpaceBuilder {
         node2.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    // Prevent recursion: only update the other node if we're not already in a write operation
                     NodeId currentlyWriting = currentlyWritingNode.get();
                     if (currentlyWriting == null) {
                         currentlyWritingNode.set(node2.getNodeId());
                         try {
-                            // Update the synchronized node
                             node1.setValue(value);
                         } finally {
                             currentlyWritingNode.remove();
                         }
                     }
-                    // Complete this node's write
                     ctx.setAttribute(AttributeId.Value, value);
                 }
             )
@@ -578,8 +438,9 @@ public class AddressSpaceBuilder {
 
     /**
      * Maps PLC data type string to OPC-UA data type.
+     * Package-private for unit testing.
      */
-    private OpcUaDataType mapDataType(String dataType) {
+    OpcUaDataType mapDataType(String dataType) {
         return switch (dataType.toUpperCase()) {
             case "BOOL", "BOOLEAN" -> OpcUaDataType.Boolean;
             case "INT1", "SINT", "BYTE" -> OpcUaDataType.SByte;
@@ -595,10 +456,10 @@ public class AddressSpaceBuilder {
 
     /**
      * Extracts initial value from tag JSON, with appropriate type.
+     * Package-private for unit testing.
      */
-    private Object getInitialValue(JsonObject tag, String dataType) {
+    Object getInitialValue(JsonObject tag, String dataType) {
         if (!tag.has("initial_value") || tag.get("initial_value").isJsonNull()) {
-            // Default values
             return switch (dataType.toUpperCase()) {
                 case "BOOL", "BOOLEAN" -> false;
                 case "INT1", "SINT", "BYTE", "INT2", "INT", "INT4", "DINT" -> 0;
@@ -612,7 +473,6 @@ public class AddressSpaceBuilder {
 
         JsonElement initialValueElement = tag.get("initial_value");
 
-        // Extract value based on data type
         return switch (dataType.toUpperCase()) {
             case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
             case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
@@ -627,18 +487,16 @@ public class AddressSpaceBuilder {
 
     /**
      * Count total tags in the parsed PLC data structure.
-     * Used for validation to detect empty/invalid files.
+     * Package-private for unit testing.
      */
-    private static int countTotalTags(JsonObject plcData) {
+    static int countTotalTags(JsonObject plcData) {
         int count = 0;
 
-        // Count global tags
         if (plcData.has("global_tags")) {
             JsonArray globalTags = plcData.getAsJsonArray("global_tags");
             count += globalTags.size();
         }
 
-        // Count program tags
         if (plcData.has("programs")) {
             JsonArray programs = plcData.getAsJsonArray("programs");
             for (JsonElement programElement : programs) {
@@ -653,8 +511,15 @@ public class AddressSpaceBuilder {
         return count;
     }
 
+    // =========================================================================
+    // NodeContext — wraps OPC-UA node construction with overridable factory methods
+    // =========================================================================
+
     /**
      * Helper class to pass device context information.
+     *
+     * Factory methods ({@link #createFolder}, {@link #createVariableNode}, {@link #createObjectNode})
+     * are {@code protected} so test subclasses can return mocked nodes without Ignition/OPC-UA runtime.
      */
     public static class NodeContext {
         public final org.eclipse.milo.opcua.sdk.server.nodes.UaNodeContext nodeContext;
@@ -667,12 +532,64 @@ public class AddressSpaceBuilder {
             this.deviceContext = deviceContext;
         }
 
+        /**
+         * Protected constructor for test subclasses — allows null internals when factory methods
+         * are overridden.
+         */
+        protected NodeContext() {
+            this.nodeContext = null;
+            this.deviceContext = null;
+        }
+
         public NodeId nodeId(String identifier) {
             return deviceContext.nodeId(identifier);
         }
 
         public QualifiedName qualifiedName(String name) {
             return deviceContext.qualifiedName(name);
+        }
+
+        // ── Node factory methods (overridable for testing) ─────────────────
+
+        /**
+         * Create a folder node. Override in tests to return a mock.
+         */
+        protected UaFolderNode createFolder(String path, String displayName) {
+            return new UaFolderNode(
+                nodeContext,
+                nodeId(path),
+                qualifiedName(displayName),
+                new LocalizedText(displayName)
+            );
+        }
+
+        /**
+         * Create a variable node. Override in tests to return a mock.
+         */
+        protected UaVariableNode createVariableNode(String nodeIdPath, String name, NodeId dataType) {
+            return UaVariableNode.build(nodeContext, b ->
+                b.setNodeId(nodeId(nodeIdPath))
+                    .setBrowseName(qualifiedName(name))
+                    .setDisplayName(new LocalizedText(name))
+                    .setDataType(dataType)
+                    .setTypeDefinition(NodeIds.BaseDataVariableType)
+                    .setAccessLevel(AccessLevel.READ_WRITE)
+                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .build()
+            );
+        }
+
+        /**
+         * Create an object node. Override in tests to return a mock.
+         */
+        protected UaObjectNode createObjectNode(String nodeIdPath, String name) {
+            return UaObjectNode.build(nodeContext, b ->
+                b.setNodeId(nodeId(nodeIdPath))
+                    .setBrowseName(qualifiedName(name))
+                    .setDisplayName(new LocalizedText(name))
+                    .setTypeDefinition(NodeIds.BaseObjectType)
+                    .build()
+            );
         }
     }
 }

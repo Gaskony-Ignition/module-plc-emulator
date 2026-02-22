@@ -18,7 +18,7 @@
 # To generate new certificates, see SIGNING.md for keytool commands
 
 # Module version (build.gradle.kts is source of truth, this is for reference only)
-version=9.0.7
+version=9.0.8
 
 # Replace ALL placeholder values below before using this file
 # Signing configuration

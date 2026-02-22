@@ -8,6 +8,7 @@ import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.AbstractDeviceModuleHook;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceExtensionPoint;
 import com.inductiveautomation.ignition.gateway.web.systemjs.SystemJsModule;
+import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorExtensionPoint;
 import com.inductiveautomation.logixemulator.gateway.web.FileUploadRoutes;
 import org.slf4j.Logger;
@@ -19,13 +20,19 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
-
 /**
  * Module hook for the Logix PLC Emulator.
- * This registers the device driver with Ignition's device connection system.
+ * Registers the device driver with Ignition's device connection system and implements
+ * {@link DeviceRegistry} so it can be injected into the web layer without static coupling.
  */
-public class SimulatorModuleHook extends AbstractDeviceModuleHook {
+public class SimulatorModuleHook extends AbstractDeviceModuleHook implements DeviceRegistry {
+
+    private static volatile SimulatorModuleHook INSTANCE;
+
+    /** Returns the singleton instance (set during {@link #setup}). May be {@code null} before module startup. */
+    public static SimulatorModuleHook getInstance() {
+        return INSTANCE;
+    }
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
     private GatewayContext context;
@@ -35,6 +42,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
 
     @Override
     public void setup(GatewayContext context) {
+        INSTANCE = this;
         this.context = context;
         logger.info("Logix PLC Emulator module setup - GatewayContext initialized: {}", (context != null));
 
@@ -66,7 +74,6 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     public void startup(LicenseState licenseState) {
         logger.info("Logix PLC Emulator module starting...");
 
-        // Register resource bundle for i18n support
         BundleUtil.get().addBundle(
             "LogixEmulator",
             LogixEmulatorExtensionPoint.class,
@@ -83,19 +90,11 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         logger.info("Logix PLC Emulator module shutdown complete");
     }
 
-    /**
-     * Returns the list of device extension points provided by this module.
-     * This makes "Logix PLC Emulator" appear in the device type dropdown.
-     */
     @Override
     protected List<DeviceExtensionPoint<?>> getDeviceExtensionPoints() {
         return List.of(new LogixEmulatorExtensionPoint());
     }
 
-    /**
-     * Database migration strategies.
-     * Currently not needed as we use modern DeviceConfig records.
-     */
     @Override
     public List<IdbMigrationStrategy> getRecordMigrationStrategies() {
         return List.of();
@@ -107,13 +106,13 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
     }
 
     /**
-     * Mount HTTP routes for file upload functionality.
-     * Routes will be available at /main/data/logixemulator/*
+     * Mount HTTP routes, passing {@code this} as the {@link DeviceRegistry} so the
+     * web layer has no static dependency on {@code SimulatorModuleHook}.
      */
     @Override
     public void mountRouteHandlers(RouteGroup routes) {
         try {
-            FileUploadRoutes uploadRoutes = new FileUploadRoutes(context, routes);
+            FileUploadRoutes uploadRoutes = new FileUploadRoutes(context, routes, this);
             uploadRoutes.mountRoutes();
             logger.info("File upload routes mounted at /data/logixemulator/*");
         } catch (Exception e) {
@@ -121,87 +120,44 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook {
         }
     }
 
-    /**
-     * Mount web resources from the "mounted" folder.
-     * Files in the mounted/ directory will be accessible at /res/logixemulator/*
-     *
-     * IMPORTANT: Ignition automatically adds the /res/logixemulator prefix based on
-     * getMountPathAlias(). Do NOT replicate this path structure in your filesystem.
-     *
-     * Example mapping:
-     *   Filesystem: gateway/src/main/resources/mounted/simple-upload.html
-     *   URL:        /res/logixemulator/simple-upload.html
-     */
     @Override
     public Optional<String> getMountedResourceFolder() {
         return Optional.of("mounted");
     }
 
-    /**
-     * Return the mount path alias for web resources.
-     * This alias determines the URL prefix for BOTH resources and data routes.
-     *
-     * Public resources (from getMountedResourceFolder) at /res/logixemulator/*:
-     * - /res/logixemulator/index.html - Redirect page to authenticated upload
-     * - /res/logixemulator/plc-file-upload.js - Form enhancement script
-     *
-     * Authenticated data routes (from mountRouteHandlers) at /data/logixemulator/*:
-     * - /data/logixemulator/connection-browser - Connection Browser page (requires login)
-     * - /data/logixemulator/edit-program - Edit program page (requires login)
-     * - /data/logixemulator/upload - File upload endpoint (requires login)
-     * - /data/logixemulator/devices - List devices (requires login)
-     * - /data/logixemulator/health - Health check (public)
-     *
-     * Legacy routes (redirect to Connection Browser):
-     * - /data/logixemulator/page - Redirects to connection-browser
-     * - /data/logixemulator/tag-browser - Redirects to connection-browser
-     *
-     * SECURITY: HTML pages are served through authenticated routes (/data/*)
-     * to ensure only logged-in users can access the upload functionality.
-     */
     @Override
     public Optional<String> getMountPathAlias() {
         return Optional.of("logixemulator");
     }
 
-    /**
-     * Get the gateway context for use by other components.
-     */
     public GatewayContext getGatewayContext() {
         return context;
     }
 
-    /**
-     * Register a device instance when it starts up.
-     * This allows FileUploadRoutes to find devices by name.
-     */
-    public static void registerDevice(String deviceName, LogixEmulatorDevice device) {
-        deviceRegistry.put(deviceName, device);
-        LoggerFactory.getLogger(SimulatorModuleHook.class)
-            .info("Device registered: {}", deviceName);
+    // =========================================================================
+    // DeviceRegistry — instance methods (delegate to static map)
+    // =========================================================================
+
+    @Override
+    public Optional<LogixEmulatorDevice> findDeviceByName(String name) {
+        return Optional.ofNullable(deviceRegistry.get(name));
     }
 
-    /**
-     * Unregister a device instance when it shuts down.
-     */
-    public static void unregisterDevice(String deviceName) {
-        deviceRegistry.remove(deviceName);
-        LoggerFactory.getLogger(SimulatorModuleHook.class)
-            .info("Device unregistered: {}", deviceName);
-    }
-
-    /**
-     * Get all registered devices.
-     */
-    public static Collection<LogixEmulatorDevice> getRegisteredDevices() {
+    @Override
+    public Collection<LogixEmulatorDevice> getRegisteredDevices() {
         return deviceRegistry.values();
     }
 
-    /**
-     * Find a device by name.
-     */
-    public static Optional<LogixEmulatorDevice> findDeviceByName(String deviceName) {
-        return Optional.ofNullable(deviceRegistry.get(deviceName));
+    @Override
+    public void registerDevice(String name, LogixEmulatorDevice device) {
+        deviceRegistry.put(name, device);
+        logger.info("Device registered: {}", name);
+    }
+
+    @Override
+    public void unregisterDevice(String name) {
+        deviceRegistry.remove(name);
+        logger.info("Device unregistered: {}", name);
     }
 
 }

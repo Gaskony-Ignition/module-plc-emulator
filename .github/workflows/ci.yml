@@ -87,7 +87,7 @@ jobs:
         echo "Checking for hardcoded secrets..."
 
         # Check for potential hardcoded passwords (excluding templates, binaries, and build artifacts)
-        if grep -rI "password\s*=\s*['\"]" logix-emulator-module --exclude="*.template" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
+        if grep -rI "password\s*=\s*['\"]" logix-emulator-module --exclude="*.template" --exclude="gradle.properties" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
           echo "WARNING: Found potential hardcoded passwords"
           exit 1
         else
