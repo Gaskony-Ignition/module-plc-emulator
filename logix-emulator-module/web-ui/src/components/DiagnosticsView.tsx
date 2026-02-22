@@ -22,12 +22,24 @@ interface DeviceDetail {
   enabled: boolean
 }
 
+interface LogEntry {
+  id: string
+  timestamp: string
+  level: string
+  source: string
+  logger: string
+  message: string
+}
+
 function DiagnosticsView() {
   const [devices, setDevices] = useState<DeviceDetail[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [moduleLogs, setModuleLogs] = useState<LogEntry[]>([])
+  const [logsLoading, setLogsLoading] = useState(true)
   const timerRef = useRef<number | null>(null)
+  const logsTimerRef = useRef<number | null>(null)
 
   const fetchData = useCallback(async (isManual = false) => {
     try {
@@ -79,6 +91,28 @@ function DiagnosticsView() {
     }
   }, [])
 
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch('/data/logixemulator/system/logs?limit=100', {
+        credentials: 'same-origin',
+        signal: AbortSignal.timeout(5000),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.success && data.entries) {
+        const filtered: LogEntry[] = data.entries.filter((e: LogEntry) =>
+          (e.source || '').toLowerCase().includes('logix') ||
+          (e.logger || '').toLowerCase().includes('logix')
+        )
+        setModuleLogs(filtered.slice(-50))
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLogsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     fetchData()
     timerRef.current = window.setInterval(() => fetchData(), 30000)
@@ -87,12 +121,20 @@ function DiagnosticsView() {
     }
   }, [fetchData])
 
+  useEffect(() => {
+    fetchLogs()
+    logsTimerRef.current = window.setInterval(fetchLogs, 15000)
+    return () => {
+      if (logsTimerRef.current !== null) clearInterval(logsTimerRef.current)
+    }
+  }, [fetchLogs])
+
   const getStatusColor = (status: string) => {
     const s = status?.toLowerCase() || ''
-    if (s.includes('connect') || s.includes('running')) return '#a6e3a1'
-    if (s.includes('fault') || s.includes('error')) return '#f38ba8'
-    if (s.includes('disabled')) return '#6c7086'
-    return '#fab387'
+    if (s.includes('connect') || s.includes('running')) return '#98c379'
+    if (s.includes('fault') || s.includes('error')) return '#e06c75'
+    if (s.includes('disabled')) return '#6b7280'
+    return '#e5c07b'
   }
 
   const formatFileSize = (bytes: number) => {
@@ -100,6 +142,16 @@ function DiagnosticsView() {
     if (bytes < 1024) return `${bytes} B`
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  const getLevelClass = (level: string) => {
+    switch ((level || '').toUpperCase()) {
+      case 'ERROR': case 'FATAL': return 'diag-log-error'
+      case 'WARN': return 'diag-log-warn'
+      case 'INFO': return 'diag-log-info'
+      case 'DEBUG': return 'diag-log-debug'
+      default: return ''
+    }
   }
 
   return (
@@ -115,7 +167,7 @@ function DiagnosticsView() {
         <div className="diagnostics-header-actions">
           <button
             className="diagnostics-refresh-btn"
-            onClick={() => fetchData(true)}
+            onClick={() => { fetchData(true); fetchLogs() }}
             disabled={refreshing}
             title="Refresh"
           >
@@ -181,6 +233,37 @@ function DiagnosticsView() {
           ))}
         </div>
       )}
+
+      <div className="diagnostics-logs-section">
+        <div className="diagnostics-section-title">Module Logs</div>
+        <div className="diagnostics-logs-table">
+          <div className="diagnostics-logs-thead">
+            <span className="diag-log-col-time">Timestamp</span>
+            <span className="diag-log-col-level">Level</span>
+            <span className="diag-log-col-source">Logger</span>
+            <span className="diag-log-col-msg">Message</span>
+          </div>
+          <div className="diagnostics-logs-body">
+            {logsLoading ? (
+              <div className="diagnostics-logs-empty">Loading module logs...</div>
+            ) : moduleLogs.length === 0 ? (
+              <div className="diagnostics-logs-empty">No module log entries found</div>
+            ) : (
+              moduleLogs.map(entry => (
+                <div
+                  key={entry.id || entry.timestamp + entry.message}
+                  className={`diagnostics-log-row ${getLevelClass(entry.level)}`}
+                >
+                  <span className="diag-log-col-time">{entry.timestamp}</span>
+                  <span className={`diag-log-col-level diag-log-badge ${getLevelClass(entry.level)}`}>{entry.level}</span>
+                  <span className="diag-log-col-source" title={entry.logger || entry.source}>{entry.source || entry.logger}</span>
+                  <span className="diag-log-col-msg" title={entry.message}>{entry.message}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

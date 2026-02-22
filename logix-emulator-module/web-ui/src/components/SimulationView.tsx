@@ -170,10 +170,10 @@ function SimulationView() {
 
   const getStatusColor = (status: string) => {
     const s = status.toLowerCase()
-    if (s === 'connected' || s === 'running') return '#a6e3a1'
-    if (s === 'fault' || s === 'error') return '#f38ba8'
-    if (s === 'disabled') return '#6c7086'
-    return '#fab387'
+    if (s === 'connected' || s === 'running') return '#98c379'
+    if (s === 'fault' || s === 'error') return '#e06c75'
+    if (s === 'disabled') return '#6b7280'
+    return '#e5c07b'
   }
 
   const simEnabledDevices = devices.filter(d => d.simulationEnabled)
@@ -200,6 +200,8 @@ function SimulationView() {
 
   return (
     <div className="simulation-view">
+
+      {/* Header — floating gradient card */}
       <div className="sim-header">
         <div className="sim-header-left">
           <Zap size={20} />
@@ -215,17 +217,21 @@ function SimulationView() {
         </div>
       </div>
 
-      <div className="sim-summary">
-        <div className="sim-summary-stat">
-          <HardDrive size={14} />
-          <span>{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
+      {/* Stat cards */}
+      <div className="sim-stat-grid">
+        <div className="sim-stat-card">
+          <div className="sim-stat-card-icon"><HardDrive size={18} /></div>
+          <div className="sim-stat-card-label">Total Devices</div>
+          <div className="sim-stat-card-value">{devices.length}</div>
         </div>
-        <div className="sim-summary-stat sim-active">
-          <Zap size={14} />
-          <span>{simEnabledDevices.length} simulation enabled</span>
+        <div className="sim-stat-card">
+          <div className="sim-stat-card-icon"><Zap size={18} /></div>
+          <div className="sim-stat-card-label">Simulation Active</div>
+          <div className="sim-stat-card-value">{simEnabledDevices.length}</div>
         </div>
       </div>
 
+      {/* Device list */}
       <div className="sim-device-list">
         {devices.length === 0 ? (
           <div className="sim-empty">

@@ -76,9 +76,9 @@ function StatusBar() {
   }
 
   const getUsageColor = (pct: number) => {
-    if (pct < 50) return '#a6e3a1'
-    if (pct < 75) return '#f9e2af'
-    return '#f38ba8'
+    if (pct < 50) return '#98c379'
+    if (pct < 75) return '#e5c07b'
+    return '#e06c75'
   }
 
   const ramPct = stats.ramTotal > 0 ? (stats.ramUsage / stats.ramTotal) * 100 : 0

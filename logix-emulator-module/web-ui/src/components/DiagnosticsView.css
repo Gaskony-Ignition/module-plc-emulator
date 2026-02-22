@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Diagnostics View - Device health cards
+   Diagnostics View - Device health cards + module logs
    Scoped to .logix-app
    ========================================================================== */
 
@@ -15,15 +15,15 @@
   background: var(--bg-primary);
 }
 
+/* Header — floating gradient card (matches AI Terminal) */
 .logix-app .diagnostics-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
   margin-bottom: 24px;
-  background: #1e1e2e;
-  border: 1px solid #313244;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
+  border-radius: var(--radius-lg);
 }
 
 .logix-app .diagnostics-header-left {
@@ -33,21 +33,21 @@
 }
 
 .logix-app .diagnostics-header-left > svg {
-  color: #89b4fa;
+  color: var(--accent-blue);
   flex-shrink: 0;
 }
 
 .logix-app .diagnostics-header h2 {
   font-size: 20px;
   font-weight: 600;
-  color: #cdd6f4;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .logix-app .diagnostics-header p {
   font-size: 13px;
-  color: #a6adc8;
-  margin: 0;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
 }
 
 .logix-app .diagnostics-header-actions {
@@ -62,18 +62,18 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #313244;
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   background: transparent;
-  color: #a6adc8;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .logix-app .diagnostics-refresh-btn:hover {
-  background: #313244;
-  border-color: #45475a;
-  color: #cdd6f4;
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
 
 .logix-app .diagnostics-refresh-btn:disabled {
@@ -95,18 +95,19 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
+  margin-bottom: 32px;
 }
 
 .logix-app .diagnostics-card {
-  background: #1e1e2e;
-  border: 1px solid #313244;
-  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   transition: border-color var(--transition-fast);
 }
 
 .logix-app .diagnostics-card:hover {
-  border-color: #45475a;
+  border-color: var(--border-hover);
 }
 
 .logix-app .diagnostics-card-header {
@@ -115,7 +116,7 @@
   gap: 8px;
   padding: 12px 16px;
   background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid var(--border-default);
 }
 
 .logix-app .diagnostics-status-dot {
@@ -155,7 +156,7 @@
 }
 
 .logix-app .diagnostics-field-value.active {
-  color: #a6e3a1;
+  color: var(--accent-success);
 }
 
 /* States */
@@ -168,9 +169,10 @@
   color: var(--text-muted);
   font-size: 13px;
   text-align: center;
-  background: #1e1e2e;
-  border: 1px dashed #313244;
-  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
 }
 
 .logix-app .diagnostics-error {
@@ -202,16 +204,153 @@
   background: rgba(224, 108, 117, 0.15);
 }
 
-/* Scrollbar */
-.logix-app .diagnostics-view::-webkit-scrollbar {
+/* ============================================================
+   Module Logs Section
+   ============================================================ */
+
+.logix-app .diagnostics-logs-section {
+  margin-top: 8px;
+}
+
+.logix-app .diagnostics-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.logix-app .diagnostics-logs-table {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.logix-app .diagnostics-logs-thead {
+  display: grid;
+  grid-template-columns: 160px 60px 160px 1fr;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.logix-app .diagnostics-logs-body {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.logix-app .diagnostics-logs-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.logix-app .diagnostics-log-row {
+  display: grid;
+  grid-template-columns: 160px 60px 160px 1fr;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid rgba(42, 48, 57, 0.4);
+  font-size: 12px;
+  align-items: center;
+  transition: background var(--transition-fast);
+}
+
+.logix-app .diagnostics-log-row:last-child {
+  border-bottom: none;
+}
+
+.logix-app .diagnostics-log-row:hover {
+  background: rgba(42, 48, 57, 0.3);
+}
+
+.logix-app .diag-log-col-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logix-app .diag-log-col-level {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.logix-app .diag-log-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.logix-app .diag-log-col-source {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logix-app .diag-log-col-msg {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Log level colours */
+.logix-app .diag-log-error .diag-log-col-level,
+.logix-app .diag-log-badge.diag-log-error {
+  color: var(--accent-error);
+  background: rgba(224, 108, 117, 0.12);
+}
+
+.logix-app .diag-log-warn .diag-log-col-level,
+.logix-app .diag-log-badge.diag-log-warn {
+  color: var(--accent-warning);
+  background: rgba(229, 192, 123, 0.12);
+}
+
+.logix-app .diag-log-info .diag-log-col-level,
+.logix-app .diag-log-badge.diag-log-info {
+  color: var(--accent-blue);
+  background: rgba(137, 180, 250, 0.12);
+}
+
+.logix-app .diag-log-debug .diag-log-col-level,
+.logix-app .diag-log-badge.diag-log-debug {
+  color: var(--text-muted);
+  background: rgba(107, 114, 128, 0.12);
+}
+
+/* Scrollbars */
+.logix-app .diagnostics-view::-webkit-scrollbar,
+.logix-app .diagnostics-logs-body::-webkit-scrollbar {
   width: 8px;
 }
 
-.logix-app .diagnostics-view::-webkit-scrollbar-track {
+.logix-app .diagnostics-view::-webkit-scrollbar-track,
+.logix-app .diagnostics-logs-body::-webkit-scrollbar-track {
   background: var(--bg-primary);
 }
 
-.logix-app .diagnostics-view::-webkit-scrollbar-thumb {
-  background: var(--border-default);
+.logix-app .diagnostics-view::-webkit-scrollbar-thumb,
+.logix-app .diagnostics-logs-body::-webkit-scrollbar-thumb {
+  background: var(--border-light);
   border-radius: 4px;
+}
+
+.logix-app .diagnostics-view::-webkit-scrollbar-thumb:hover,
+.logix-app .diagnostics-logs-body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
 }

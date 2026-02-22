@@ -15,16 +15,15 @@
   background: var(--bg-primary);
 }
 
-/* Dashboard header */
+/* Dashboard header — floating gradient card (matches AI Terminal) */
 .logix-app .dashboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
   margin-bottom: 24px;
-  background: #1e1e2e;
-  border: 1px solid #313244;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
+  border-radius: var(--radius-lg);
 }
 
 .logix-app .dashboard-header-left {
@@ -34,21 +33,21 @@
 }
 
 .logix-app .dashboard-header-left > svg {
-  color: #89b4fa;
+  color: var(--accent-blue);
   flex-shrink: 0;
 }
 
 .logix-app .dashboard-header h2 {
   font-size: 20px;
   font-weight: 600;
-  color: #cdd6f4;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .logix-app .dashboard-header p {
   font-size: 13px;
-  color: #a6adc8;
-  margin: 0;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
 }
 
 /* Stats cards grid */
@@ -73,9 +72,9 @@
 
 /* Stat card */
 .logix-app .dashboard-stat-card {
-  background: #1e1e2e;
-  border: 1px solid #313244;
-  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -84,13 +83,13 @@
 }
 
 .logix-app .dashboard-stat-card:hover {
-  border-color: #45475a;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-hover);
 }
 
 .logix-app .dashboard-stat-card-label {
   font-size: 12px;
-  color: #a6adc8;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: 500;
@@ -99,19 +98,19 @@
 .logix-app .dashboard-stat-card-value {
   font-size: 28px;
   font-weight: 700;
-  color: #89b4fa;
+  color: var(--accent-blue);
   line-height: 1.2;
 }
 
 .logix-app .dashboard-stat-card-icon {
-  color: #89b4fa;
+  color: var(--accent-blue);
   opacity: 0.6;
   margin-bottom: 4px;
 }
 
 /* Skeleton loading */
 .logix-app .dashboard-stat-card.loading .dashboard-stat-card-value {
-  background: linear-gradient(90deg, #313244 25%, #45475a 50%, #313244 75%);
+  background: linear-gradient(90deg, var(--bg-active) 25%, var(--border-hover) 50%, var(--bg-active) 75%);
   background-size: 200% 100%;
   animation: logix-shimmer 1.5s infinite;
   border-radius: var(--radius-sm);
@@ -138,8 +137,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #1e1e2e;
-  border: 1px solid #313244;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   cursor: pointer;
@@ -149,12 +148,12 @@
 }
 
 .logix-app .dashboard-quick-action-btn:hover {
-  background: #313244;
-  border-color: #45475a;
+  background: var(--bg-active);
+  border-color: var(--border-hover);
 }
 
 .logix-app .dashboard-quick-action-btn svg {
-  color: #89b4fa;
+  color: var(--accent-blue);
 }
 
 /* Error state */
@@ -197,10 +196,10 @@
 }
 
 .logix-app .dashboard-view::-webkit-scrollbar-thumb {
-  background: var(--border-default);
+  background: var(--border-light);
   border-radius: 4px;
 }
 
 .logix-app .dashboard-view::-webkit-scrollbar-thumb:hover {
-  background: #45475a;
+  background: var(--border-hover);
 }

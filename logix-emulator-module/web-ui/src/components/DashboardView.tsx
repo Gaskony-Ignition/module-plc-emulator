@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
-  LayoutDashboard, HardDrive, Tag, Activity, AlertCircle, ArrowRight
+  LayoutDashboard, HardDrive, Tag, Activity, Zap, AlertCircle, ArrowRight
 } from 'lucide-react'
 import './DashboardView.css'
 
@@ -113,7 +113,7 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
   const statCards = [
     { label: 'Devices', value: stats.deviceCount, icon: HardDrive },
     { label: 'Total Tags', value: stats.totalTags, icon: Tag },
-    { label: 'Simulating', value: stats.simulatingDevices, icon: Activity },
+    { label: 'Simulating', value: stats.simulatingDevices, icon: Zap },
     { label: 'Healthy', value: stats.healthyDevices, icon: Activity },
   ]
 

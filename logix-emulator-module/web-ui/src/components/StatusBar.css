@@ -11,10 +11,10 @@
   min-height: 28px;
   max-height: 28px;
   padding: 0 12px;
-  background: #11111b;
+  background: var(--bg-statusbar);
   border-top: 1px solid var(--border-default);
   font-size: 11px;
-  color: #a6adc8;
+  color: var(--text-secondary);
   flex-shrink: 0;
   user-select: none;
   z-index: 10;
@@ -31,7 +31,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #6c7086;
+  color: var(--text-muted);
 }
 
 .logix-app .logix-status-bar-item svg {
@@ -39,7 +39,7 @@
 }
 
 .logix-app .logix-status-bar-separator {
-  color: #45475a;
+  color: var(--border-light);
   margin: 0 2px;
   user-select: none;
 }
@@ -49,13 +49,13 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  color: #6c7086;
+  color: var(--text-muted);
 }
 
 .logix-app .gsb-bar {
   width: 48px;
   height: 4px;
-  background: #313244;
+  background: var(--bg-active);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -64,4 +64,11 @@
   height: 100%;
   border-radius: 2px;
   transition: width 0.5s ease;
+}
+
+.logix-app .gsb-value {
+  font-size: 10px;
+  color: var(--text-secondary);
+  min-width: 32px;
+  text-align: right;
 }

@@ -6,14 +6,13 @@ import DashboardView from "./components/DashboardView";
 import DevicesView from "./components/DevicesView";
 import TagsView from "./components/TagsView";
 import DiagnosticsView from "./components/DiagnosticsView";
-import LogsView from "./components/LogsView";
 import SimulationView from "./components/SimulationView";
 import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
 const AUTH_CHECK_URL = "/data/logixemulator/auth/check";
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.0.2";
+const MODULE_VERSION = "9.0.3";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
@@ -94,8 +93,6 @@ const App: React.FC = () => {
         return <TagsView />;
       case 'diagnostics':
         return <DiagnosticsView />;
-      case 'logs':
-        return <LogsView />;
       case 'simulation':
         return <SimulationView />;
       default:

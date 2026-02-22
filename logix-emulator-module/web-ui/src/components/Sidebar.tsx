@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   LayoutDashboard, HardDrive, Tag, Activity, Zap,
-  FileText, ChevronLeft, ChevronRight, ExternalLink
+  ChevronLeft, ChevronRight, ExternalLink
 } from 'lucide-react'
 import './Sidebar.css'
 
@@ -16,15 +16,15 @@ interface NavItem {
   label: string
   icon: React.ComponentType<{ size?: number | string }>
   enabled: boolean
+  beta?: boolean
 }
 
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, enabled: true },
   { id: 'devices', label: 'Devices', icon: HardDrive, enabled: true },
   { id: 'tags', label: 'Tags', icon: Tag, enabled: true },
-  { id: 'simulation', label: 'Simulation', icon: Zap, enabled: true },
+  { id: 'simulation', label: 'Simulation', icon: Zap, enabled: true, beta: true },
   { id: 'diagnostics', label: 'Diagnostics', icon: Activity, enabled: true },
-  { id: 'logs', label: 'Logs', icon: FileText, enabled: true },
 ]
 
 const STORAGE_KEY = 'logix-sidebar-collapsed'
@@ -84,10 +84,13 @@ function Sidebar({ activeView, onNavigate, moduleVersion }: SidebarProps) {
               <span className="nav-sidebar-item-icon">
                 <Icon size={18} />
               </span>
-              <span className="nav-sidebar-item-label">{item.label}</span>
+              <span className="nav-sidebar-item-label">
+                {item.label}
+                {item.beta && <span className="nav-sidebar-beta-badge">Beta</span>}
+              </span>
               {(isCollapsed || !item.enabled) && (
                 <span className="nav-sidebar-tooltip">
-                  {item.enabled ? item.label : `${item.label} - Coming Soon`}
+                  {item.enabled ? `${item.label}${item.beta ? ' (Beta)' : ''}` : `${item.label} - Coming Soon`}
                 </span>
               )}
             </button>
