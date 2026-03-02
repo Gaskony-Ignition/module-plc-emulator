@@ -32,17 +32,6 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x logix-emulator-module/gradlew
 
-    - name: Create signing configuration
-      working-directory: logix-emulator-module
-      run: |
-        echo "# CI/CD signing configuration" > gradle.properties
-        echo "ignition.signing.keystoreFile=keystore.jks" >> gradle.properties
-        echo "ignition.signing.keystorePassword=***REDACTED***" >> gradle.properties
-        echo "ignition.signing.certFile=certificate.der" >> gradle.properties
-        echo "ignition.signing.certAlias=plcsimulator" >> gradle.properties
-        echo "ignition.signing.certPassword=***REDACTED***" >> gradle.properties
-        cat gradle.properties
-
     - name: Build with Gradle
       working-directory: logix-emulator-module
       run: ./gradlew build --no-daemon --console=plain

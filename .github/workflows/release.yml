@@ -40,17 +40,19 @@ jobs:
         run: |
           SIGNING_DIR="${HOME}/.ignition-signing"
           mkdir -p "$SIGNING_DIR"
-          echo "${{ secrets.SIGNING_KEYSTORE }}" | base64 -d > "$SIGNING_DIR/gaskony-keystore.jks"
-          echo "${{ secrets.SIGNING_CERT }}" | base64 -d > "$SIGNING_DIR/gaskony-cert.pem"
-          # Create gradle.properties from template with CI signing secrets
-          cp gradle.properties.template gradle.properties
-          sed -i \
-            -e "s|ignition.signing.keystoreFile=.*|ignition.signing.keystoreFile=$SIGNING_DIR/gaskony-keystore.jks|" \
-            -e "s|ignition.signing.keystorePassword=.*|ignition.signing.keystorePassword=${{ secrets.SIGNING_PASSWORD }}|" \
-            -e "s|ignition.signing.certFile=.*|ignition.signing.certFile=$SIGNING_DIR/gaskony-cert.pem|" \
-            -e "s|ignition.signing.certAlias=.*|ignition.signing.certAlias=gaskony-module|" \
-            -e "s|ignition.signing.certPassword=.*|ignition.signing.certPassword=${{ secrets.SIGNING_PASSWORD }}|" \
-            gradle.properties
+          echo "${SIGNING_KEYSTORE_B64}" | base64 -d > "$SIGNING_DIR/gaskony-keystore.jks"
+          echo "${SIGNING_CERT_B64}" | base64 -d > "$SIGNING_DIR/gaskony-cert.pem"
+          {
+            echo "ignition.signing.keystoreFile=${SIGNING_DIR}/gaskony-keystore.jks"
+            echo "ignition.signing.keystorePassword=${SIGNING_PASSWORD}"
+            echo "ignition.signing.certAlias=gaskony-module"
+            echo "ignition.signing.certPassword=${SIGNING_PASSWORD}"
+            echo "ignition.signing.certFile=${SIGNING_DIR}/gaskony-cert.pem"
+          } > gradle.properties
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE }}
+          SIGNING_CERT_B64: ${{ secrets.SIGNING_CERT }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

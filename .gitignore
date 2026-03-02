@@ -11,8 +11,12 @@ Thumbs.db
 build/
 .gradle/
 
-# Secrets (never commit)
+# Module signing credentials (never commit)
 gradle.properties
+sign.props
 *.jks
+*.keystore
 *.p12
-keystore.jks
+*.pfx
+*.pem
+*.der
