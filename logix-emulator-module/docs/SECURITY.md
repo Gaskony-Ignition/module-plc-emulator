@@ -50,13 +50,13 @@ For production use, generate new certificates with private passwords:
 The development certificates in this repository:
 - **keystore.jks** - Development self-signed certificate
 - **certificate.der** - Development public certificate
-- **Password**: `***REDACTED***` (PUBLIC - dev only!)
+- **Password**: [stored in CI secrets]
 
 These certificates are:
 - ✅ Safe for development and testing
-- ✅ Allow immediate clone-and-build
+- ✅ Allow immediate clone-and-build (with credentials from secret management)
 - ❌ **NOT for production use**
-- ❌ **NOT secure** (password is public)
+- ❌ Passwords must never be committed to version control
 
 ### Security Checklist
 

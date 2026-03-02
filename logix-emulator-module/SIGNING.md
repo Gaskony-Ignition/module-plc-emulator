@@ -26,17 +26,17 @@ Issuer: CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA
 Algorithm: RSA 2048-bit
 Validity: 10 years (2025-2035)
 Alias: plcsimulator
-Password: ***REDACTED*** (PUBLIC - development only)
+Password: [stored in CI secrets]
 ```
 
 ## Security Warning ⚠️
 
 **THESE CERTIFICATES ARE FOR DEVELOPMENT/TESTING ONLY**
 
-The keystore password (`***REDACTED***`) is **PUBLIC** and committed to the repository. This is intentional for:
-- Reproducible builds across different environments
-- CI/CD compatibility without secret management
-- Immediate clone-and-build capability for developers
+The keystore password is stored in CI/CD secrets and should never be committed to version control. For local development:
+- Copy `gradle.properties.template` to `gradle.properties` and fill in credentials
+- Or use environment variables (see CI/CD Integration section)
+- Never commit `gradle.properties` to version control
 
 **DO NOT use these certificates for production deployments!**
 
@@ -50,12 +50,12 @@ For production:
 
 ### gradle.properties
 ```properties
-# Signing configuration
+# Signing configuration — copy from gradle.properties.template
 ignition.signing.keystoreFile=keystore.jks
-ignition.signing.keystorePassword=***REDACTED***
+ignition.signing.keystorePassword=[stored in CI secrets]
 ignition.signing.certFile=certificate.der
 ignition.signing.certAlias=plcsimulator
-ignition.signing.certPassword=***REDACTED***
+ignition.signing.certPassword=[stored in CI secrets]
 ```
 
 ### build.gradle.kts
@@ -83,8 +83,8 @@ keytool -genkeypair \
     -keysize 2048 \
     -validity 3650 \
     -keystore keystore.jks \
-    -storepass ***REDACTED*** \
-    -keypass ***REDACTED*** \
+    -storepass "$KEYSTORE_PASSWORD" \
+    -keypass "$KEYSTORE_PASSWORD" \
     -dname "CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US" \
     -ext "SAN=DNS:localhost,IP:127.0.0.1"
 
@@ -92,7 +92,7 @@ keytool -genkeypair \
 keytool -exportcert \
     -alias plcsimulator \
     -keystore keystore.jks \
-    -storepass ***REDACTED*** \
+    -storepass "$KEYSTORE_PASSWORD" \
     -file certificate.der \
     -rfc
 
@@ -197,11 +197,11 @@ This configuration mirrors the [ignition-module-python3-java](https://github.com
 | Keystore file | `keystore.jks` | `keystore.jks` |
 | Certificate file | `certificate.der` | `certificate.der` |
 | Alias | `gaskony` | `plcsimulator` |
-| Password | `***REDACTED***` | `***REDACTED***` |
+| Password | [stored in CI secrets] | [stored in CI secrets] |
 | Organization | Gaskony | Gaskony |
 | Signing enabled | ✅ Yes | ✅ Yes |
 | Config file | `gradle.properties` | `gradle.properties` |
-| Public passwords | ✅ Yes (dev only) | ✅ Yes (dev only) |
+| Public passwords | ❌ No (stored in CI secrets) | ❌ No (stored in CI secrets) |
 
 ## References
 
@@ -211,13 +211,11 @@ This configuration mirrors the [ignition-module-python3-java](https://github.com
 
 ## FAQ
 
-### Why are the passwords committed to git?
-This is a **development-only** configuration. The passwords are public to enable:
-- Easy onboarding for new developers
-- Reproducible builds across environments
-- CI/CD without complex secret management
-
-Production deployments should use private certificates stored securely.
+### How do I get the signing password?
+Signing passwords are stored in CI/CD secrets and are not committed to version control. For local development:
+- Copy `gradle.properties.template` to `gradle.properties`
+- Fill in credentials from your team's secret management system
+- Or use environment variables as documented in the CI/CD Integration section
 
 ### Will Ignition Gateway accept self-signed certificates?
 Yes. Ignition Gateway accepts self-signed module certificates without additional configuration. However, best practice for production is to use officially-signed modules.

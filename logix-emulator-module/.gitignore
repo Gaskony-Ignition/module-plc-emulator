@@ -19,6 +19,9 @@ package-lock.json
 *.swo
 *~
 
+# Claude Code
+.claude/
+
 # Logs
 *.log
 wrapper.log

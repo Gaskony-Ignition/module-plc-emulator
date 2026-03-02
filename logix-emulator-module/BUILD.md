@@ -45,19 +45,19 @@ The module is **already configured** with self-signed certificates for developme
 - **Certificate**: `certificate.der` (included in repository)
 - **Keystore**: `keystore.jks` (included in repository)
 - **Alias**: `plcsimulator`
-- **Password**: `***REDACTED***` (development only - PUBLIC)
+- **Password**: [stored in CI secrets]
 - **Organization**: Gaskony
 - **Validity**: 10 years (2025-2035)
 
-⚠️ **SECURITY WARNING**: These certificates use public development passwords and should ONLY be used for development/testing.
+⚠️ **SECURITY WARNING**: These certificates are for development/testing only. Signing passwords are stored in CI/CD secrets.
 
 The signing configuration is in `gradle.properties`:
 ```properties
 ignition.signing.keystoreFile=keystore.jks
-ignition.signing.keystorePassword=***REDACTED***
+ignition.signing.keystorePassword=[stored in CI secrets]
 ignition.signing.certFile=certificate.der
 ignition.signing.certAlias=plcsimulator
-ignition.signing.certPassword=***REDACTED***
+ignition.signing.certPassword=[stored in CI secrets]
 ```
 
 ### Regenerating Certificates
@@ -65,12 +65,12 @@ To generate new self-signed certificates:
 
 ```bash
 keytool -genkeypair -alias plcsimulator -keyalg RSA -keysize 2048 \
-    -validity 3650 -keystore keystore.jks -storepass ***REDACTED*** \
-    -keypass ***REDACTED*** \
+    -validity 3650 -keystore keystore.jks -storepass "$KEYSTORE_PASSWORD" \
+    -keypass "$KEYSTORE_PASSWORD" \
     -dname "CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US"
 
 keytool -exportcert -alias plcsimulator -keystore keystore.jks \
-    -storepass ***REDACTED*** -file certificate.der -rfc
+    -storepass "$KEYSTORE_PASSWORD" -file certificate.der -rfc
 ```
 
 ### For Production (Official Signing)
