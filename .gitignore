@@ -6,13 +6,29 @@ Thumbs.db
 .idea/
 .vscode/
 *.iml
+*.swp
+*.swo
+*~
 
 # Claude Code
 .claude/
 
-# Build outputs (covered by submodule gitignore too)
-build/
+# Gradle
 .gradle/
+build/
+bin/
+out/
+*.class
+
+# Node.js
+node_modules/
+.npm/
+yarn-error.log
+package-lock.json
+
+# Logs
+*.log
+wrapper.log
 
 # Module signing credentials (never commit)
 gradle.properties
@@ -23,3 +39,6 @@ sign.props
 *.pfx
 *.pem
 *.der
+
+# Note: gradle.properties.template is the template (safe to commit)
+# Developers should copy template to gradle.properties and fill in credentials

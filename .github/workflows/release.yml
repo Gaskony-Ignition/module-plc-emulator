@@ -12,10 +12,6 @@ jobs:
     permissions:
       contents: write
 
-    defaults:
-      run:
-        working-directory: ./logix-emulator-module
-
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -34,7 +30,7 @@ jobs:
         with:
           node-version: '18'
           cache: 'yarn'
-          cache-dependency-path: 'logix-emulator-module/web-ui/yarn.lock'
+          cache-dependency-path: 'web-ui/yarn.lock'
 
       - name: Set up module signing
         run: |
@@ -97,11 +93,10 @@ jobs:
           REF_NAME: ${{ github.ref_name }}
           MODL_FILE: ${{ steps.modl.outputs.file }}
           UNSIGNED_FILE: ${{ steps.modl.outputs.unsigned_file }}
-        working-directory: .
         run: |
-          ASSETS=("logix-emulator-module/${MODL_FILE}")
+          ASSETS=("${MODL_FILE}")
           if [ -n "$UNSIGNED_FILE" ]; then
-            ASSETS+=("logix-emulator-module/${UNSIGNED_FILE}")
+            ASSETS+=("${UNSIGNED_FILE}")
           fi
           # Delete existing release if present (e.g. created manually)
           gh release delete "${REF_NAME}" --yes 2>/dev/null || true

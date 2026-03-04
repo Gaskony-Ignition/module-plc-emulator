@@ -1,0 +1,450 @@
+/* ==========================================================================
+   Diagnostics View - Device health cards + module logs
+   Scoped to .app-wrapper
+   ========================================================================== */
+
+.app-wrapper .diagnostics-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+}
+
+/* Header — floating gradient card (matches AI Terminal) */
+.app-wrapper .diagnostics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
+  border-radius: var(--radius-lg);
+}
+
+.app-wrapper .diagnostics-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-wrapper .diagnostics-header-left > svg {
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.app-wrapper .diagnostics-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.app-wrapper .diagnostics-header p {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
+}
+
+.app-wrapper .diagnostics-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-wrapper .diagnostics-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diagnostics-refresh-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.app-wrapper .diagnostics-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-wrapper .diagnostics-refresh-btn .spinning {
+  animation: logix-spin 1s linear infinite;
+}
+
+@keyframes logix-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Device cards grid */
+.app-wrapper .diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.app-wrapper .diagnostics-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.app-wrapper .diagnostics-card:hover {
+  border-color: var(--border-hover);
+}
+
+.app-wrapper .diagnostics-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.app-wrapper .diagnostics-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.app-wrapper .diagnostics-device-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-wrapper .diagnostics-card-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-wrapper .diagnostics-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-wrapper .diagnostics-field-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.app-wrapper .diagnostics-field-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.app-wrapper .diagnostics-field-value.active {
+  color: var(--accent-success);
+}
+
+/* States */
+.app-wrapper .diagnostics-loading,
+.app-wrapper .diagnostics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+}
+
+.app-wrapper .diagnostics-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(224, 108, 117, 0.1);
+  border: 1px solid rgba(224, 108, 117, 0.3);
+  border-radius: var(--radius-md);
+  color: var(--accent-error);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.app-wrapper .diagnostics-error-retry {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--accent-error);
+  border-radius: var(--radius-sm);
+  color: var(--accent-error);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+.app-wrapper .diagnostics-error-retry:hover {
+  background: rgba(224, 108, 117, 0.15);
+}
+
+/* ============================================================
+   Module Logs Section
+   ============================================================ */
+
+.app-wrapper .diagnostics-logs-section {
+  margin-top: 8px;
+}
+
+.app-wrapper .diagnostics-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.app-wrapper .diagnostics-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Log controls bar (level pills + buttons) */
+.app-wrapper .diag-log-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-wrapper .diag-level-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.app-wrapper .diag-level-pill {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diag-level-pill:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.app-wrapper .diag-level-pill.active {
+  border-color: var(--border-hover);
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+/* Coloured active states matching level colours */
+.app-wrapper .diag-level-pill.diag-log-error.active {
+  border-color: var(--accent-error);
+  color: var(--accent-error);
+  background: rgba(224, 108, 117, 0.1);
+}
+.app-wrapper .diag-level-pill.diag-log-warn.active {
+  border-color: var(--accent-warning);
+  color: var(--accent-warning);
+  background: rgba(229, 192, 123, 0.1);
+}
+.app-wrapper .diag-level-pill.diag-log-info.active {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(137, 180, 250, 0.1);
+}
+.app-wrapper .diag-level-pill.diag-log-debug.active {
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+  background: var(--bg-active);
+}
+
+/* Icon buttons (auto-scroll, clear) */
+.app-wrapper .diag-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diag-control-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
+}
+
+.app-wrapper .diag-control-btn.active {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.app-wrapper .diagnostics-logs-table {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.app-wrapper .diagnostics-logs-thead {
+  display: grid;
+  grid-template-columns: 160px 60px 160px 1fr;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.app-wrapper .diagnostics-logs-body {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.app-wrapper .diagnostics-logs-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.app-wrapper .diagnostics-log-row {
+  display: grid;
+  grid-template-columns: 160px 60px 160px 1fr;
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid rgba(42, 48, 57, 0.4);
+  font-size: 12px;
+  align-items: center;
+  transition: background var(--transition-fast);
+}
+
+.app-wrapper .diagnostics-log-row:last-child {
+  border-bottom: none;
+}
+
+.app-wrapper .diagnostics-log-row:hover {
+  background: rgba(42, 48, 57, 0.3);
+}
+
+.app-wrapper .diag-log-col-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-wrapper .diag-log-col-level {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.app-wrapper .diag-log-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.app-wrapper .diag-log-col-source {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-wrapper .diag-log-col-msg {
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Log level colours */
+.app-wrapper .diag-log-error .diag-log-col-level,
+.app-wrapper .diag-log-badge.diag-log-error {
+  color: var(--accent-error);
+  background: rgba(224, 108, 117, 0.12);
+}
+
+.app-wrapper .diag-log-warn .diag-log-col-level,
+.app-wrapper .diag-log-badge.diag-log-warn {
+  color: var(--accent-warning);
+  background: rgba(229, 192, 123, 0.12);
+}
+
+.app-wrapper .diag-log-info .diag-log-col-level,
+.app-wrapper .diag-log-badge.diag-log-info {
+  color: var(--accent-blue);
+  background: rgba(137, 180, 250, 0.12);
+}
+
+.app-wrapper .diag-log-debug .diag-log-col-level,
+.app-wrapper .diag-log-badge.diag-log-debug {
+  color: var(--text-muted);
+  background: rgba(107, 114, 128, 0.12);
+}
+
+/* Scrollbars */
+.app-wrapper .diagnostics-view::-webkit-scrollbar,
+.app-wrapper .diagnostics-logs-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-track,
+.app-wrapper .diagnostics-logs-body::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-thumb,
+.app-wrapper .diagnostics-logs-body::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 4px;
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-thumb:hover,
+.app-wrapper .diagnostics-logs-body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}

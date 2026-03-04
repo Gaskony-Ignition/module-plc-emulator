@@ -1,0 +1,212 @@
+/* ==========================================================================
+   Logix PLC Emulator - Styles
+   Sidebar-driven multi-view layout — matched to AI Terminal aesthetic
+   ========================================================================== */
+
+/* Reset - scoped to module only */
+.app-wrapper,
+.app-wrapper * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.app-wrapper {
+  /* === Colour Palette — Catppuccin Mocha (standardised across all modules) === */
+  --bg-primary: #11111b;
+  --bg-secondary: #181825;
+  --bg-tertiary: #1e1e2e;
+  --bg-surface: #1e1e2e;
+  --bg-statusbar: #11111b;    /* status bar / deepest chrome */
+  --bg-hover: #313244;
+  --bg-active: #45475a;
+
+  --text-primary: #cdd6f4;
+  --text-secondary: #bac2de;
+  --text-tertiary: #a6adc8;
+  --text-muted: #6c7086;
+
+  --accent-primary: #89b4fa;
+  --accent-blue: #89b4fa;       /* icon/value blue */
+  --accent-orange: #fab387;     /* beta badges, secondary highlights */
+  --accent-error: #f38ba8;
+  --accent-success: #a6e3a1;
+  --accent-warning: #f9e2af;
+
+  --border-default: #313244;
+  --border-light: #45475a;
+  --border-hover: #585b70;    /* elevated hover/focus border */
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Shadows */
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+
+  /* Z-index */
+  --z-sidebar: 10;
+  --z-tooltip: 100;
+
+  /* Fonts */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+}
+
+/* Dedicated page header - module identity bar */
+.app-wrapper .dedicated-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.app-wrapper .dedicated-header svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+/* Outer layout - sidebar + content */
+.logix-outer-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Content area - view + status bar */
+.logix-content-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Active view container */
+.logix-active-view {
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Auth required overlay - full-page centered card */
+.app-wrapper .auth-required-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-primary);
+}
+
+.app-wrapper .auth-required-card {
+  text-align: center;
+  padding: 48px 56px;
+  border-radius: 12px;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-lg);
+  max-width: 440px;
+}
+
+.app-wrapper .auth-required-card .auth-module-identity {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.app-wrapper .auth-required-card .auth-module-identity svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.app-wrapper .auth-required-card .auth-divider {
+  width: 48px;
+  height: 1px;
+  background: var(--border-default);
+  margin: 20px auto;
+}
+
+.app-wrapper .auth-required-card .auth-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.8;
+}
+
+.app-wrapper .auth-required-card h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-wrapper .auth-required-card p {
+  margin: 4px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.app-wrapper .auth-required-card .auth-login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 10px 24px;
+  background: var(--accent-primary);
+  color: #11111b;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background var(--transition-fast);
+}
+
+.app-wrapper .auth-required-card .auth-login-btn:hover {
+  background: var(--accent-blue);
+}
+
+/* Disconnected banner */
+.connection-banner {
+  padding: 8px 16px;
+  background: var(--accent-error);
+  color: #ffffff;
+  font-size: 13px;
+  text-align: center;
+  font-weight: 500;
+  flex-shrink: 0;
+}

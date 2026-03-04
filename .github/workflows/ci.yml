@@ -30,13 +30,12 @@ jobs:
       with:
         node-version: '18'
         cache: 'yarn'
-        cache-dependency-path: 'logix-emulator-module/web-ui/yarn.lock'
+        cache-dependency-path: 'web-ui/yarn.lock'
 
     - name: Grant execute permission for gradlew
-      run: chmod +x logix-emulator-module/gradlew
+      run: chmod +x gradlew
 
     - name: Build with Gradle
-      working-directory: logix-emulator-module
       run: ./gradlew build --no-daemon --console=plain
 
     - name: Upload test results
@@ -45,8 +44,8 @@ jobs:
       with:
         name: test-results
         path: |
-          logix-emulator-module/gateway/build/test-results/
-          logix-emulator-module/gateway/build/reports/tests/
+          gateway/build/test-results/
+          gateway/build/reports/tests/
         retention-days: 30
 
     - name: Upload module artifact
@@ -54,7 +53,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: ignition-module
-        path: logix-emulator-module/build/*.modl
+        path: build/*.modl
         retention-days: 90
 
     - name: Display build info
@@ -62,7 +61,7 @@ jobs:
       run: |
         echo "Build completed successfully!"
         echo "Module artifacts:"
-        ls -lh logix-emulator-module/build/*.modl || echo "No .modl files found"
+        ls -lh build/*.modl || echo "No .modl files found"
 
   security-scan:
     name: Security Scan
@@ -79,7 +78,7 @@ jobs:
         echo "Checking for hardcoded secrets..."
 
         # Check for potential hardcoded passwords (excluding templates, binaries, and build artifacts)
-        if grep -rI "password\s*=\s*['\"]" logix-emulator-module --exclude="*.template" --exclude="gradle.properties" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
+        if grep -rI "password\s*=\s*['\"]" . --exclude="*.template" --exclude="gradle.properties" --exclude-dir=".git" --exclude-dir="build" --exclude-dir="node_modules" --exclude-dir=".gradle"; then
           echo "WARNING: Found potential hardcoded passwords"
           exit 1
         else
