@@ -5,11 +5,11 @@ opc-ua-gateway-api = "10.3.0"
 javax-servlet = "3.1.0"
 gateway-web = "8.3.0"
 wicket = "9.8.0"
-sqlite-jdbc = "3.47.1.0"
-junit-jupiter = "5.10.1"
-mockito = "5.7.0"
-assertj = "3.24.2"
-awaitility = "4.2.0"
+sqlite-jdbc = "3.49.1.0"
+junit-jupiter = "5.11.3"
+mockito = "5.18.0"
+assertj = "3.27.7"
+awaitility = "4.2.2"
 
 [libraries]
 ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
