@@ -20,7 +20,7 @@ dependencies {
     // Using compileOnly instead of modlImplementation to avoid classloader conflicts
     compileOnly(libs.opc.ua.gateway.api)
 
-    compileOnly(libs.javax.servlet)
+    compileOnly(libs.jakarta.servlet)
 
     // Gateway web UI dependencies for config pages
     compileOnly(libs.gateway.web)
@@ -45,7 +45,7 @@ dependencies {
     // Make compile-only dependencies available for tests
     testImplementation(libs.ignition.common)
     testImplementation(libs.ignition.gateway.api)
-    testImplementation(libs.javax.servlet)
+    testImplementation(libs.jakarta.servlet)
     testImplementation(libs.gson)
     testImplementation(libs.opc.ua.gateway.api)
 }

@@ -2,7 +2,7 @@
 ignition = "8.3.0"
 gson = "2.11.0"
 opc-ua-gateway-api = "10.3.0"
-javax-servlet = "3.1.0"
+jakarta-servlet = "5.0.0"
 gateway-web = "8.3.0"
 wicket = "9.8.0"
 sqlite-jdbc = "3.49.1.0"
@@ -18,7 +18,7 @@ ignition-designer-api = { module = "com.inductiveautomation.ignitionsdk:designer
 ignition-driver-api = { module = "com.inductiveautomation.ignitionsdk:driver-api", version.ref = "ignition" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 opc-ua-gateway-api = { module = "com.inductiveautomation.opcua:opc-ua-gateway-api", version.ref = "opc-ua-gateway-api" }
-javax-servlet = { module = "javax.servlet:javax.servlet-api", version.ref = "javax-servlet" }
+jakarta-servlet = { module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet" }
 gateway-web = { module = "com.inductiveautomation.ignition:gateway-web", version.ref = "gateway-web" }
 wicket-core = { module = "org.apache.wicket:wicket-core", version.ref = "wicket" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
