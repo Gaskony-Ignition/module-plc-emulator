@@ -1,6 +1,16 @@
 plugins {
     base
     id("io.ia.sdk.modl") version "0.5.0"
+    id("com.github.spotbugs") version "6.0.27" apply false
+    id("org.owasp.dependencycheck") version "12.1.0" apply false
+}
+
+// ── OWASP Dependency Check ──────────────────────────────────────────────────
+apply(plugin = "org.owasp.dependencycheck")
+configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
+    failBuildOnCVSS = 7.0f
+    formats = listOf("HTML", "JSON")
+    analyzers.assemblyEnabled = false
 }
 
 version = "9.1.1"
@@ -42,15 +52,35 @@ ignitionModule {
     skipModlSigning.set(keystoreFilePath.isBlank() || !file(keystoreFilePath).exists())
 }
 
-// ── Checkstyle ───────────────────────────────────────────────────────────────
+// ── Static analysis ──────────────────────────────────────────────────────────
 subprojects {
     afterEvaluate {
         if (plugins.hasPlugin("java") || plugins.hasPlugin("java-library")) {
             apply(plugin = "checkstyle")
+            apply(plugin = "com.github.spotbugs")
+            apply(plugin = "jacoco")
+
             configure<CheckstyleExtension> {
                 configFile = rootProject.file("config/checkstyle/checkstyle.xml")
                 toolVersion = "10.12.5"
                 isIgnoreFailures = true
+            }
+
+            configure<com.github.spotbugs.snom.SpotBugsExtension> {
+                ignoreFailures.set(true)
+                effort.set(com.github.spotbugs.snom.Effort.MAX)
+                reportLevel.set(com.github.spotbugs.snom.Confidence.MEDIUM)
+            }
+
+            configure<JacocoPluginExtension> {
+                toolVersion = "0.8.11"
+            }
+
+            tasks.withType<JacocoReport> {
+                reports {
+                    xml.required.set(true)
+                    html.required.set(true)
+                }
             }
         }
     }
