@@ -13,7 +13,7 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
     analyzers.assemblyEnabled = false
 }
 
-version = "9.1.1"
+version = "9.2.0"
 group = "com.gaskony"
 
 ignitionModule {
