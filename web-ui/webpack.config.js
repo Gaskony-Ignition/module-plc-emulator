@@ -47,6 +47,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
       new ForkTsCheckerWebpackPlugin(),
       new ESLintPlugin({
         files: "./src/**/*.{ts,tsx,js,jsx}",
+        configType: "flat",
         // Fail on errors in production builds to catch security issues
         failOnError: isProduction,
         failOnWarning: false,
