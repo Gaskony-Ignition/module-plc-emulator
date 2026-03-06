@@ -4,13 +4,13 @@
     "description": "Logix PLC Emulator WebUI Component",
     "main": "build/dist/index.js",
     "scripts": {
-        "build": "yarn run build:dev",
-        "build:dev": "yarn run build-dev",
+        "build": "npm run build:dev",
+        "build:dev": "npm run build-dev",
         "build-dev": "webpack --mode development",
-        "build:prod": "yarn run build-prod",
+        "build:prod": "npm run build-prod",
         "build-prod": "rimraf build/dist && webpack --mode production",
         "clean": "rimraf build/dist",
-        "deepClean": "yarn run clean && rimraf node_modules"
+        "deepClean": "npm run clean && rimraf node_modules"
     },
     "dependencies": {
         "lucide-react": "^0.575.0",
