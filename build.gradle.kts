@@ -70,7 +70,7 @@ subprojects {
                 ignoreFailures.set(false)
                 effort.set(com.github.spotbugs.snom.Effort.MAX)
                 reportLevel.set(com.github.spotbugs.snom.Confidence.MEDIUM)
-                excludeFilter.set(rootProject.file("config/spotbugs/exclude-filter.xml"))
+                excludeFilter.set(rootProject.file("config/spotbugs/exclude.xml"))
             }
 
             // Disable SpotBugs on test code — enforce only on production sources
