@@ -64,7 +64,7 @@ public class L5XParser implements PLCParser {
             factory.setExpandEntityReferences(false);
 
             DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(new ByteArrayInputStream(fileContent.getBytes()));
+            Document doc = builder.parse(new ByteArrayInputStream(fileContent.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
 
             JsonObject result = new JsonObject();
 

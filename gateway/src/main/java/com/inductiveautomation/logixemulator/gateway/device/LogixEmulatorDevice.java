@@ -336,8 +336,11 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
             File storageDir = new File(dataDir, "logix-emulator");
 
             if (!storageDir.exists()) {
-                storageDir.mkdirs();
-                logger.info("Created PLC file storage directory: {}", storageDir.getAbsolutePath());
+                if (!storageDir.mkdirs()) {
+                    logger.warn("Failed to create PLC file storage directory: {}", storageDir.getAbsolutePath());
+                } else {
+                    logger.info("Created PLC file storage directory: {}", storageDir.getAbsolutePath());
+                }
             }
 
             // Initialize version manager
@@ -944,7 +947,7 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         if (simulationEngine != null) {
             return simulationEngine.toggleTagSimulation(tagPath);
         }
-        return null;
+        return Boolean.FALSE;
     }
 
     /**

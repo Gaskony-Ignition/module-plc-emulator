@@ -312,7 +312,7 @@ public class SystemController {
                 candidates.add(new File(logsDir, "system_logs.idb"));
             }
         } catch (Exception e) {
-            // ignore
+            logger.trace("Could not resolve Ignition logs directory via SystemManager", e);
         }
 
         candidates.add(new File("/usr/local/bin/ignition/logs/system_logs.idb"));

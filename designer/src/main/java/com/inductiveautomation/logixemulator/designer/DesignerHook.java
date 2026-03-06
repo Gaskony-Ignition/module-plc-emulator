@@ -13,11 +13,9 @@ import org.slf4j.LoggerFactory;
 public class DesignerHook extends AbstractDesignerModuleHook {
 
     private final Logger logger = LoggerFactory.getLogger(getClass());
-    private DesignerContext context;
 
     @Override
     public void startup(DesignerContext context, LicenseState activationState) {
-        this.context = context;
         logger.info("Logix PLC Emulator module started in Designer");
     }
 

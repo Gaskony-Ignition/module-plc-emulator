@@ -39,7 +39,11 @@ public final class PathSecurity {
             throw new SecurityException("Invalid filename: too long (max 255 characters)");
         }
 
-        String sanitized = java.nio.file.Paths.get(filename).getFileName().toString();
+        java.nio.file.Path fileNamePath = java.nio.file.Paths.get(filename).getFileName();
+        if (fileNamePath == null) {
+            throw new SecurityException("Invalid filename: could not extract file name component");
+        }
+        String sanitized = fileNamePath.toString();
 
         if (sanitized.contains("/") || sanitized.contains("\\")) {
             throw new SecurityException("Invalid filename: contains path separators");

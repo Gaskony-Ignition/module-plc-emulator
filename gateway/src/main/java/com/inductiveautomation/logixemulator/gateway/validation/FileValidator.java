@@ -138,7 +138,7 @@ public class FileValidator {
         }
 
         // Check content size
-        long contentSize = content.getBytes().length;
+        long contentSize = content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
         if (contentSize > maxSizeBytes) {
             return ValidationResult.failure(String.format(
                 "Content size (%d MB) exceeds maximum allowed size (%d MB)",
@@ -223,6 +223,6 @@ public class FileValidator {
      * Get supported file extensions.
      */
     public static List<String> getSupportedExtensions() {
-        return SUPPORTED_EXTENSIONS;
+        return java.util.Collections.unmodifiableList(SUPPORTED_EXTENSIONS);
     }
 }

@@ -26,7 +26,7 @@ public class UDTDefinition {
     }
 
     public List<UDTMember> getMembers() {
-        return members;
+        return java.util.Collections.unmodifiableList(members);
     }
 
     /**
