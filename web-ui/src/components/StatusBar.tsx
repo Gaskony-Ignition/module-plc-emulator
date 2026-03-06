@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Cpu, MemoryStick, HardDrive, Activity } from 'lucide-react'
 import { API } from '../constants/api'
 import { apiGet } from '../utils/apiClient'

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   Zap, HardDrive, RefreshCw, Play, Square,
   AlertCircle, ChevronDown, ChevronRight

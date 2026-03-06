@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Activity, AlertCircle, RefreshCw, Trash2, ChevronsDown } from 'lucide-react'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
