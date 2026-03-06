@@ -94,10 +94,10 @@ ignition-module-plc-emulator/
 
 ## Build Quality Tools
 
-- **Checkstyle** 10.12.5 with `config/checkstyle/checkstyle.xml`
-- **SpotBugs** 6.0.27 (effort=MAX, confidence=MEDIUM, ignoreFailures=true)
+- **Checkstyle** 10.26.1 with `config/checkstyle/checkstyle.xml`
+- **SpotBugs** 6.4.8 (effort=MAX, confidence=MEDIUM, ignoreFailures=true)
 - **JaCoCo** 0.8.11 (XML + HTML reports)
-- **OWASP Dependency Check** 12.1.0 (failBuildOnCVSS=7.0)
+- **OWASP Dependency Check** 12.2.0 (failBuildOnCVSS=7.0)
 
 ## Version Management
 

@@ -9,15 +9,17 @@
         "clean": "rimraf build/dist",
         "deepClean": "npm run clean && rimraf node_modules",
         "test": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "lint": "eslint ."
     },
+    "private": true,
     "dependencies": {
         "lucide-react": "^0.575.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1"
     },
     "devDependencies": {
-        "@testing-library/jest-dom": "^5.17.0",
+        "@testing-library/jest-dom": "^6.6.3",
         "@testing-library/react": "^14.3.1",
         "@types/react": "^18.3.18",
         "@types/react-dom": "^18.3.5",

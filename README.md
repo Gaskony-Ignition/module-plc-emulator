@@ -110,4 +110,4 @@ The signed module will be at `build/LogixPLCEmulator-{version}.modl`.
 
 ## License
 
-Free / Open Source - Gaskony
+MIT License - see [LICENSE](LICENSE) for details
