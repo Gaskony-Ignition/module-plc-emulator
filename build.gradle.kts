@@ -73,6 +73,11 @@ subprojects {
                 excludeFilter.set(rootProject.file("config/spotbugs/exclude-filter.xml"))
             }
 
+            // Disable SpotBugs on test code — enforce only on production sources
+            tasks.matching { it.name == "spotbugsTest" }.configureEach {
+                enabled = false
+            }
+
             configure<JacocoPluginExtension> {
                 toolVersion = "0.8.11"
             }
