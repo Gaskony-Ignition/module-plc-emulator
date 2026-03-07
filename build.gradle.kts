@@ -21,7 +21,6 @@ ignitionModule {
     name.set("Logix PLC Emulator")
     id.set("com.inductiveautomation.opcua.drivers.logixemulator")
     moduleVersion.set(project.version.toString())
-    license.set("license.html")
     moduleDescription.set("Rockwell Logix PLC emulator for Ignition. Emulates CompactLogix/ControlLogix tag structures from L5K/L5X exports with full UDT/AOI expansion, hierarchical OPC-UA tags, hot-reload with incremental updates, simulation engine, and file versioning.")
     requiredIgnitionVersion.set("8.3.0")
     freeModule.set(true)
@@ -111,8 +110,6 @@ tasks.register("syncVersion") {
             Regex("""\.put\("moduleVersion",\s*"[^"]+"\)"""), """.put("moduleVersion", "$ver")""")
         sync(file("web-ui/src/App.tsx"),
             Regex("""const MODULE_VERSION = "[^"]+""""), """const MODULE_VERSION = "$ver"""")
-        sync(file("license.html"),
-            Regex("""(?<=<strong>Version:</strong> )[0-9.]+"""), ver)
         sync(file("README.md"),
             Regex("""(?m)^\*\*Version\*\*:\s*v[\d.]+"""), "**Version**: v${ver}")
 
