@@ -29,8 +29,8 @@ dependencies {
     // Include web-ui component bundle
     modlImplementation(projects.webUi)
 
-    // Only bundle dependencies NOT provided by Ignition/modules
-    modlImplementation(libs.gson)
+    // Gson is provided by Ignition at runtime - do NOT bundle
+    compileOnly(libs.gson)
 
     // SQLite JDBC - for reading gateway logs from system_logs.idb
     modlImplementation(libs.sqlite.jdbc)

@@ -1,31 +1,12 @@
-# Contributing to PLC Emulator
+# Contributing to PLC Emulator Module
 
-## Development Setup
-1. Clone the repository
-2. Copy `gradle.properties.template` to `gradle.properties` and fill in values
-3. Run `./gradlew build` to verify setup
+Thank you for your interest in contributing! Please see the shared contributing guide for all standards and processes:
 
-## Code Standards
-- Java 17 required
-- Follow existing code patterns (see CLAUDE.md)
-- SLF4J logging with `{}` placeholders, no string concatenation
-- Logger: `private static final Logger logger = LoggerFactory.getLogger(ClassName.class);`
+**[Shared Contributing Guide](/modules/CONTRIBUTING.md)**
 
-## Pull Request Process
-1. Create a feature branch from `main`
-2. Ensure `./gradlew build` passes (includes Checkstyle, SpotBugs, tests)
-3. Update CHANGELOG.md with your changes
-4. Submit PR with conventional commit title (feat/fix/docs/refactor/test/build/ci/chore)
+## Module-Specific Notes
 
-## Commit Messages
-Use [Conventional Commits](https://www.conventionalcommits.org/):
-- `feat:` new features
-- `fix:` bug fixes
-- `docs:` documentation changes
-- `refactor:` code refactoring
-- `test:` test additions/changes
-- `build:` build system changes
-- `ci:` CI/CD changes
-
-## Reporting Issues
-Open an issue on GitHub with a clear description, steps to reproduce, and module/Ignition versions.
+- OPC-UA device driver emulating Rockwell Logix PLC tag structures
+- Parses L5K/L5X/JSON/CSV file formats with full UDT/AOI expansion
+- Test with `./gradlew test`
+- Frontend: `cd web-ui && npm test`

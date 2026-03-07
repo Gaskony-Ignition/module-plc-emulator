@@ -1,6 +1,7 @@
 pluginManagement {
     repositories {
         gradlePluginPortal()
+        mavenCentral()
         maven {
             url = uri("https://nexus.inductiveautomation.com/repository/public/")
         }
@@ -10,6 +11,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
+        mavenCentral()
         maven {
             url = uri("https://nexus.inductiveautomation.com/repository/public/")
         }

@@ -1,6 +1,6 @@
 # CLAUDE.md - Logix PLC Emulator Module
 
-This file provides guidance to Claude Code when working with this repository.
+This file contains module-specific instructions. Shared standards are in `/modules/CLAUDE.md` and `/modules/.claude/skills/`.
 
 ## Project Overview
 

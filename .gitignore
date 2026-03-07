@@ -42,3 +42,8 @@ sign.props
 
 # Note: gradle.properties.template is the template (safe to commit)
 # Developers should copy template to gradle.properties and fill in credentials
+
+# Windows WSL metadata (must never be committed)
+*:Zone.Identifier
+*Zone.Identifier*
+*.Zone.Identifier
