@@ -1,6 +1,6 @@
 # Security Testing Guide - Logix PLC Emulator
 
-**Version**: 9.1.1
+**Version**: 9.2.0
 **Last Updated**: 2026-02-21
 **Security Status**: All critical vulnerabilities resolved
 
@@ -932,7 +932,7 @@ Discoverer:
 
 ## Version Information
 
-**Module Version**: 9.1.1
+**Module Version**: 9.2.0
 **Security Review Date**: 2025-11-22
 **Next Scheduled Review**: 2026-02-22 (quarterly)
 **Security Contact**: security@yourcompany.com
