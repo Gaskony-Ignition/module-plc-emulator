@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
  */
 public class DesignerHook extends AbstractDesignerModuleHook {
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger logger = LoggerFactory.getLogger(DesignerHook.class);
 
     @Override
     public void startup(DesignerContext context, LicenseState activationState) {

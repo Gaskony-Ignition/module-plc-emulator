@@ -34,7 +34,7 @@ public class SimulatorModuleHook extends AbstractDeviceModuleHook implements Dev
         return INSTANCE;
     }
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger logger = LoggerFactory.getLogger(SimulatorModuleHook.class);
     private GatewayContext context;
 
     // Device registry for file upload routes to access devices

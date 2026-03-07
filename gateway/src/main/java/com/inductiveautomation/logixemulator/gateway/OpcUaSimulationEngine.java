@@ -34,7 +34,7 @@ import java.util.function.Function;
  */
 public class OpcUaSimulationEngine {
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger logger = LoggerFactory.getLogger(OpcUaSimulationEngine.class);
     private final Random random = new Random();
     private final LogixEmulatorConfig.SimulationPattern defaultPattern;
     private final int updateIntervalMs;

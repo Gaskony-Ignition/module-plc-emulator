@@ -48,7 +48,7 @@ import java.util.Set;
  */
 public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implements Device {
 
-    private final Logger logger = LoggerFactory.getLogger(getClass());
+    private static final Logger logger = LoggerFactory.getLogger(LogixEmulatorDevice.class);
     private final Gson gson = new Gson();
 
     private final DeviceContext context;
