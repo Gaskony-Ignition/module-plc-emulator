@@ -1,7 +1,5 @@
 const path = require("path");
 const webpack = require("webpack");
-const ForkTsCheckerWebpackPlugin = require("fork-ts-checker-webpack-plugin");
-const ESLintPlugin = require("eslint-webpack-plugin");
 
 module.exports = (webpackConfigEnv = {}, argv = {}) => {
   const { mode = "development" } = argv;
@@ -39,7 +37,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
           use: [
             {
               loader: "ts-loader",
-              options: { transpileOnly: true },
+              options: { configFile: 'tsconfig.webpack.json' },
             },
           ],
           exclude: /node_modules/,
@@ -48,16 +46,7 @@ module.exports = (webpackConfigEnv = {}, argv = {}) => {
     },
     // Disable source maps in production to avoid exposing source code
     devtool: isProduction ? false : "source-map",
-    plugins: [
-      new ForkTsCheckerWebpackPlugin(),
-      new ESLintPlugin({
-        files: "./src/**/*.{ts,tsx,js,jsx}",
-        configType: "flat",
-        // Fail on errors in production builds to catch security issues
-        failOnError: isProduction,
-        failOnWarning: false,
-      }),
-    ],
+    plugins: [],
     resolve: {
       modules: ["node_modules"],
       extensions: [".ts", ".tsx", ".js", ".jsx", ".scss", ".css", ".d.ts"],

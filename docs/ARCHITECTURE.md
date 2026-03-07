@@ -37,7 +37,7 @@ The Logix PLC Emulator is an Ignition Gateway module that provides virtual PLC d
 ### Module Scopes
 
 ```
-Logix PLC Emulator (v9.2.0)
+Logix PLC Emulator (v9.2.1)
 ├── Gateway (G)     - Core device driver and OPC-UA server
 ├── Designer (D)    - Design-time integration (minimal)
 ├── Common (GD)     - Shared code between Gateway and Designer
@@ -796,6 +796,6 @@ export IGNITION_CERT_PASSWORD="your-production-cert-password"
 ---
 
 **Last Updated**: 2026-02-21
-**Module Version**: 9.2.0
+**Module Version**: 9.2.1
 **Ignition SDK**: 8.3.0
 **Java Version**: 17

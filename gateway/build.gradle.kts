@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    jacoco
 }
 
 java {
@@ -36,7 +37,9 @@ dependencies {
     modlImplementation(libs.sqlite.jdbc)
 
     // Testing dependencies
-    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.jupiter.api)
+    testImplementation(libs.junit.jupiter.params)
+    testRuntimeOnly(libs.junit.jupiter.engine)
     testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.junit.jupiter)
     testImplementation(libs.assertj.core)
@@ -52,18 +55,38 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
-
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         showStandardStreams = false
     }
+    finalizedBy(tasks.jacocoTestReport)
+}
 
-    // Fail build if no tests found
-    failFast = false
+jacoco {
+    toolVersion = "0.8.11"
+}
 
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
     reports {
+        xml.required.set(true)
         html.required.set(true)
-        junitXml.required.set(true)
+        csv.required.set(false)
     }
+}
+
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.10".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.named("check") {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }

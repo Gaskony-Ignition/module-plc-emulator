@@ -1,29 +1,13 @@
-# Ignition Module Signing Configuration - TEMPLATE
-# Copy this file to gradle.properties and fill in your actual credentials
-#
-# ⚠️  SECURITY WARNING ⚠️
-# DO NOT commit gradle.properties with real credentials to version control!
-# Use environment variables for CI/CD and production builds.
-#
-# For production builds, use environment variables:
-#   export IGNITION_KEYSTORE_PASSWORD="your-secure-password"
-#   export IGNITION_CERT_PASSWORD="your-secure-password"
-#   ./gradlew build
-#
-# For local development:
-#   1. Copy this file: cp gradle.properties.template gradle.properties
-#   2. Fill in credentials in gradle.properties (NOT committed)
-#   3. Or use environment variables as above
-#
-# To generate new certificates, see SIGNING.md for keytool commands
+# Gaskony Module Signing Configuration
 
-# Module version (build.gradle.kts is source of truth, this is for reference only)
-version=9.2.0
+# Keystore configuration
+ignition.signing.keystoreFile=YOUR_KEYSTORE_PATH_HERE
+ignition.signing.keystorePassword=YOUR_PASSWORD_HERE
 
-# Replace ALL placeholder values below before using this file
-# Signing configuration
-ignition.signing.keystoreFile=keystore.jks
-ignition.signing.keystorePassword=REPLACE_WITH_YOUR_KEYSTORE_PASSWORD
-ignition.signing.certFile=certificate.der
-ignition.signing.certAlias=plcsimulator
-ignition.signing.certPassword=REPLACE_WITH_YOUR_CERT_PASSWORD
+# Certificate configuration
+ignition.signing.certAlias=YOUR_CERT_ALIAS_HERE
+ignition.signing.certPassword=YOUR_PASSWORD_HERE
+
+# Certificate file (self-signed, exported from keystore)
+# For self-signed modules, certFile can point to the public certificate
+ignition.signing.certFile=YOUR_CERT_FILE_PATH_HERE

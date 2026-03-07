@@ -13,8 +13,13 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
     analyzers.assemblyEnabled = false
 }
 
-version = "9.2.0"
+version = "9.2.1"
 group = "com.gaskony"
+
+allprojects {
+    version = rootProject.version
+    group = "com.gaskony"
+}
 
 ignitionModule {
     fileName.set("LogixPLCEmulator-${project.version}")
@@ -53,40 +58,26 @@ ignitionModule {
 
 // ── Static analysis ──────────────────────────────────────────────────────────
 subprojects {
-    afterEvaluate {
-        if (plugins.hasPlugin("java") || plugins.hasPlugin("java-library")) {
-            apply(plugin = "checkstyle")
-            apply(plugin = "com.github.spotbugs")
-            apply(plugin = "jacoco")
+    plugins.withType<JavaPlugin> {
+        apply(plugin = "checkstyle")
+        apply(plugin = "com.github.spotbugs")
 
-            configure<CheckstyleExtension> {
-                configFile = rootProject.file("config/checkstyle/checkstyle.xml")
-                toolVersion = "10.26.1"
-                isIgnoreFailures = true
-            }
+        configure<CheckstyleExtension> {
+            toolVersion = "10.26.1"
+            configFile = rootProject.file("config/checkstyle/checkstyle.xml")
+            isIgnoreFailures = true
+        }
 
-            configure<com.github.spotbugs.snom.SpotBugsExtension> {
-                ignoreFailures.set(false)
-                effort.set(com.github.spotbugs.snom.Effort.MAX)
-                reportLevel.set(com.github.spotbugs.snom.Confidence.MEDIUM)
-                excludeFilter.set(rootProject.file("config/spotbugs/exclude.xml"))
-            }
+        configure<com.github.spotbugs.snom.SpotBugsExtension> {
+            ignoreFailures.set(false)
+            effort.set(com.github.spotbugs.snom.Effort.MAX)
+            reportLevel.set(com.github.spotbugs.snom.Confidence.MEDIUM)
+            excludeFilter.set(rootProject.file("config/spotbugs/exclude.xml"))
+        }
 
-            // Disable SpotBugs on test code — enforce only on production sources
-            tasks.matching { it.name == "spotbugsTest" }.configureEach {
-                enabled = false
-            }
-
-            configure<JacocoPluginExtension> {
-                toolVersion = "0.8.11"
-            }
-
-            tasks.withType<JacocoReport> {
-                reports {
-                    xml.required.set(true)
-                    html.required.set(true)
-                }
-            }
+        // Disable SpotBugs on test code — enforce only on production sources
+        tasks.matching { it.name == "spotbugsTest" }.configureEach {
+            enabled = false
         }
     }
 }
@@ -98,14 +89,13 @@ tasks.register("syncVersion") {
     doLast {
         val ver = project.version.toString()
         fun sync(f: File, pattern: Regex, replacement: String) {
+            if (!f.exists()) return
             val text = f.readText()
             val updated = text.replace(pattern, replacement)
             if (updated != text) { f.writeText(updated); logger.lifecycle("  synced ${f.name} → $ver") }
         }
         sync(file("web-ui/package.json"),
             Regex(""""version":\s*"[^"]+""""), """"version": "$ver"""")
-        sync(file("gradle.properties.template"),
-            Regex("""(?m)^version=.+$"""), "version=$ver")
         sync(file("gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/controller/SystemController.java"),
             Regex("""\.put\("moduleVersion",\s*"[^"]+"\)"""), """.put("moduleVersion", "$ver")""")
         sync(file("web-ui/src/App.tsx"),
