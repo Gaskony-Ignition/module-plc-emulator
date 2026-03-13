@@ -1,6 +1,6 @@
 # Known Issues and Limitations
 
-## Current Version: v9.2.1
+## Current Version: v9.2.2
 
 ### Known Limitations
 
@@ -58,12 +58,12 @@ Hot reload performs full address space rebuild when PLC file changes. For very l
 If you encounter issues not listed here:
 
 1. **Check Gateway Logs**: `Status > Logs > Gateway` (filter for "logixemulator")
-2. **Verify Module Version**: Config > Modules (should show v9.2.1)
+2. **Verify Module Version**: Config > Modules (should show v9.2.2)
 3. **Check Device Status**: Config > Devices > Edit device (status field shows current state)
 
 **Report Issues With:**
 - Ignition version (e.g., 8.3.2)
-- Module version (e.g., v9.2.1)
+- Module version (e.g., v9.2.2)
 - Parser type being used
 - Steps to reproduce
 - Relevant log excerpts

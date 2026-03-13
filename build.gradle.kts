@@ -13,7 +13,7 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
     analyzers.assemblyEnabled = false
 }
 
-version = "9.2.1"
+version = "9.2.2"
 group = "com.gaskony"
 
 allprojects {

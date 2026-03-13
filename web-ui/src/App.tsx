@@ -13,7 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.2.1";
+const MODULE_VERSION = "9.2.2";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
@@ -62,19 +62,21 @@ const App: React.FC = () => {
   if (status === "auth_required") {
     return (
       <div className="app-wrapper">
-        <div className="auth-required-overlay">
-          <div className="auth-required-card">
-            <div className="auth-module-identity">
-              <Cpu size={32} />
-              <span>Logix PLC Emulator</span>
+        <div className="app-container">
+          <div className="auth-required-overlay">
+            <div className="auth-required-card">
+              <div className="auth-module-identity">
+                <Cpu size={32} />
+                <span>Logix PLC Emulator</span>
+              </div>
+              <div className="auth-divider" />
+              <div className="auth-icon">&#128274;</div>
+              <h2>Authentication Required</h2>
+              <p>You must be logged in to the Ignition Gateway to use this module.</p>
+              <a href="/web/login" target="_top" className="auth-login-btn">
+                Log In to Gateway
+              </a>
             </div>
-            <div className="auth-divider" />
-            <div className="auth-icon">&#128274;</div>
-            <h2>Authentication Required</h2>
-            <p>You must be logged in to the Ignition Gateway to use this module.</p>
-            <a href="/web/login" target="_top" className="auth-login-btn">
-              Log In to Gateway
-            </a>
           </div>
         </div>
       </div>

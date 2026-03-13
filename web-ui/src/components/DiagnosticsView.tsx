@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Activity, AlertCircle, RefreshCw, Trash2, ChevronsDown } from 'lucide-react'
+import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
 import { DeviceInfo } from '../types/device'
@@ -206,25 +207,11 @@ function DiagnosticsView() {
   return (
     <div className="diagnostics-view">
       {/* Header */}
-      <div className="diagnostics-header">
-        <div className="diagnostics-header-left">
-          <Activity size={20} />
-          <div>
-            <h2>Diagnostics</h2>
-            <p>Device health and module logs</p>
-          </div>
-        </div>
-        <div className="diagnostics-header-actions">
-          <button
-            className="diagnostics-refresh-btn"
-            onClick={() => { fetchData(true); handleClearLogs(); fetchLogs() }}
-            disabled={refreshing}
-            title="Refresh"
-          >
-            <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
-          </button>
-        </div>
-      </div>
+      <PageHeader icon={Activity} title="Diagnostics" subtitle="Device health and module logs">
+        <button className="diagnostics-refresh-btn" onClick={() => { fetchData(true); handleClearLogs(); fetchLogs() }} disabled={refreshing} title="Refresh">
+          <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
+        </button>
+      </PageHeader>
 
       {/* Error banner */}
       {error && (

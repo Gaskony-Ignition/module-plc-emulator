@@ -3,6 +3,7 @@ import {
   Zap, HardDrive, RefreshCw, Play, Square,
   AlertCircle, ChevronDown, ChevronRight
 } from 'lucide-react'
+import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiPost } from '../utils/apiClient'
 import { DeviceInfo } from '../types/device'
@@ -157,20 +158,11 @@ function SimulationView() {
     <div className="simulation-view">
 
       {/* Header — floating gradient card */}
-      <div className="sim-header">
-        <div className="sim-header-left">
-          <Zap size={20} />
-          <div>
-            <h2>Simulation Control <span className="sim-beta-badge">Beta</span></h2>
-            <p>Manage tag simulation across devices</p>
-          </div>
-        </div>
-        <div className="sim-header-actions">
-          <button className="sim-refresh-btn" onClick={fetchDevices} title="Refresh devices">
-            <RefreshCw size={14} />
-          </button>
-        </div>
-      </div>
+      <PageHeader icon={Zap} title="Simulation Control" subtitle="Manage tag simulation across devices" badge="Beta">
+        <button className="sim-refresh-btn" onClick={fetchDevices} title="Refresh devices">
+          <RefreshCw size={14} />
+        </button>
+      </PageHeader>
 
       {/* Stat cards */}
       <div className="sim-stat-grid">

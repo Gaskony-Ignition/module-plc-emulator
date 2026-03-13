@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   LayoutDashboard, HardDrive, Tag, Activity, Zap, AlertCircle, ArrowRight
 } from 'lucide-react'
+import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
 import { DeviceInfo, DeviceStatus } from '../types/device'
@@ -95,15 +96,7 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
 
   return (
     <div className="dashboard-view">
-      <div className="dashboard-header">
-        <div className="dashboard-header-left">
-          <LayoutDashboard size={20} />
-          <div>
-            <h2>Dashboard</h2>
-            <p>Logix PLC Emulator overview</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader icon={LayoutDashboard} title="Dashboard" subtitle="Logix PLC Emulator overview" />
 
       {error && (
         <div className="dashboard-error">
@@ -128,22 +121,24 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
         })}
       </div>
 
-      <div className="dashboard-quick-actions">
-        <button className="dashboard-quick-action-btn" onClick={() => onNavigate('devices')}>
-          <HardDrive size={16} />
-          View Devices
-          <ArrowRight size={14} />
-        </button>
-        <button className="dashboard-quick-action-btn" onClick={() => onNavigate('tags')}>
-          <Tag size={16} />
-          Browse Tags
-          <ArrowRight size={14} />
-        </button>
-        <button className="dashboard-quick-action-btn" onClick={() => onNavigate('diagnostics')}>
-          <Activity size={16} />
-          Diagnostics
-          <ArrowRight size={14} />
-        </button>
+      <div className="content-card">
+        <div className="dashboard-quick-actions">
+          <button className="dashboard-quick-action-btn" onClick={() => onNavigate('devices')}>
+            <HardDrive size={16} />
+            View Devices
+            <ArrowRight size={14} />
+          </button>
+          <button className="dashboard-quick-action-btn" onClick={() => onNavigate('tags')}>
+            <Tag size={16} />
+            Browse Tags
+            <ArrowRight size={14} />
+          </button>
+          <button className="dashboard-quick-action-btn" onClick={() => onNavigate('diagnostics')}>
+            <Activity size={16} />
+            Diagnostics
+            <ArrowRight size={14} />
+          </button>
+        </div>
       </div>
     </div>
   )

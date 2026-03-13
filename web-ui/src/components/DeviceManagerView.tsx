@@ -6,8 +6,8 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
-  Zap,
 } from 'lucide-react'
+import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
 import { DeviceInfo, DeviceStatus } from '../types/device'
@@ -206,33 +206,11 @@ function DeviceManagerView() {
   return (
     <div className="dm-view">
       {/* Header */}
-      <div className="dm-header">
-        <div className="dm-header-left">
-          <HardDrive size={28} color="var(--accent-blue)" />
-          <div>
-            <h2>
-              Device Manager
-              {simEnabledCount > 0 && (
-                <span className="dm-sim-badge">
-                  <Zap size={10} />
-                  {simEnabledCount} simulating
-                </span>
-              )}
-            </h2>
-            <p>Upload L5X files and manage PLC device configurations</p>
-          </div>
-        </div>
-        <div className="dm-header-actions">
-          <button
-            className="dm-refresh-btn"
-            onClick={handleRefresh}
-            disabled={refreshing || loadingDevices}
-            title="Refresh"
-          >
-            <RefreshCw size={16} className={refreshing || loadingDevices ? 'spinning' : ''} />
-          </button>
-        </div>
-      </div>
+      <PageHeader icon={HardDrive} title="Device Manager" subtitle={`Upload L5X files and manage PLC device configurations${simEnabledCount > 0 ? ` \u00b7 ${simEnabledCount} simulating` : ''}`}>
+        <button className="dm-refresh-btn" onClick={handleRefresh} disabled={refreshing || loadingDevices} title="Refresh">
+          <RefreshCw size={16} className={refreshing || loadingDevices ? 'spinning' : ''} />
+        </button>
+      </PageHeader>
 
       {/* Toolbar */}
       <div className="dm-card" style={{ marginBottom: 16 }}>

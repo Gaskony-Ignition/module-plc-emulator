@@ -9,6 +9,7 @@ import {
   Edit2,
   Clipboard,
 } from 'lucide-react'
+import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiPost } from '../utils/apiClient'
 import { DeviceInfo } from '../types/device'
@@ -561,33 +562,11 @@ function TagBrowserView() {
   return (
     <div className="tbv-view">
       {/* Header */}
-      <div className="tbv-header">
-        <div className="tbv-header-left">
-          <Tag size={28} color="var(--accent-blue)" />
-          <div>
-            <h2>
-              Tag Browser
-              {simCount > 0 && (
-                <span className="tbv-sim-count">
-                  <Zap size={10} />
-                  {simCount} simulating
-                </span>
-              )}
-            </h2>
-            <p>Explore and interact with device tags</p>
-          </div>
-        </div>
-        <div className="tbv-header-actions">
-          <button
-            className="tbv-refresh-btn"
-            onClick={handleRefresh}
-            disabled={refreshing || loading}
-            title="Refresh"
-          >
-            <RefreshCw size={16} className={refreshing || loading ? 'spinning' : ''} />
-          </button>
-        </div>
-      </div>
+      <PageHeader icon={Tag} title="Tag Browser" subtitle={`Explore and interact with device tags${simCount > 0 ? ` \u00b7 ${simCount} simulating` : ''}`}>
+        <button className="tbv-refresh-btn" onClick={handleRefresh} disabled={refreshing || loading} title="Refresh">
+          <RefreshCw size={16} className={refreshing || loading ? 'spinning' : ''} />
+        </button>
+      </PageHeader>
 
       {/* Toolbar card */}
       <div className="tbv-card" style={{ marginBottom: 12 }}>
