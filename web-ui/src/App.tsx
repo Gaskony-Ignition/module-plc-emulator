@@ -13,7 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import "./App.scss";
 
 const IS_DEDICATED_MODE = window.location.pathname.includes("standalone");
-const MODULE_VERSION = "9.2.2";
+const MODULE_VERSION = "9.2.3";
 
 type ConnectionStatus = "connecting" | "connected" | "disconnected" | "auth_required";
 
@@ -114,14 +114,14 @@ const App: React.FC = () => {
             <span>Logix PLC Emulator</span>
           </div>
         )}
-        <div className="logix-outer-layout">
+        <div className="app-outer-layout">
           <Sidebar
             activeView={activeView}
             onNavigate={setActiveView}
             moduleVersion={MODULE_VERSION}
           />
-          <div className="logix-content-area">
-            <div className="logix-active-view">
+          <div className="app-content-area">
+            <div className="app-active-view">
               {renderActiveView()}
             </div>
             <StatusBar />

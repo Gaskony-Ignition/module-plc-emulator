@@ -69,8 +69,8 @@ function StatusBar() {
   const ramPct = stats.ramTotal > 0 ? (stats.ramUsage / stats.ramTotal) * 100 : 0
 
   return (
-    <div className="logix-status-bar">
-      <div className="logix-status-bar-left">
+    <div className="global-status-bar">
+      <div className="global-status-bar-left">
         <div className="gsb-metric" title={`CPU: ${stats.cpuUsage.toFixed(1)}%`}>
           <Cpu size={11} />
           <div className="gsb-bar">
@@ -92,13 +92,13 @@ function StatusBar() {
           <span className="gsb-value">{formatBytes(stats.ramUsage)}</span>
         </div>
       </div>
-      <div className="logix-status-bar-right">
-        <span className="logix-status-bar-item">
+      <div className="global-status-bar-right">
+        <span className="global-status-bar-item">
           <HardDrive size={11} />
           <span>{stats.deviceCount} device{stats.deviceCount !== 1 ? 's' : ''}</span>
         </span>
-        <span className="logix-status-bar-separator">|</span>
-        <span className="logix-status-bar-item">
+        <span className="global-status-bar-separator">|</span>
+        <span className="global-status-bar-item">
           <Activity size={11} />
           <span>{simulatingCount} simulating</span>
         </span>

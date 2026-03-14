@@ -774,7 +774,7 @@
   padding: 8px 18px;
   background: rgba(152, 195, 121, 0.2);
   border: 1px solid rgba(152, 195, 121, 0.4);
-  border-radius: 20px;
+  border-radius: 6px;
   color: var(--accent-success);
   font-size: 13px;
   font-weight: 500;
@@ -784,8 +784,8 @@
 }
 
 .app-wrapper .tbv-toast-error {
-  background: rgba(224, 108, 117, 0.2);
-  border-color: rgba(224, 108, 117, 0.4);
+  background: rgba(243, 139, 168, 0.2);
+  border-color: rgba(243, 139, 168, 0.4);
   color: var(--accent-error);
 }
 

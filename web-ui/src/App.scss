@@ -29,9 +29,12 @@
   --accent-primary: #89b4fa;
   --accent-blue: #89b4fa;       /* icon/value blue */
   --accent-orange: #fab387;     /* beta badges, secondary highlights */
+  --accent-peach: #fab387;      /* alias for accent-orange */
   --accent-error: #f38ba8;
   --accent-success: #a6e3a1;
+  --accent-secondary: #a6e3a1;  /* alias for accent-success */
   --accent-warning: #f9e2af;
+  --accent-info: #89dceb;
 
   --border-default: #313244;
   --border-light: #45475a;
@@ -50,6 +53,7 @@
   --radius-lg: 8px;
 
   /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.5);
   --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.25);
@@ -82,7 +86,6 @@
   /* UI chrome (aligned with AI Terminal / Git / Python3) */
   --overlay-muted: #585b70;
   --accent-primary-hover: #b4d0fb;
-  --accent-peach: #fab387;
   --border-accent: rgba(137, 180, 250, 0.12);
   --header-gradient: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
   --modal-backdrop: rgba(0, 0, 0, 0.6);
@@ -111,6 +114,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 32px;
+  min-height: 32px;
   padding: 6px 14px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
@@ -127,14 +132,14 @@
 }
 
 /* Outer layout - sidebar + content */
-.logix-outer-layout {
+.app-outer-layout {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
 /* Content area - view + status bar */
-.logix-content-area {
+.app-content-area {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -142,7 +147,7 @@
 }
 
 /* Active view container */
-.logix-active-view {
+.app-active-view {
   flex: 1;
   overflow: hidden;
 }
@@ -237,6 +242,79 @@
   border-radius: var(--radius-lg);
   padding: 16px;
 }
+
+/* Scrollbar defaults scoped to app-wrapper */
+.app-wrapper ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-wrapper ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.app-wrapper ::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+.app-wrapper ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-light);
+}
+
+/* ==========================================================================
+   Shared Button System
+   ========================================================================== */
+
+.app-wrapper .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.app-wrapper .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.app-wrapper .btn-primary { background: var(--accent-primary); color: var(--bg-primary); border-color: var(--accent-primary); }
+.app-wrapper .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
+.app-wrapper .btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border-default); }
+.app-wrapper .btn-secondary:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
+.app-wrapper .btn-danger { background: transparent; color: var(--accent-error); border-color: var(--accent-error); }
+.app-wrapper .btn-danger:hover:not(:disabled) { background: rgba(243, 139, 168, 0.1); }
+.app-wrapper .btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.app-wrapper .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.app-wrapper .btn-success { background: rgba(166, 227, 161, 0.15); color: var(--accent-secondary); border-color: rgba(166, 227, 161, 0.3); }
+.app-wrapper .btn-success:hover:not(:disabled) { background: rgba(166, 227, 161, 0.25); }
+.app-wrapper .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: transparent; color: var(--text-secondary); border: none; border-radius: 4px; cursor: pointer; }
+.app-wrapper .btn-icon:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+.app-wrapper .btn-sm { padding: 4px 10px; font-size: 12px; }
+.app-wrapper .btn-xs { padding: 2px 8px; font-size: 11px; }
+
+/* ==========================================================================
+   Shared Form Input System
+   ========================================================================== */
+
+.app-wrapper .form-input,
+.app-wrapper .form-select {
+  width: 100%;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.app-wrapper .form-input:focus,
+.app-wrapper .form-select:focus { border-color: var(--accent-primary); }
+.app-wrapper .form-input::placeholder { color: var(--text-tertiary); }
 
 /* Disconnected banner */
 .connection-banner {
