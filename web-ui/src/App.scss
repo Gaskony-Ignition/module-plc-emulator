@@ -232,7 +232,7 @@
 }
 
 .app-wrapper .auth-required-card .auth-login-btn:hover {
-  background: var(--accent-blue);
+  background: #b4d0fb;
 }
 
 /* Content card - shared utility for wrapping content sections */
@@ -249,7 +249,7 @@
 }
 
 .app-wrapper ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
 }
 
 .app-wrapper ::-webkit-scrollbar-thumb {
@@ -319,8 +319,8 @@
 /* Disconnected banner */
 .connection-banner {
   padding: 8px 16px;
-  background: var(--accent-error);
-  color: #ffffff;
+  background: var(--accent-warning);
+  color: #1e1e2e;
   font-size: 13px;
   text-align: center;
   font-weight: 500;

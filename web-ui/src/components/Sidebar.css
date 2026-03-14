@@ -44,7 +44,7 @@
 }
 
 .app-wrapper .nav-sidebar-items::-webkit-scrollbar-thumb {
-  background: var(--border-light);
+  background: var(--border-default);
   border-radius: 2px;
 }
 

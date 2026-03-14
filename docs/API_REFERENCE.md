@@ -1,6 +1,6 @@
 # API Reference - Logix PLC Emulator
 
-**Version**: 9.2.4
+**Version**: 9.2.5
 **Last Updated**: 2026-02-21
 **Base URL**: `http://your-gateway:8088`
 
@@ -497,7 +497,7 @@ curl -u admin:password http://localhost:8088/data/logixemulator/status
 **Success (200 OK)**:
 ```json
 {
-  "moduleVersion": "9.2.4",
+  "moduleVersion": "9.2.5",
   "moduleStatus": "Running",
   "totalDevices": 2,
   "runningDevices": 1,
