@@ -258,7 +258,7 @@ private void parseMyNewFormat(String content) {
 
 **1. Update `build.gradle.kts`** (this is the single source of truth):
 ```kotlin
-version = "9.2.5"
+version = "9.2.6"
 ```
 
 > **Note**: The `syncVersion` Gradle task runs automatically on every build (as part of `assembleModlStructure`). It propagates the version from `build.gradle.kts` to all other files that embed it — `web-ui/package.json`, `gradle.properties.template`, `gateway/.../SystemController.java`, `web-ui/src/App.tsx`, `license.html`, `README.md`, and all markdown docs (QUICK_START, TESTING, DEVELOPMENT, BUILD, KNOWN_ISSUES, PLAN, plus everything under `docs/`). You only need to manually update `build.gradle.kts`.
