@@ -50,7 +50,7 @@
   font-size: 11px;
   font-weight: 600;
   border-radius: 10px;
-  background: rgba(250, 179, 135, 0.15);
+  background: var(--accent-peach-bg);
   color: var(--accent-peach, #fab387);
   vertical-align: middle;
 }

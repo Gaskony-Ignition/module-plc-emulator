@@ -16,8 +16,6 @@
   --bg-primary: #11111b;
   --bg-secondary: #181825;
   --bg-tertiary: #1e1e2e;
-  --bg-surface: #1e1e2e;
-  --bg-statusbar: #11111b;    /* status bar / deepest chrome */
   --bg-hover: #313244;
   --bg-active: #45475a;
 
@@ -25,20 +23,41 @@
   --text-secondary: #bac2de;
   --text-tertiary: #a6adc8;
   --text-muted: #6c7086;
+  --text-inverse: #11111b;
 
   --accent-primary: #89b4fa;
-  --accent-blue: #89b4fa;       /* icon/value blue */
-  --accent-orange: #fab387;     /* beta badges, secondary highlights */
-  --accent-peach: #fab387;      /* alias for accent-orange */
-  --accent-error: #f38ba8;
-  --accent-success: #a6e3a1;
-  --accent-secondary: #a6e3a1;  /* alias for accent-success */
+  --accent-peach: #fab387;
+  --accent-secondary: #a6e3a1;
   --accent-warning: #f9e2af;
   --accent-info: #89dceb;
 
+  /* Status colour aliases (aligned with AT / Camera / Git / Python3) */
+  --success: #a6e3a1;
+  --error: #f38ba8;
+  --warning: #f9e2af;
+  --info: #89b4fa;
+
   --border-default: #313244;
   --border-light: #45475a;
+  --border-focus: #89b4fa;
   --border-hover: #585b70;    /* elevated hover/focus border */
+
+  /* Background tints for badges/alerts */
+  --accent-primary-bg: rgba(137, 180, 250, 0.1);
+  --accent-secondary-bg: rgba(166, 227, 161, 0.1);
+  --accent-error-bg: rgba(243, 139, 168, 0.1);
+  --accent-warning-bg: rgba(249, 226, 175, 0.1);
+  --accent-peach-bg: rgba(250, 179, 135, 0.15);
+
+  /* Accent tint borders */
+  --accent-primary-border: rgba(137, 180, 250, 0.3);
+  --accent-secondary-border: rgba(166, 227, 161, 0.3);
+  --accent-error-border: rgba(243, 139, 168, 0.3);
+  --accent-warning-border: rgba(249, 226, 175, 0.3);
+
+  /* Subtle overlays */
+  --border-subtle: rgba(255, 255, 255, 0.03);
+  --overlay-dark: rgba(0, 0, 0, 0.5);
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -132,14 +151,14 @@
 }
 
 /* Outer layout - sidebar + content */
-.app-outer-layout {
+.app-wrapper .app-outer-layout {
   display: flex;
   flex: 1;
   overflow: hidden;
 }
 
 /* Content area - view + status bar */
-.app-content-area {
+.app-wrapper .app-content-area {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -147,7 +166,7 @@
 }
 
 /* Active view container */
-.app-active-view {
+.app-wrapper .app-active-view {
   flex: 1;
   overflow: hidden;
 }
@@ -221,7 +240,7 @@
   margin-top: 20px;
   padding: 10px 24px;
   background: var(--accent-primary);
-  color: #11111b;
+  color: var(--text-inverse);
   border: none;
   border-radius: var(--radius-md);
   font-size: 14px;
@@ -232,7 +251,7 @@
 }
 
 .app-wrapper .auth-required-card .auth-login-btn:hover {
-  background: #b4d0fb;
+  background: var(--accent-primary-hover);
 }
 
 /* Content card - shared utility for wrapping content sections */
@@ -254,7 +273,7 @@
 
 .app-wrapper ::-webkit-scrollbar-thumb {
   background: var(--border-default);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .app-wrapper ::-webkit-scrollbar-thumb:hover {
@@ -274,9 +293,9 @@
   font-size: 13px;
   font-weight: 500;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--transition-fast);
   white-space: nowrap;
 }
 .app-wrapper .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -284,13 +303,13 @@
 .app-wrapper .btn-primary:hover:not(:disabled) { filter: brightness(1.1); }
 .app-wrapper .btn-secondary { background: var(--bg-tertiary); color: var(--text-secondary); border-color: var(--border-default); }
 .app-wrapper .btn-secondary:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
-.app-wrapper .btn-danger { background: transparent; color: var(--accent-error); border-color: var(--accent-error); }
-.app-wrapper .btn-danger:hover:not(:disabled) { background: rgba(243, 139, 168, 0.1); }
+.app-wrapper .btn-danger { background: transparent; color: var(--error); border-color: var(--error); }
+.app-wrapper .btn-danger:hover:not(:disabled) { background: var(--accent-error-bg); }
 .app-wrapper .btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
 .app-wrapper .btn-ghost:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
-.app-wrapper .btn-success { background: rgba(166, 227, 161, 0.15); color: var(--accent-secondary); border-color: rgba(166, 227, 161, 0.3); }
+.app-wrapper .btn-success { background: rgba(166, 227, 161, 0.15); color: var(--accent-secondary); border-color: var(--accent-secondary-border); }
 .app-wrapper .btn-success:hover:not(:disabled) { background: rgba(166, 227, 161, 0.25); }
-.app-wrapper .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: transparent; color: var(--text-secondary); border: none; border-radius: 4px; cursor: pointer; }
+.app-wrapper .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; background: transparent; color: var(--text-secondary); border: none; border-radius: var(--radius-sm); cursor: pointer; }
 .app-wrapper .btn-icon:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
 .app-wrapper .btn-sm { padding: 4px 10px; font-size: 12px; }
 .app-wrapper .btn-xs { padding: 2px 8px; font-size: 11px; }
@@ -308,21 +327,22 @@
   color: var(--text-primary);
   background: var(--bg-tertiary);
   border: 1px solid var(--border-default);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   outline: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--transition-fast);
 }
 .app-wrapper .form-input:focus,
 .app-wrapper .form-select:focus { border-color: var(--accent-primary); }
 .app-wrapper .form-input::placeholder { color: var(--text-tertiary); }
 
 /* Disconnected banner */
-.connection-banner {
+.app-wrapper .connection-banner {
   padding: 8px 16px;
   background: var(--accent-warning);
-  color: #1e1e2e;
+  color: var(--bg-tertiary);
   font-size: 13px;
   text-align: center;
   font-weight: 500;
+  border-bottom: 1px solid rgba(249, 226, 175, 0.5);
   flex-shrink: 0;
 }

@@ -111,13 +111,13 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 5px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  background: rgba(209, 154, 102, 0.15);
-  color: var(--accent-orange);
+  background: var(--accent-peach-bg);
+  color: var(--accent-peach);
   line-height: 1.6;
   flex-shrink: 0;
 }
@@ -135,7 +135,7 @@
   transform: translateY(-50%);
   margin-left: 8px;
   padding: 4px 10px;
-  background: var(--bg-surface);
+  background: var(--bg-tertiary);
   color: var(--text-primary);
   font-size: 12px;
   border-radius: var(--radius-sm);
@@ -168,6 +168,7 @@
 }
 
 .app-wrapper .nav-sidebar-version-text {
+  font-family: var(--font-mono, monospace);
   font-size: 10px;
   color: var(--text-secondary);
   opacity: 0.6;

@@ -10,52 +10,17 @@
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px;
+  padding: var(--spacing-lg);
   box-sizing: border-box;
   background: var(--bg-primary);
-}
-
-/* Dashboard header — floating gradient card (matches AI Terminal) */
-.app-wrapper .dashboard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  margin-bottom: 24px;
-  background: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
-  border-radius: var(--radius-lg);
-}
-
-.app-wrapper .dashboard-header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.app-wrapper .dashboard-header-left > svg {
-  color: var(--accent-blue);
-  flex-shrink: 0;
-}
-
-.app-wrapper .dashboard-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.app-wrapper .dashboard-header p {
-  font-size: 13px;
-  color: var(--text-tertiary);
-  margin: 2px 0 0;
 }
 
 /* Stats cards grid */
 .app-wrapper .dashboard-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
 }
 
 /* Stat card */
@@ -63,10 +28,10 @@
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-xs);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
@@ -86,28 +51,28 @@
 .app-wrapper .dashboard-stat-card-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--accent-blue);
+  color: var(--accent-primary);
   line-height: 1.2;
 }
 
 .app-wrapper .dashboard-stat-card-icon {
-  color: var(--accent-blue);
+  color: var(--accent-primary);
   opacity: 0.6;
-  margin-bottom: 4px;
+  margin-bottom: var(--spacing-xs);
 }
 
 /* Skeleton loading */
 .app-wrapper .dashboard-stat-card.loading .dashboard-stat-card-value {
   background: linear-gradient(90deg, var(--bg-active) 25%, var(--border-hover) 50%, var(--bg-active) 75%);
   background-size: 200% 100%;
-  animation: logix-shimmer 1.5s infinite;
+  animation: shimmer 1.5s infinite;
   border-radius: var(--radius-sm);
   color: transparent;
   width: 60px;
   height: 28px;
 }
 
-@keyframes logix-shimmer {
+@keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
@@ -115,16 +80,16 @@
 /* Quick actions row */
 .app-wrapper .dashboard-quick-actions {
   display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
   flex-wrap: wrap;
 }
 
 .app-wrapper .dashboard-quick-action-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
   background: var(--bg-secondary);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -141,37 +106,37 @@
 }
 
 .app-wrapper .dashboard-quick-action-btn svg {
-  color: var(--accent-blue);
+  color: var(--accent-primary);
 }
 
 /* Error state */
 .app-wrapper .dashboard-error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(243, 139, 168, 0.1);
-  border: 1px solid rgba(243, 139, 168, 0.3);
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--accent-error-bg);
+  border: 1px solid var(--accent-error-border);
   border-radius: var(--radius-md);
-  color: var(--accent-error);
+  color: var(--error);
   font-size: 13px;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
 }
 
 .app-wrapper .dashboard-error-retry {
   margin-left: auto;
   padding: 4px 8px;
   background: transparent;
-  border: 1px solid var(--accent-error);
+  border: 1px solid var(--error);
   border-radius: var(--radius-sm);
-  color: var(--accent-error);
+  color: var(--error);
   cursor: pointer;
   font-size: 12px;
   font-family: var(--font-sans);
 }
 
 .app-wrapper .dashboard-error-retry:hover {
-  background: rgba(243, 139, 168, 0.15);
+  background: var(--accent-error-bg);
 }
 
 /* Scrollbar */
@@ -185,7 +150,7 @@
 
 .app-wrapper .dashboard-view::-webkit-scrollbar-thumb {
   background: var(--border-light);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .app-wrapper .dashboard-view::-webkit-scrollbar-thumb:hover {

@@ -76,7 +76,7 @@
         // Create container for upload button
         const uploadContainer = document.createElement('div');
         uploadContainer.className = 'plc-upload-container';
-        uploadContainer.style.cssText = 'margin-bottom: 12px; padding: 12px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;';
+        uploadContainer.style.cssText = 'margin-bottom: 12px; padding: 12px; background: #eff1f5; border: 1px solid #bcc0cc; border-radius: 4px;';
 
         // Create file input (hidden)
         const fileInput = document.createElement('input');
@@ -91,7 +91,7 @@
         uploadButton.className = 'plc-upload-button';
         uploadButton.textContent = 'Upload PLC File';
         uploadButton.style.cssText = `
-            background: #007bff;
+            background: #1e66f5;
             color: white;
             border: none;
             padding: 8px 16px;
@@ -104,10 +104,10 @@
 
         // Add hover effect
         uploadButton.addEventListener('mouseenter', function() {
-            this.style.background = '#0056b3';
+            this.style.background = '#1656d0';
         });
         uploadButton.addEventListener('mouseleave', function() {
-            this.style.background = '#007bff';
+            this.style.background = '#1e66f5';
         });
 
         // Click button opens file dialog
@@ -117,7 +117,7 @@
 
         // Create info text
         const infoText = document.createElement('div');
-        infoText.style.cssText = 'margin-top: 8px; font-size: 13px; color: #6c757d;';
+        infoText.style.cssText = 'margin-top: 8px; font-size: 13px; color: #9ca0b0;';
         infoText.innerHTML = '<strong>Upload a file</strong> or paste content below. Supported: L5K, JSON, CSV, XML';
 
         // Handle file selection
@@ -152,12 +152,12 @@
                 // Show success
                 uploadButton.disabled = false;
                 uploadButton.textContent = 'Loaded: ' + file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
-                uploadButton.style.background = '#28a745';
+                uploadButton.style.background = '#40a02b';
 
                 // Reset button after 3 seconds
                 setTimeout(function() {
                     uploadButton.textContent = 'Upload PLC File';
-                    uploadButton.style.background = '#007bff';
+                    uploadButton.style.background = '#1e66f5';
                 }, 3000);
 
                 // Clear file input so same file can be selected again
@@ -169,12 +169,12 @@
             reader.onerror = function() {
                 uploadButton.disabled = false;
                 uploadButton.textContent = 'Error reading file';
-                uploadButton.style.background = '#dc3545';
+                uploadButton.style.background = '#d20f39';
                 alert('Error reading file: ' + reader.error);
 
                 setTimeout(function() {
                     uploadButton.textContent = 'Upload PLC File';
-                    uploadButton.style.background = '#007bff';
+                    uploadButton.style.background = '#1e66f5';
                 }, 3000);
 
                 console.error('Logix Emulator: File read error -', reader.error);

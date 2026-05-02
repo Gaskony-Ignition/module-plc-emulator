@@ -289,9 +289,9 @@ function DeviceManagerView() {
                       style={{
                         color:
                           deviceStatus.status === 'Connected'
-                            ? 'var(--accent-success)'
+                            ? 'var(--accent-secondary)'
                             : deviceStatus.status === 'Faulted'
-                              ? 'var(--accent-error)'
+                              ? 'var(--error)'
                               : 'var(--accent-warning)',
                       }}
                     >

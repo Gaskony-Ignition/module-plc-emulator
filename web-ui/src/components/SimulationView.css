@@ -22,7 +22,7 @@
   justify-content: space-between;
   padding: 16px 20px;
   margin-bottom: 24px;
-  background: linear-gradient(135deg, rgba(137, 180, 250, 0.06) 0%, rgba(137, 180, 250, 0.02) 40%, transparent 70%);
+  background: var(--header-gradient);
   border-radius: var(--radius-lg);
 }
 
@@ -33,7 +33,7 @@
 }
 
 .app-wrapper .sim-header-left > svg {
-  color: var(--accent-blue);
+  color: var(--accent-primary);
   flex-shrink: 0;
 }
 
@@ -56,8 +56,8 @@
   font-weight: 600;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  background: rgba(209, 154, 102, 0.15);
-  color: var(--accent-orange);
+  background: var(--accent-peach-bg);
+  color: var(--accent-peach);
   line-height: 1.6;
 }
 
@@ -118,7 +118,7 @@
 }
 
 .app-wrapper .sim-stat-card-icon {
-  color: var(--accent-blue);
+  color: var(--accent-primary);
   opacity: 0.6;
   margin-bottom: 4px;
 }
@@ -134,7 +134,7 @@
 .app-wrapper .sim-stat-card-value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--accent-blue);
+  color: var(--accent-primary);
   line-height: 1.2;
 }
 
@@ -154,7 +154,7 @@
 }
 
 .app-wrapper .sim-device-card.selected {
-  border-color: var(--accent-blue);
+  border-color: var(--accent-primary);
 }
 
 .app-wrapper .sim-device-header {
@@ -217,12 +217,12 @@
 }
 
 .app-wrapper .sim-badge-active {
-  background: rgba(229, 192, 123, 0.15);
+  background: var(--accent-warning-bg);
   color: var(--accent-warning);
 }
 
 .app-wrapper .sim-badge-disabled {
-  background: rgba(107, 114, 128, 0.15);
+  background: var(--bg-hover);
   color: var(--text-muted);
 }
 
@@ -245,8 +245,8 @@
   gap: 8px;
   padding: 12px;
   margin-top: 12px;
-  background: rgba(229, 192, 123, 0.08);
-  border: 1px solid rgba(229, 192, 123, 0.2);
+  background: var(--accent-warning-bg);
+  border: 1px solid var(--accent-warning-border);
   border-radius: var(--radius-sm);
   font-size: 12px;
   color: var(--accent-warning);
@@ -303,21 +303,21 @@
 }
 
 .app-wrapper .sim-ctrl-enable {
-  background: rgba(152, 195, 121, 0.15);
-  color: var(--accent-success);
+  background: var(--accent-secondary-bg);
+  color: var(--accent-secondary);
 }
 
 .app-wrapper .sim-ctrl-enable:hover:not(:disabled) {
-  background: rgba(152, 195, 121, 0.25);
+  background: var(--accent-secondary-border);
 }
 
 .app-wrapper .sim-ctrl-disable {
-  background: rgba(243, 139, 168, 0.15);
-  color: var(--accent-error);
+  background: var(--accent-error-bg);
+  color: var(--error);
 }
 
 .app-wrapper .sim-ctrl-disable:hover:not(:disabled) {
-  background: rgba(243, 139, 168, 0.25);
+  background: var(--accent-error-border);
 }
 
 /* Scope controls */
@@ -326,7 +326,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 0;
-  border-top: 1px solid rgba(42, 48, 57, 0.5);
+  border-top: 1px solid var(--overlay-dark);
   flex-wrap: wrap;
 }
 
@@ -359,13 +359,13 @@
 
 .app-wrapper .sim-scope-btn:hover:not(:disabled) {
   background: var(--bg-active);
-  border-color: var(--accent-success);
-  color: var(--accent-success);
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
 }
 
 .app-wrapper .sim-scope-btn.sim-scope-stop:hover:not(:disabled) {
-  border-color: var(--accent-error);
-  color: var(--accent-error);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 .app-wrapper .sim-scope-btn:disabled {
@@ -401,7 +401,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  border-bottom: 1px solid rgba(42, 48, 57, 0.5);
+  border-bottom: 1px solid var(--overlay-dark);
   font-size: 12px;
 }
 
@@ -410,7 +410,7 @@
 }
 
 .app-wrapper .sim-tag-item:hover {
-  background: rgba(42, 48, 57, 0.3);
+  background: var(--bg-hover);
 }
 
 .app-wrapper .sim-tag-path {
@@ -423,7 +423,7 @@
 
 .app-wrapper .sim-tag-pattern {
   padding: 2px 8px;
-  background: rgba(229, 192, 123, 0.1);
+  background: var(--accent-warning-bg);
   color: var(--accent-warning);
   border-radius: 8px;
   font-size: 10px;
@@ -437,17 +437,17 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  border: 1px solid rgba(243, 139, 168, 0.3);
+  border: 1px solid var(--accent-error-border);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--accent-error);
+  color: var(--error);
   cursor: pointer;
   flex-shrink: 0;
   transition: background var(--transition-fast);
 }
 
 .app-wrapper .sim-tag-stop-btn:hover:not(:disabled) {
-  background: rgba(243, 139, 168, 0.15);
+  background: var(--accent-error-bg);
 }
 
 .app-wrapper .sim-tag-stop-btn:disabled {
@@ -509,16 +509,16 @@
   justify-content: center;
   gap: 8px;
   height: 100%;
-  color: var(--accent-error);
+  color: var(--error);
   font-size: 13px;
 }
 
 .app-wrapper .sim-retry-btn {
   padding: 4px 12px;
-  border: 1px solid var(--accent-error);
+  border: 1px solid var(--error);
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--accent-error);
+  color: var(--error);
   font-family: var(--font-sans);
   font-size: 12px;
   cursor: pointer;
@@ -526,7 +526,7 @@
 }
 
 .app-wrapper .sim-retry-btn:hover {
-  background: rgba(243, 139, 168, 0.15);
+  background: var(--accent-error-bg);
 }
 
 /* Scrollbars */
@@ -543,7 +543,7 @@
 .app-wrapper .simulation-view::-webkit-scrollbar-thumb,
 .app-wrapper .sim-tag-list-body::-webkit-scrollbar-thumb {
   background: var(--border-light);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 .app-wrapper .simulation-view::-webkit-scrollbar-thumb:hover,

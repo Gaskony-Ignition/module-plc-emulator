@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, AlertCircle, RefreshCw, Trash2, ChevronsDown } from 'lucide-react'
+import { Activity, AlertCircle, RefreshCw, Pause, Play, ArrowDownToLine } from 'lucide-react'
 import PageHeader from './PageHeader'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
@@ -29,10 +29,10 @@ interface LogEntry {
   message: string
 }
 
-type LevelFilter = '' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG'
-
-const LOG_POLL_INTERVAL = 5000   // 5 s — fast enough to feel live
-const MAX_LOG_ENTRIES   = 500    // cap in-memory entries
+type LevelFilter = 'ALL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG'
+const LEVEL_FILTERS: LevelFilter[] = ['ALL', 'ERROR', 'WARN', 'INFO', 'DEBUG']
+const LOG_POLL_MS = 10_000
+const MAX_LOG_ENTRIES = 500 // cap in-memory entries
 
 function DiagnosticsView() {
   const [devices, setDevices]       = useState<DeviceDetail[]>([])
@@ -41,13 +41,13 @@ function DiagnosticsView() {
   const [refreshing, setRefreshing] = useState(false)
 
   const [moduleLogs, setModuleLogs] = useState<LogEntry[]>([])
-  const [logsLoading, setLogsLoading] = useState(true)
-  const [levelFilter, setLevelFilter] = useState<LevelFilter>('')
-  const [autoScroll, setAutoScroll]   = useState(true)
+  const [logLevel, setLogLevel] = useState<LevelFilter>('ALL')
+  const [logPaused, setLogPaused] = useState(false)
+  const [logAutoScroll, setLogAutoScroll] = useState(true)
 
   const allLogsRef      = useRef<LogEntry[]>([])
   const lastEventIdRef  = useRef<number>(0)
-  const logsBodyRef     = useRef<HTMLDivElement>(null)
+  const logBodyRef      = useRef<HTMLDivElement>(null)
 
   const timerRef        = useRef<number | null>(null)
   const logsTimerRef    = useRef<number | null>(null)
@@ -102,14 +102,11 @@ function DiagnosticsView() {
   // polling so only new entries are fetched on each tick.
 
   const fetchLogs = useCallback(async () => {
+    if (logPaused) return
     try {
-      const level = levelFilter
       let url = `${API.SYSTEM_LOGS(200)}&moduleOnly=true`
       if (lastEventIdRef.current > 0) {
         url += `&after=${lastEventIdRef.current}`
-      }
-      if (level) {
-        url += `&level=${encodeURIComponent(level)}`
       }
 
       const res = await apiFetch(url)
@@ -137,17 +134,15 @@ function DiagnosticsView() {
       }
     } catch {
       // silently ignore — log panel is non-critical
-    } finally {
-      setLogsLoading(false)
     }
-  }, [levelFilter])
+  }, [logPaused])
 
-  // Auto-scroll to top when new entries arrive (newest-first layout)
+  // Auto-scroll to bottom when new entries arrive (chronological order)
   useEffect(() => {
-    if (autoScroll && logsBodyRef.current) {
-      logsBodyRef.current.scrollTop = 0
+    if (logAutoScroll && logBodyRef.current) {
+      logBodyRef.current.scrollTop = logBodyRef.current.scrollHeight
     }
-  }, [moduleLogs, autoScroll])
+  }, [moduleLogs, logAutoScroll])
 
   // ── Device poll ───────────────────────────────────────────────────────────
 
@@ -163,44 +158,17 @@ function DiagnosticsView() {
 
   useEffect(() => {
     fetchLogs()
-    logsTimerRef.current = window.setInterval(() => fetchLogs(), LOG_POLL_INTERVAL)
+    logsTimerRef.current = window.setInterval(() => fetchLogs(), LOG_POLL_MS)
     return () => {
       if (logsTimerRef.current !== null) clearInterval(logsTimerRef.current)
     }
   }, [fetchLogs])
 
-  // ── Level filter change — reset and full re-fetch ─────────────────────────
-  // Resetting the refs here (synchronously, before the next render) ensures
-  // that when the useEffect re-fires (because fetchLogs recreates due to
-  // levelFilter changing), it starts from event_id=0 with an empty list.
+  // ── Filtered logs ────────────────────────────────────────────────────────
 
-  const handleLevelChange = (level: LevelFilter) => {
-    allLogsRef.current = []
-    lastEventIdRef.current = 0
-    setModuleLogs([])
-    setLogsLoading(true)
-    setLevelFilter(level) // triggers fetchLogs to recreate → useEffect restarts interval
-  }
-
-  // ── Clear logs ────────────────────────────────────────────────────────────
-
-  const handleClearLogs = () => {
-    allLogsRef.current = []
-    lastEventIdRef.current = 0
-    setModuleLogs([])
-  }
-
-  // ── Level badge class ─────────────────────────────────────────────────────
-
-  const getLevelClass = (level: string) => {
-    switch ((level || '').toUpperCase()) {
-      case 'ERROR': case 'FATAL': return 'diag-log-error'
-      case 'WARN':                return 'diag-log-warn'
-      case 'INFO':                return 'diag-log-info'
-      case 'DEBUG': case 'TRACE': return 'diag-log-debug'
-      default:                    return ''
-    }
-  }
+  const filteredLogs = logLevel === 'ALL'
+    ? moduleLogs
+    : moduleLogs.filter(e => e.level === logLevel)
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -208,7 +176,7 @@ function DiagnosticsView() {
     <div className="diagnostics-view">
       {/* Header */}
       <PageHeader icon={Activity} title="Diagnostics" subtitle="Device health and module logs">
-        <button className="diagnostics-refresh-btn" onClick={() => { fetchData(true); handleClearLogs(); fetchLogs() }} disabled={refreshing} title="Refresh">
+        <button className="diagnostics-refresh-btn" onClick={() => { fetchData(true); fetchLogs() }} disabled={refreshing} title="Refresh">
           <RefreshCw size={14} className={refreshing ? 'spinning' : ''} />
         </button>
       </PageHeader>
@@ -273,81 +241,62 @@ function DiagnosticsView() {
         </div>
       )}
 
-      {/* Module Logs */}
-      <div className="diagnostics-logs-section">
-        <div className="diagnostics-logs-header">
-          <span className="diagnostics-section-title">Module Logs</span>
-          <div className="diag-log-controls">
-            {/* Level filter pills */}
-            <div className="diag-level-pills">
-              {(['', 'ERROR', 'WARN', 'INFO', 'DEBUG'] as LevelFilter[]).map(l => (
+      {/* ---- Module Logs ---- */}
+      <div className="diag-panel diag-logs-panel">
+        <div className="diag-logs-header">
+          <span className="diag-logs-header__title">Module Logs</span>
+          <div className="diag-logs-controls">
+            <div className="diag-logs-filters">
+              {LEVEL_FILTERS.map(lv => (
                 <button
-                  key={l || 'ALL'}
-                  className={`diag-level-pill ${levelFilter === l ? 'active' : ''} ${l ? getLevelClass(l) : ''}`}
-                  onClick={() => handleLevelChange(l)}
+                  key={lv}
+                  className={`diag-logs-pill ${logLevel === lv ? 'diag-logs-pill--active' : ''}`}
+                  onClick={() => setLogLevel(lv)}
                 >
-                  {l || 'ALL'}
+                  {lv}
                 </button>
               ))}
             </div>
-
-            {/* Auto-scroll toggle */}
             <button
-              className={`diag-control-btn ${autoScroll ? 'active' : ''}`}
-              title={autoScroll ? 'Auto-scroll to newest (on)' : 'Auto-scroll to newest (off)'}
-              onClick={() => setAutoScroll(v => !v)}
+              className={`diag-logs-icon-btn ${logPaused ? 'diag-logs-icon-btn--warning' : ''}`}
+              onClick={() => setLogPaused((v) => !v)}
+              title={logPaused ? 'Resume live logs' : 'Pause live logs'}
             >
-              <ChevronsDown size={13} />
+              {logPaused ? <Play size={12} /> : <Pause size={12} />}
             </button>
-
-            {/* Clear */}
             <button
-              className="diag-control-btn"
-              title="Clear log panel"
-              onClick={handleClearLogs}
+              className={`diag-logs-icon-btn ${logAutoScroll ? 'diag-logs-icon-btn--active' : ''}`}
+              onClick={() => setLogAutoScroll((v) => !v)}
+              title={logAutoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
             >
-              <Trash2 size={13} />
+              <ArrowDownToLine size={12} />
             </button>
           </div>
         </div>
 
-        <div className="diagnostics-logs-table">
-          <div className="diagnostics-logs-thead">
-            <span className="diag-log-col-time">Timestamp</span>
-            <span className="diag-log-col-level">Level</span>
-            <span className="diag-log-col-source">Logger</span>
-            <span className="diag-log-col-msg">Message</span>
-          </div>
-          <div className="diagnostics-logs-body" ref={logsBodyRef}>
-            {logsLoading ? (
-              <div className="diagnostics-logs-empty">Loading module logs…</div>
-            ) : moduleLogs.length === 0 ? (
-              <div className="diagnostics-logs-empty">
-                No module log entries found
-                {levelFilter && ` for level ${levelFilter}`}
+        <div className="diag-logs-body" ref={logBodyRef}>
+          {filteredLogs.length === 0 ? (
+            <div className="diag-logs-empty">No log entries found</div>
+          ) : (
+            filteredLogs.map((entry, idx) => (
+              <div key={entry.id || idx} className="diag-logs-entry">
+                <span className="diag-logs-entry__ts">
+                  {entry.epochMs
+                    ? new Date(entry.epochMs).toLocaleString()
+                    : entry.timestamp}
+                </span>
+                <span className={`diag-logs-entry__level diag-logs-entry__level--${entry.level || 'INFO'}`}>
+                  {entry.level || 'INFO'}
+                </span>
+                <span className="diag-logs-entry__msg">{entry.message}</span>
               </div>
-            ) : (
-              [...moduleLogs].reverse().map(entry => (
-                <div
-                  key={entry.id || entry.timestamp + entry.message}
-                  className={`diagnostics-log-row ${getLevelClass(entry.level)}`}
-                >
-                  <span className="diag-log-col-time">
-                    {entry.epochMs
-                      ? new Date(entry.epochMs).toLocaleString()
-                      : entry.timestamp}
-                  </span>
-                  <span className={`diag-log-col-level diag-log-badge ${getLevelClass(entry.level)}`}>
-                    {entry.level}
-                  </span>
-                  <span className="diag-log-col-source" title={entry.logger || entry.source}>
-                    {entry.source || entry.logger}
-                  </span>
-                  <span className="diag-log-col-msg" title={entry.message}>{entry.message}</span>
-                </div>
-              ))
-            )}
-          </div>
+            ))
+          )}
+        </div>
+
+        <div className="diag-logs-status">
+          <span>{filteredLogs.length} entries (module only)</span>
+          <span>{logPaused ? 'Paused' : `Auto-refresh: ${LOG_POLL_MS / 1000}s`}</span>
         </div>
       </div>
     </div>

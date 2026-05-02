@@ -33,7 +33,7 @@ class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="error-boundary-overlay">
-          <AlertCircle size={48} color="#f38ba8" />
+          <AlertCircle size={48} className="error-boundary-icon" />
           <h2 className="error-boundary-title">
             Something went wrong
           </h2>
