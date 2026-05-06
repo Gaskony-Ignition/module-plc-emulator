@@ -51,9 +51,6 @@ public class AddressSpaceBuilder {
     private final Consumer<UaNode> nodeAdder;
     private final String deviceName;
 
-    // ThreadLocal to prevent infinite recursion in synchronized writes
-    private static final ThreadLocal<NodeId> currentlyWritingNode = new ThreadLocal<>();
-
     /**
      * Creates a new address space builder.
      *
@@ -399,19 +396,14 @@ public class AddressSpaceBuilder {
 
     /**
      * Enable synchronized writes for a pair of duplicate nodes (long path + short path).
+     * Re-entrancy is guarded via {@link WriteSyncHelpers}.
      */
     private void enableSynchronizedWrites(UaVariableNode node1, UaVariableNode node2) {
         node1.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    NodeId currentlyWriting = currentlyWritingNode.get();
-                    if (currentlyWriting == null) {
-                        currentlyWritingNode.set(node1.getNodeId());
-                        try {
-                            node2.setValue(value);
-                        } finally {
-                            currentlyWritingNode.remove();
-                        }
+                    if (!WriteSyncHelpers.isReentrant()) {
+                        WriteSyncHelpers.runGuarded(node1.getNodeId(), () -> node2.setValue(value));
                     }
                     ctx.setAttribute(AttributeId.Value, value);
                 }
@@ -421,14 +413,8 @@ public class AddressSpaceBuilder {
         node2.getFilterChain().addLast(
             AttributeFilters.setValue(
                 (ctx, value) -> {
-                    NodeId currentlyWriting = currentlyWritingNode.get();
-                    if (currentlyWriting == null) {
-                        currentlyWritingNode.set(node2.getNodeId());
-                        try {
-                            node1.setValue(value);
-                        } finally {
-                            currentlyWritingNode.remove();
-                        }
+                    if (!WriteSyncHelpers.isReentrant()) {
+                        WriteSyncHelpers.runGuarded(node2.getNodeId(), () -> node1.setValue(value));
                     }
                     ctx.setAttribute(AttributeId.Value, value);
                 }

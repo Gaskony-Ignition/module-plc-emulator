@@ -46,17 +46,12 @@ public class DeviceController {
     /**
      * Validates that a device name is safe — alphanumeric, hyphens, underscores, max 100 chars.
      * Returns null if valid; returns an error JSONObject (with resp status set) if invalid.
+     *
+     * <p>Delegates to the canonical {@link DeviceConfigService#validateDeviceName} so all three
+     * controllers share one regex/error-response implementation.</p>
      */
     JSONObject validateDeviceName(String deviceName, HttpServletResponse resp) throws JSONException {
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return new JSONObject().put("success", false).put("error", "Device name required");
-        }
-        if (!deviceName.matches("^[a-zA-Z0-9_\\- ]{1,100}$")) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return new JSONObject().put("success", false).put("error", "Invalid device name");
-        }
-        return null;
+        return DeviceConfigService.validateDeviceName(deviceName, resp);
     }
 
     // -------------------------------------------------------------------------

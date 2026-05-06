@@ -19,6 +19,17 @@
         <Bug pattern="EI_EXPOSE_REP" />
     </Match>
 
+    <!-- EI_EXPOSE_REP: Sprint 3 P6 collaborators extracted from LogixEmulatorDevice.
+         Same internal-API justification — module-internal accessors. -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.device.AddressSpaceLifecycle" />
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.device.FilePreparation" />
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+
     <!-- EI_EXPOSE_REP2: Internal constructor injection - controllers are module-internal -->
     <Match>
         <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.SimulationController" />

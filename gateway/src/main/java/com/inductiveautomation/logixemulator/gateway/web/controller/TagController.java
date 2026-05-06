@@ -255,14 +255,6 @@ public class TagController {
     // -------------------------------------------------------------------------
 
     private JSONObject validateDeviceName(String deviceName, HttpServletResponse resp) throws JSONException {
-        if (deviceName == null || deviceName.trim().isEmpty()) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return new JSONObject().put("success", false).put("error", "Device name required");
-        }
-        if (!deviceName.matches("^[a-zA-Z0-9_\\- ]{1,100}$")) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            return new JSONObject().put("success", false).put("error", "Invalid device name");
-        }
-        return null;
+        return DeviceConfigService.validateDeviceName(deviceName, resp);
     }
 }
