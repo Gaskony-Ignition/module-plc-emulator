@@ -21,8 +21,8 @@ This file contains module-specific instructions. Shared standards are in `/modul
 ## Essential Reading Order
 
 1. **This file** - Overall context and architecture
-2. **SKILLS.md** - Patterns, conventions, and gotchas (READ THIS to avoid debugging)
-3. **LEARNINGS.md** - Lessons learned from past development
+2. **`.claude/skills/`** - Module-specific skills (`plc-parsing/SKILL.md`, `plc-simulation/SKILL.md`) — load to avoid repeated debugging
+3. **`/modules/.claude/skills/`** - Shared skills across all 5 modules
 4. **README.md** - User-facing documentation
 
 ## Build Commands

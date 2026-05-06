@@ -205,7 +205,7 @@ unzip -l build/LogixPLCEmulator-{version}.modl | head -20
 5. Gateway prompts for restart
 6. Click **"Restart"**
 
-**Expected behavior**:
+**Expected behaviour**:
 - Installation starts without errors
 - Gateway restarts automatically
 - Module appears in list with "RUNNING" status
