@@ -32,6 +32,7 @@ wrapper.log
 
 # Module signing credentials (never commit)
 gradle.properties
+sign.properties
 sign.props
 *.jks
 *.keystore
@@ -39,6 +40,19 @@ sign.props
 *.pfx
 *.pem
 *.der
+*.key
+
+# Environment files — broad deny with explicit allowlist
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.*.example
+!.env.*.template
+
+# Public-only key material may still be committed if explicitly suffixed
+!*.public.key
+!*.pub.pem
 
 # Note: gradle.properties.template is the template (safe to commit)
 # Developers should copy template to gradle.properties and fill in credentials
