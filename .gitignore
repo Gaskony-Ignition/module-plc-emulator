@@ -24,11 +24,25 @@ out/
 node_modules/
 .npm/
 yarn-error.log
-package-lock.json
+# Note: package-lock.json is NOT ignored - it's required for reproducible CI builds
+yarn.lock
 
 # Logs
 *.log
 wrapper.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Java heap dumps
+*.hprof
+hs_err_pid*
+
+# Built module files
+*.modl
+*.unsigned.modl
 
 # Module signing credentials (never commit)
 gradle.properties
