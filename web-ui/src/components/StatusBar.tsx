@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useCallback, useState } from 'react'
 import { Cpu, MemoryStick, HardDrive, Activity } from 'lucide-react'
 import { API } from '../constants/api'
 import { apiGet } from '../utils/apiClient'
 import { formatBytes } from '../utils/format'
+import { useVisibilityAwarePolling } from '../hooks/useVisibilityAwarePolling'
 import './StatusBar.css'
 
 interface SystemStats {
@@ -17,48 +18,34 @@ function StatusBar() {
     cpuUsage: 0, ramUsage: 0, ramTotal: 0, deviceCount: 0,
   })
   const [simulatingCount, setSimulatingCount] = useState(0)
-  const statsTimerRef = useRef<number | null>(null)
-  const devicesTimerRef = useRef<number | null>(null)
 
-  // Fetch system stats (CPU/RAM) every 5s
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const data = await apiGet<SystemStats & { deviceCount: number }>(API.SYSTEM_STATS)
-        setStats({
-          cpuUsage: data.cpuUsage ?? 0,
-          ramUsage: data.ramUsage ?? 0,
-          ramTotal: data.ramTotal ?? 0,
-          deviceCount: data.deviceCount ?? 0,
-        })
-      } catch {
-        // silently ignore
-      }
-    }
-    fetchStats()
-    statsTimerRef.current = window.setInterval(fetchStats, 5000)
-    return () => {
-      if (statsTimerRef.current !== null) clearInterval(statsTimerRef.current)
+  // Fetch system stats (CPU/RAM) every 5s — paused when tab hidden (Sprint 3 perf).
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await apiGet<SystemStats & { deviceCount: number }>(API.SYSTEM_STATS)
+      setStats({
+        cpuUsage: data.cpuUsage ?? 0,
+        ramUsage: data.ramUsage ?? 0,
+        ramTotal: data.ramTotal ?? 0,
+        deviceCount: data.deviceCount ?? 0,
+      })
+    } catch {
+      // silently ignore
     }
   }, [])
+  useVisibilityAwarePolling(fetchStats, 5000)
 
-  // Fetch device simulation counts every 15s
-  useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const data = await apiGet<{ devices: { simulationEnabled: boolean }[] }>(API.DEVICES)
-        const devices = data.devices || []
-        setSimulatingCount(devices.filter((d: { simulationEnabled: boolean }) => d.simulationEnabled).length)
-      } catch {
-        // silently ignore
-      }
-    }
-    fetchDevices()
-    devicesTimerRef.current = window.setInterval(fetchDevices, 15000)
-    return () => {
-      if (devicesTimerRef.current !== null) clearInterval(devicesTimerRef.current)
+  // Fetch device simulation counts every 15s — paused when tab hidden.
+  const fetchDevices = useCallback(async () => {
+    try {
+      const data = await apiGet<{ devices: { simulationEnabled: boolean }[] }>(API.DEVICES)
+      const devices = data.devices || []
+      setSimulatingCount(devices.filter((d: { simulationEnabled: boolean }) => d.simulationEnabled).length)
+    } catch {
+      // silently ignore
     }
   }, [])
+  useVisibilityAwarePolling(fetchDevices, 15000)
 
   const getUsageColor = (pct: number) => {
     if (pct < 50) return 'var(--success)'
