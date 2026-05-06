@@ -17,6 +17,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.2.12] - 2026-05-06
+
+### Fixed
+- Live `dataItems` snapshot consumed by simulation engine and recalibrate-on-write so writes through the OPC-UA address space are reflected immediately by running simulations (C11 / C12)
+
+### Security
+- Harden `.gitignore` to deny `gradle.properties`, `sign.props`, `*.jks`, `*.keystore`, and broad `.env.*` patterns; explicit allowlist for templates/examples and `*.public.key` / `*.pub.pem` (B3-autonomous)
+
+### Notes
+- Intermediate releases 9.2.7-9.2.11 were never committed to git; their disk-only changes are rolled into this entry.
+
+---
+
+## [9.2.6] - 2026-03-14
+
+### Changed
+- Standardise shadow value and modal z-index across the module UI for consistency with the other 4 modules.
+
+---
+
+## [9.2.5] - 2026-03-14
+
+### Changed
+- Standardise CSS values (spacing, radius, transition timing) across the module UI per the cross-module variable contract.
+
+---
+
+## [9.2.4] - 2026-03-14
+
+### Changed
+- Standardise modal backdrop opacity to 0.6 (matches the cross-module Catppuccin overlay token).
+
+---
+
+## [9.2.3] - 2026-03-14
+
+### Changed
+- Cross-module UI standardisation pass: align typography, spacing, accent colours, and component shells with AT / Camera / Git / Python3.
+
+---
+
+## [9.2.2] - 2026-03-13
+
+### Fixed
+- Standardise `PageHeader` component and auth-screen layout to match the cross-module pattern (subtitle handling, badge prop, padding).
+
+---
+
 ## [9.1.1] - 2026-02-22 - **Rename nav item to "Devices"**
 
 ### Changed
