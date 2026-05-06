@@ -601,13 +601,15 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      */
     private void initializeSimulation() {
         try {
-            // Get all data items for this device
-            List<DataItem> dataItems = context.getSubscriptionModel()
-                .getDataItems(context.getName());
+            // Snapshot used only for the startup log message; the engine itself
+            // pulls a fresh list every tick via the supplier below (C11).
+            int initialCount = context.getSubscriptionModel()
+                .getDataItems(context.getName())
+                .size();
 
-            if (dataItems.isEmpty()) {
-                logger.warn("No data items found for simulation - skipping simulation engine startup");
-                return;
+            if (initialCount == 0) {
+                logger.info("No data items currently subscribed - simulation engine will pick them up "
+                           + "as they are created (supplier-based)");
             }
 
             // Create simulation engine with configured settings
@@ -621,11 +623,15 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
                 nodeId -> getNodeManager().get(nodeId)
             );
 
-            // Start the engine
-            simulationEngine.start(dataItems);
+            // C11: pass a supplier that returns the *current* data-item set on
+            // every tick. This way subscriptions added or removed after engine
+            // start are seen immediately — no engine restart needed.
+            simulationEngine.start(() ->
+                context.getSubscriptionModel().getDataItems(context.getName())
+            );
 
-            logger.info("Simulation engine started: {} pattern, {}ms interval, {} tags",
-                       pattern, updateInterval, dataItems.size());
+            logger.info("Simulation engine started: {} pattern, {}ms interval, {} initial tags",
+                       pattern, updateInterval, initialCount);
 
         } catch (Exception e) {
             logger.error("Failed to initialize simulation engine", e);
@@ -846,6 +852,14 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
                 var dataValue = new DataValue(variant);
                 varNode.setValue(dataValue);
                 logger.debug("Wrote value {} to tag {}", value, tagPath);
+
+                // C12: tell the simulation engine that this user-written value
+                // is the new baseline. The next simulation tick will continue
+                // *from* this value rather than overwriting it within the
+                // configured update interval.
+                if (simulationEngine != null && simulationEngine.isTagSimulated(tagPath)) {
+                    simulationEngine.recalibrate(tagPath, value);
+                }
                 return true;
             }
         } catch (Exception e) {

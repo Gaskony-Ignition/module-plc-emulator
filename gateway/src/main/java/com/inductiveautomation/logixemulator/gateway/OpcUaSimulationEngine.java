@@ -13,6 +13,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Simulation engine adapted for OPC-UA address space.
@@ -44,11 +46,17 @@ public class OpcUaSimulationEngine {
     private ScheduledFuture<?> simulationTask;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long startTime;
+    // Supplier of the live data-item set. Invoked on every tick so newly-created
+    // items are picked up and removed items are dropped without restarting the engine.
+    private volatile Supplier<List<DataItem>> dataItemsSupplier;
 
     // Per-tag simulation state - tags NOT in this set will NOT be simulated
     private final Set<String> simulatedTags = ConcurrentHashMap.newKeySet();
     // Per-tag simulation pattern override (optional)
     private final Map<String, LogixEmulatorConfig.SimulationPattern> tagPatterns = new ConcurrentHashMap<>();
+    // Per-tag baseline state for C12: an external write becomes the new baseline
+    // around which the active simulation pattern is computed.
+    private final Map<String, BaselineState> tagBaselines = new ConcurrentHashMap<>();
 
     public OpcUaSimulationEngine(
         LogixEmulatorConfig.SimulationPattern defaultPattern,
@@ -60,14 +68,24 @@ public class OpcUaSimulationEngine {
     }
 
     /**
-     * Start the simulation engine.
+     * Start the simulation engine using a {@link Supplier} that returns the
+     * <em>current</em> set of {@link DataItem}s on every tick. This avoids the
+     * stale-snapshot bug where items added (or removed) at runtime were never
+     * picked up by the simulation loop. The supplier is invoked once per tick
+     * and its result is wrapped in an immutable snapshot before iteration.
+     *
+     * @param dataItemsSupplier supplier of the live data-item list; must not be null
      */
-    public void start(List<DataItem> dataItems) {
+    public void start(Supplier<List<DataItem>> dataItemsSupplier) {
+        if (dataItemsSupplier == null) {
+            throw new IllegalArgumentException("dataItemsSupplier must not be null");
+        }
         if (!running.compareAndSet(false, true)) {
             logger.warn("Simulation engine already running");
             return;
         }
 
+        this.dataItemsSupplier = dataItemsSupplier;
         startTime = System.currentTimeMillis();
         executor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "OPC-UA-Simulation-Engine");
@@ -76,7 +94,7 @@ public class OpcUaSimulationEngine {
         });
 
         simulationTask = executor.scheduleAtFixedRate(
-            () -> updateSimulatedValues(dataItems),
+            this::tick,
             0,
             updateIntervalMs,
             TimeUnit.MILLISECONDS
@@ -84,6 +102,42 @@ public class OpcUaSimulationEngine {
 
         logger.info("OPC-UA Simulation engine started ({}ms interval, {} pattern)",
                     updateIntervalMs, defaultPattern);
+    }
+
+    /**
+     * Convenience overload retained for backwards compatibility (notably tests).
+     * The list is wrapped in a static supplier — callers that need runtime
+     * mutation should use {@link #start(Supplier)} instead.
+     *
+     * @param dataItems initial data-item list (treated as static)
+     */
+    public void start(List<DataItem> dataItems) {
+        List<DataItem> snapshot = dataItems == null
+            ? Collections.emptyList()
+            : List.copyOf(dataItems);
+        start(() -> snapshot);
+    }
+
+    /**
+     * Per-tick entry point. Pulls a fresh snapshot from the supplier so any
+     * data items created/deleted since the last tick are reflected immediately.
+     */
+    private void tick() {
+        Supplier<List<DataItem>> supplier = this.dataItemsSupplier;
+        if (supplier == null) {
+            return;
+        }
+        List<DataItem> live;
+        try {
+            live = supplier.get();
+        } catch (Exception e) {
+            logger.warn("Failed to obtain data-item snapshot for simulation tick", e);
+            return;
+        }
+        // Defensive immutable snapshot — engine never mutates and never trusts
+        // the supplier to return a thread-safe list.
+        List<DataItem> snapshot = (live == null) ? Collections.emptyList() : List.copyOf(live);
+        updateSimulatedValues(snapshot);
     }
 
     /**
@@ -109,6 +163,10 @@ public class OpcUaSimulationEngine {
                 Thread.currentThread().interrupt();
             }
         }
+
+        // Drop reference so the engine can be safely garbage collected and
+        // a future start() does not race with a stale supplier.
+        dataItemsSupplier = null;
 
         logger.info("OPC-UA Simulation engine stopped");
     }
@@ -154,9 +212,16 @@ public class OpcUaSimulationEngine {
                     DataValue currentDataValue = variableNode.getValue();
                     Object currentValue = currentDataValue.getValue().getValue();
 
-                    // Calculate new simulated value using tag-specific or default pattern
+                    // Calculate new simulated value using tag-specific or default pattern.
+                    // If a baseline has been recorded for this tag (via recalibrate())
+                    // we feed the simulation a per-tag elapsed clock plus the user-written
+                    // baseline, so the pattern continues *from* the user's value rather
+                    // than overwriting it on the next tick.
                     LogixEmulatorConfig.SimulationPattern pattern = tagPatterns.getOrDefault(tagPath, defaultPattern);
-                    Object newValue = calculateValue(currentValue, elapsedSeconds, pattern);
+                    BaselineState baseline = tagBaselines.get(tagPath);
+                    Object newValue = (baseline == null)
+                        ? calculateValue(currentValue, elapsedSeconds, pattern)
+                        : calculateRecalibratedValue(currentValue, elapsedSeconds, pattern, baseline);
 
                     // Create new DataValue with current timestamp
                     DataValue newDataValue = new DataValue(
@@ -341,6 +406,7 @@ public class OpcUaSimulationEngine {
         if (tagPath != null) {
             simulatedTags.remove(tagPath);
             tagPatterns.remove(tagPath);
+            tagBaselines.remove(tagPath);
             logger.debug("Disabled simulation for tag: {}", tagPath);
         }
     }
@@ -407,6 +473,7 @@ public class OpcUaSimulationEngine {
     public void disableAllSimulation() {
         simulatedTags.clear();
         tagPatterns.clear();
+        tagBaselines.clear();
         logger.info("Disabled simulation for all tags");
     }
 
@@ -439,8 +506,9 @@ public class OpcUaSimulationEngine {
                 count++;
             }
         }
-        // Also clean up patterns for disabled tags
+        // Also clean up patterns and baselines for disabled tags
         tagPatterns.keySet().removeIf(k -> k.startsWith(prefix));
+        tagBaselines.keySet().removeIf(k -> k.startsWith(prefix));
         logger.info("Disabled simulation for {} tags matching scope: {}", count, prefix);
     }
 
@@ -459,5 +527,178 @@ public class OpcUaSimulationEngine {
      */
     public int getSimulatedTagCount() {
         return simulatedTags.size();
+    }
+
+    // =====================================================
+    // C12 — User-write recalibration
+    // =====================================================
+
+    /**
+     * Recalibrate the simulation for a tag so that {@code newBaseline} becomes
+     * the new centre/origin of the active pattern. Called by the device whenever
+     * an external write (OPC-UA, REST, attribute filter) lands on a simulated
+     * tag — the next simulation tick will continue *from* the written value
+     * instead of clobbering it within {@code updateIntervalMs}.
+     *
+     * <p>Semantics by pattern:</p>
+     * <ul>
+     *   <li><b>RAMP</b> — restarts at {@code newBaseline} and ramps upward</li>
+     *   <li><b>SINE</b> — re-phases so the wave is centred on {@code newBaseline}</li>
+     *   <li><b>RANDOM</b> — re-centres the band around {@code newBaseline}</li>
+     *   <li><b>STATIC</b> — value is held at {@code newBaseline}</li>
+     *   <li><b>TOGGLE</b> — boolean: written value seeds the toggle phase</li>
+     * </ul>
+     *
+     * @param tagPath the tag whose simulation should re-anchor
+     * @param newBaseline the freshly-written value to treat as the new origin
+     */
+    public void recalibrate(String tagPath, Object newBaseline) {
+        if (tagPath == null || tagPath.isEmpty()) {
+            return;
+        }
+        if (!isTagSimulated(tagPath)) {
+            // Not a simulated tag — nothing to recalibrate.
+            return;
+        }
+        BaselineState state = new BaselineState(newBaseline, System.currentTimeMillis());
+        tagBaselines.put(tagPath, state);
+        logger.debug("Recalibrated simulation baseline for tag {} to {}", tagPath, newBaseline);
+    }
+
+    /**
+     * Get the recorded baseline for a tag (test/diagnostic hook).
+     * @return the recorded baseline value, or null if none has been set
+     */
+    public Object getBaseline(String tagPath) {
+        if (tagPath == null || tagPath.isEmpty()) {
+            return null;
+        }
+        BaselineState state = tagBaselines.get(tagPath);
+        return state == null ? null : state.value;
+    }
+
+    /**
+     * Compute a value for a tag that has a recorded user-write baseline.
+     * Numeric patterns continue around the new baseline; STATIC holds it;
+     * TOGGLE flips boolean baselines around their own phase.
+     */
+    private Object calculateRecalibratedValue(
+            Object currentValue,
+            double elapsedSeconds,
+            LogixEmulatorConfig.SimulationPattern pattern,
+            BaselineState baseline) {
+
+        // Per-tag elapsed clock — measured from the moment the baseline was set
+        // so the pattern restarts from "now" instead of jumping mid-cycle.
+        double localElapsed = Math.max(0.0, (System.currentTimeMillis() - baseline.recalibratedAtMillis) / 1000.0);
+
+        // Numeric baseline as a double for amplitude calculations
+        double base;
+        try {
+            base = toDouble(baseline.value, currentValue);
+        } catch (NumberFormatException e) {
+            // Fall back to the unrecalibrated path if the baseline cannot be coerced
+            return calculateValue(currentValue, elapsedSeconds, pattern);
+        }
+
+        switch (pattern) {
+            case STATIC:
+                // Hold the user-written baseline indefinitely.
+                return coerceToType(base, currentValue, baseline.value);
+
+            case RAMP: {
+                // Use a default range of 100 to keep parity with calculateNumericValue
+                double period = 10.0;
+                double phase = (localElapsed % period) / period;
+                double ramped = base + (100.0 * phase);
+                return coerceToType(ramped, currentValue, baseline.value);
+            }
+
+            case SINE: {
+                double sinePeriod = 10.0;
+                double frequency = 2 * Math.PI / sinePeriod;
+                double amplitude = 50.0; // half of the default 100-range
+                double v = base + amplitude * Math.sin(frequency * localElapsed);
+                return coerceToType(v, currentValue, baseline.value);
+            }
+
+            case RANDOM: {
+                // Random walk around the baseline, ±50 (default range/2)
+                double v = base + (random.nextDouble() - 0.5) * 100.0;
+                return coerceToType(v, currentValue, baseline.value);
+            }
+
+            case TOGGLE:
+                if (currentValue instanceof Boolean || baseline.value instanceof Boolean) {
+                    boolean seed = (baseline.value instanceof Boolean) && (Boolean) baseline.value;
+                    double togglePeriod = 2.0;
+                    boolean phase = (localElapsed % togglePeriod) < (togglePeriod / 2.0);
+                    return seed ^ phase ? Boolean.TRUE : Boolean.FALSE;
+                }
+                // Numeric toggle: alternate between baseline and (baseline + range)
+                double togglePeriod = 2.0;
+                double v = (localElapsed % togglePeriod) < (togglePeriod / 2.0) ? base + 100.0 : base;
+                return coerceToType(v, currentValue, baseline.value);
+
+            default:
+                return coerceToType(base, currentValue, baseline.value);
+        }
+    }
+
+    /**
+     * Coerce a double-valued simulation result back into the original tag's
+     * Java type (Boolean/Short/Integer/Long/Float/Double/String).
+     */
+    private Object coerceToType(double value, Object currentValue, Object baselineValue) {
+        Object reference = currentValue != null ? currentValue : baselineValue;
+        if (reference instanceof Boolean) {
+            return value > 0.5;
+        } else if (reference instanceof Short) {
+            return (short) Math.max(Short.MIN_VALUE, Math.min(Short.MAX_VALUE, value));
+        } else if (reference instanceof Integer) {
+            return (int) value;
+        } else if (reference instanceof Long) {
+            return (long) value;
+        } else if (reference instanceof Float) {
+            return (float) value;
+        } else if (reference instanceof Double) {
+            return value;
+        }
+        return value;
+    }
+
+    /**
+     * Best-effort conversion of an arbitrary value to a double. Falls back to
+     * the current OPC-UA value if the baseline cannot be parsed.
+     */
+    private double toDouble(Object value, Object currentValue) {
+        if (value instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (value instanceof Boolean b) {
+            return b ? 1.0 : 0.0;
+        }
+        if (value instanceof String s) {
+            return Double.parseDouble(s.trim());
+        }
+        if (currentValue instanceof Number n) {
+            return n.doubleValue();
+        }
+        throw new NumberFormatException("Cannot coerce baseline " + value + " to double");
+    }
+
+    /**
+     * Per-tag baseline record — the value the user wrote and the wall-clock
+     * timestamp at which it became authoritative. Final fields ensure
+     * publication safety across the simulation thread without explicit locking.
+     */
+    private static final class BaselineState {
+        final Object value;
+        final long recalibratedAtMillis;
+
+        BaselineState(Object value, long recalibratedAtMillis) {
+            this.value = value;
+            this.recalibratedAtMillis = recalibratedAtMillis;
+        }
     }
 }
