@@ -8,6 +8,7 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import PageHeader from './PageHeader'
+import Modal from './Modal'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
 import { DeviceInfo, DeviceStatus } from '../types/device'
@@ -79,14 +80,7 @@ function DeviceManagerView() {
     }
   }, [selectedDevice, loadDeviceStatus])
 
-  useEffect(() => {
-    if (!showDeleteModal) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowDeleteModal(false)
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [showDeleteModal])
+  // Note: Escape key handling is now provided by the Modal a11y primitive.
 
   const handleRefresh = async () => {
     setRefreshing(true)
@@ -424,34 +418,39 @@ function DeviceManagerView() {
         )}
       </div>
 
-      {/* Delete confirmation modal */}
-      {showDeleteModal && (
-        <div className="dm-modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="dm-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Delete Device?</h3>
-            <p>
-              Are you sure you want to delete <strong>{selectedDevice}</strong>?
-              This will remove the device and its associated L5X file.
-            </p>
-            <div className="dm-modal-actions">
-              <button
-                className="dm-btn dm-btn-secondary"
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleting}
-              >
-                Cancel
-              </button>
-              <button
-                className="dm-btn dm-btn-danger"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
+      {/* Delete confirmation modal (a11y primitive) */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => { if (!deleting) setShowDeleteModal(false) }}
+        closeOnBackdrop={!deleting}
+        title="Delete Device?"
+        backdropClassName="dm-modal-overlay"
+        className="dm-modal-dialog"
+        showCloseButton={false}
+        footer={
+          <div className="dm-modal-actions">
+            <button
+              className="dm-btn dm-btn-secondary"
+              onClick={() => setShowDeleteModal(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </button>
+            <button
+              className="dm-btn dm-btn-danger"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <p>
+          Are you sure you want to delete <strong>{selectedDevice}</strong>?
+          This will remove the device and its associated L5X file.
+        </p>
+      </Modal>
     </div>
   )
 }

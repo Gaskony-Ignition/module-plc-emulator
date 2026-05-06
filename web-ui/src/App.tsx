@@ -103,8 +103,9 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <div className="app-wrapper">
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         {status === "disconnected" && (
-          <div className="connection-banner">
+          <div className="connection-banner" role="status" aria-live="polite">
             Unable to connect to Logix PLC Emulator gateway. Retrying...
           </div>
         )}
@@ -121,9 +122,9 @@ const App: React.FC = () => {
             moduleVersion={MODULE_VERSION}
           />
           <div className="app-content-area">
-            <div className="app-active-view">
+            <main id="main-content" className="app-active-view" tabIndex={-1}>
               {renderActiveView()}
-            </div>
+            </main>
             <StatusBar />
           </div>
         </div>
