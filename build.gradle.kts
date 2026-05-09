@@ -13,7 +13,7 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
     analyzers.assemblyEnabled = false
 }
 
-version = "9.2.13"
+version = "9.2.14"
 group = "com.gaskony"
 
 allprojects {
@@ -32,13 +32,11 @@ ignitionModule {
 
     projectScopes.putAll(mapOf(
         ":gateway" to "G",
-        ":designer" to "D",
-        ":common" to "GD"
+        ":common" to "G"
     ))
 
     hooks.putAll(mapOf(
-        "com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook" to "G",
-        "com.inductiveautomation.logixemulator.designer.DesignerHook" to "D"
+        "com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook" to "G"
     ))
 
     // Declare dependency on OPC-UA module for device driver APIs (Ignition 8.3+ format)

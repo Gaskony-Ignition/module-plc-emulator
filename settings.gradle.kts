@@ -22,4 +22,4 @@ enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 rootProject.name = "logix-emulator"
 
-include(":gateway", ":designer", ":common", ":web-ui")
+include(":gateway", ":common", ":web-ui")

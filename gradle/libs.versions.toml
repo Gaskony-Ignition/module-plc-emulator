@@ -14,7 +14,6 @@ awaitility = "4.2.2"
 [libraries]
 ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
 ignition-gateway-api = { module = "com.inductiveautomation.ignitionsdk:gateway-api", version.ref = "ignition" }
-ignition-designer-api = { module = "com.inductiveautomation.ignitionsdk:designer-api", version.ref = "ignition" }
 ignition-driver-api = { module = "com.inductiveautomation.ignitionsdk:driver-api", version.ref = "ignition" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 opc-ua-gateway-api = { module = "com.inductiveautomation.opcua:opc-ua-gateway-api", version.ref = "opc-ua-gateway-api" }

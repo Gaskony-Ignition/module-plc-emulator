@@ -17,6 +17,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.2.14] - 2026-05-09
+
+### Removed
+- `:designer` Gradle subproject and its no-op `DesignerHook`. The Designer hook only logged startup/shutdown — there is no Designer-side functionality. Removing it shrinks the .modl, drops one scope from the build, and avoids shipping a hook for a scope that does nothing.
+
+### Changed
+- `:common` scope mapping changed from `GD` to `G` (Designer scope no longer exists, so common code is gateway-only).
+- `gradle/libs.versions.toml`: removed unused `ignition-designer-api` library declaration.
+- `.github/workflows/pr-checks.yml`: added a `gradle-check` job that runs `./gradlew check --no-daemon` so JaCoCo, Checkstyle, and SpotBugs gate PRs (matches AT, Camera, Git, Python3).
+
+---
+
 ## [9.2.13] - 2026-05-09
 
 ### Sprint 3 closeout

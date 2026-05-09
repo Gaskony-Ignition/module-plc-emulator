@@ -162,7 +162,7 @@ If using self-signed certificates and Ignition rejects the module:
 
 Update version in `build.gradle.kts`:
 ```kotlin
-version = "9.2.13"
+version = "9.2.14"
 ```
 
 This updates:
