@@ -17,6 +17,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [9.2.13] - 2026-05-09
+
+### Sprint 3 closeout
+
+Bundles the six Sprint 3 commits sitting on top of 9.2.12.
+
+#### Added
+- Accessibility baseline (P10): `prefers-reduced-motion: reduce` block in `App.scss`, skip link wired to `<main id="main-content">`, new accessible `Modal` primitive (`role=dialog`, focus trap, Escape, focus restore, body scroll lock) with the device-delete confirmation modal in `DeviceManagerView` migrated as the first consumer, and `jsx-a11y/label-has-associated-control` ESLint rule at warn severity.
+
+#### Changed
+- Visibility-aware polling for `StatusBar` — fetches suspend on `visibilitychange:hidden` and resume on visible via the `useVisibilityAwarePolling` hook, cutting wasted gateway round-trips when the panel/tab is backgrounded (perf).
+- Standardise `.gitattributes` (canonical LF version) and `.gitignore` (track `package-lock.json`; add `*.bak` / `*.backup` / `*.hprof` / Windows-litter patterns) to match the cross-module standard.
+- Backfill `CHANGELOG.md` entries for the six prior intermediate patches that shipped without release notes.
+- `CLAUDE.md` required-reading list updated to point at `.claude/skills/` (SKILLS.md / LEARNINGS.md retired in the Mar 6 shared-skills migration). One Australian English substitution in `docs/TESTING.md` (P8 docs sweep).
+
+#### Refactored
+- Break up `LogixEmulatorDevice` god class (P6): 1054 → 472 lines (target ≤500 achieved). Extracts eight focused collaborators in the `device/` package, each with its own unit-test class.
+
+---
+
 ## [9.2.12] - 2026-05-06
 
 ### Fixed
