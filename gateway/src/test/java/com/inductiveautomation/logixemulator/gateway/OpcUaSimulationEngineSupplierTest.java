@@ -215,14 +215,18 @@ class OpcUaSimulationEngineSupplierTest {
                 assertThat(lookedUp).contains("Tag0", "Tag1", "Tag2", "Tag3", "Tag4")
             );
 
-            // Mutate live: add 2, remove 1
-            lookedUp.clear();
+            // Mutate live: add 2, remove 1 — sequence the mutations BEFORE the
+            // snapshot reset so a tick firing mid-sequence can't pollute the
+            // post-mutation assertion window with stale Tag2 lookups.
             live.add(mockDataItem("Tag5"));
             live.add(mockDataItem("Tag6"));
             engineWithLookup.enableTagSimulation("Tag5");
             engineWithLookup.enableTagSimulation("Tag6");
             live.removeIf(d -> "Tag2".equals(d.getReadValueId().getNodeId().getIdentifier().toString()));
             engineWithLookup.disableTagSimulation("Tag2");
+
+            // Now reset and assert on the steady post-mutation state only.
+            lookedUp.clear();
 
             // After mutation, the engine must (a) see Tag5 + Tag6 on the next
             // tick, and (b) NOT iterate Tag2 anymore — proving it's reading
