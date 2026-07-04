@@ -1,6 +1,22 @@
 # Logix PLC Emulator - Ignition Module
 
-A device driver module for Inductive Automation's Ignition platform that emulates Rockwell Logix PLC tag structures. Parse L5K/L5X export files from Studio 5000 and create OPC-UA accessible tag structures for development and testing without a physical PLC.
+## Why this exists
+
+Ignition projects are built against the tag structures of real PLCs — but the
+real PLC is usually unavailable: it's running a plant, it's on a customer site,
+or it doesn't exist yet. Generic simulators don't help, because the hard part
+isn't producing changing values; it's matching the **exact** tag tree the
+project will bind to — UDTs, AOIs, arrays and all.
+
+**This module turns the PLC's own program export into the test PLC.** Feed it
+the L5K/L5X file from Studio 5000 and it emulates that controller's complete
+tag structure through Ignition's OPC-UA server, with configurable simulated
+values and hot-reload — develop, demonstrate, and acceptance-test with zero
+PLC hardware and zero risk to a running plant.
+
+The full purpose, definition of done, and permanent won't-do list live in
+[docs/PROJECT_CHARTER.md](docs/PROJECT_CHARTER.md) — the charter drives every
+release decision.
 
 ## Current Status
 
@@ -36,6 +52,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 ### Creating an Emulated Device
 
 #### Quick Create (No File Required)
+
 1. Go to Config > OPC UA > Device Connections > Create New Device
 2. Select device type: **Logix PLC Emulator**
 3. Enter **Device Name** and select **Parser Type**
@@ -43,6 +60,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 5. Add files later via the Connection Browser or Edit Program page
 
 #### Create with File
+
 1. Go to Config > OPC UA > Device Connections > Create New Device
 2. Select device type: **Logix PLC Emulator**
 3. Configure:
@@ -75,7 +93,7 @@ A device driver module for Inductive Automation's Ignition platform that emulate
 All routes require authentication (Gateway login).
 
 | Method | Endpoint | Description |
-|--------|----------|-------------|
+| -------- | ---------- | ------------- |
 | POST | `/data/logixemulator/upload` | Upload PLC file to device |
 | GET | `/data/logixemulator/devices` | List all emulated devices |
 | GET | `/data/logixemulator/device/:name/status` | Device status and file info |

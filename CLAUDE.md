@@ -20,10 +20,14 @@ This file contains module-specific instructions. Shared standards are in `/modul
 
 ## Essential Reading Order
 
-1. **This file** - Overall context and architecture
-2. **`.claude/skills/`** - Module-specific skills (`plc-parsing/SKILL.md`, `plc-simulation/SKILL.md`) — load to avoid repeated debugging
-3. **`/modules/.claude/skills/`** - Shared skills across all 5 modules
+1. **`docs/PROJECT_CHARTER.md`** - Purpose, definition of done, won't-do list — drives all release decisions
+2. **This file** - Overall context and architecture
+3. **`/modules/.claude/skills/`** - Shared skills across all modules
 4. **README.md** - User-facing documentation
+
+(The former module-local skills `plc-parsing` and `plc-simulation` were lost in the
+June 2026 data loss and have not been recreated — there is no `.claude/` directory
+in this module.)
 
 ## Build Commands
 
