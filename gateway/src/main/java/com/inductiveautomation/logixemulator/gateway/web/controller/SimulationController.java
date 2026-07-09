@@ -185,9 +185,10 @@ public class SimulationController {
         LogixEmulatorDevice device = deviceOpt.get();
 
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {
@@ -200,6 +201,15 @@ public class SimulationController {
                 return result.put("success", false).put("error", "tagPath required");
             }
 
+            // The simulation engine keys its per-tag registry off the *live* OPC-UA
+            // NodeId identifier, which AddressSpaceBuilder always constructs in DOT
+            // notation (e.g. "Controller:Global.RampInt") — never the slash notation
+            // ("Controller:Global/RampInt") this endpoint receives from clients. Without
+            // this conversion the registry and the engine's per-tick node lookup use
+            // different keys and never match, so a tag can be "registered" (API reports
+            // success) while its OPC-UA node value never updates (defect B3).
+            String opcuaPath = convertToNodeIdPath(tagPath);
+
             String pattern = requestJson.optString("pattern", null);
             boolean enabled;
 
@@ -207,26 +217,26 @@ public class SimulationController {
                 enabled = requestJson.getBoolean("enabled");
                 if (enabled) {
                     if (pattern != null && !pattern.isEmpty()) {
-                        device.enableTagSimulation(tagPath, pattern);
+                        device.enableTagSimulation(opcuaPath, pattern);
                     } else {
-                        device.enableTagSimulation(tagPath);
+                        device.enableTagSimulation(opcuaPath);
                     }
                 } else {
-                    device.disableTagSimulation(tagPath);
+                    device.disableTagSimulation(opcuaPath);
                 }
             } else {
-                Boolean newState = device.toggleTagSimulation(tagPath);
+                Boolean newState = device.toggleTagSimulation(opcuaPath);
                 enabled = newState != null && newState;
 
                 if (enabled && pattern != null && !pattern.isEmpty()) {
-                    device.enableTagSimulation(tagPath, pattern);
+                    device.enableTagSimulation(opcuaPath, pattern);
                 }
             }
 
             return result.put("success", true)
                 .put("tagPath", tagPath)
                 .put("simulationEnabled", enabled)
-                .put("pattern", device.getTagSimulationPattern(tagPath))
+                .put("pattern", device.getTagSimulationPattern(opcuaPath))
                 .put("simulatedTagCount", device.getSimulatedTagCount());
 
         } catch (Exception e) {
@@ -302,9 +312,10 @@ public class SimulationController {
 
         LogixEmulatorDevice device = deviceOpt.get();
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {
@@ -318,10 +329,16 @@ public class SimulationController {
                 return result.put("success", false).put("error", "scope required");
             }
 
+            // Same DOT-vs-slash notation gap as handleToggleTagSimulation (defect B3):
+            // the engine matches scope prefixes against live DOT-notation NodeId
+            // identifiers, so a slash-notation scope like "Programs/MainProgram" must be
+            // converted before being handed to the engine.
+            String opcuaScope = convertToNodeIdPath(scope);
+
             if (enabled) {
-                device.enableSimulationByScope(scope);
+                device.enableSimulationByScope(opcuaScope);
             } else {
-                device.disableSimulationByScope(scope);
+                device.disableSimulationByScope(opcuaScope);
             }
 
             return result.put("success", true)
@@ -366,9 +383,10 @@ public class SimulationController {
 
         LogixEmulatorDevice device = deviceOpt.get();
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {
