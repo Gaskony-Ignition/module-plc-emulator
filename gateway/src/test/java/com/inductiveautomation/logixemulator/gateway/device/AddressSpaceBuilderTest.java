@@ -315,6 +315,192 @@ class AddressSpaceBuilderTest {
     }
 
     // =========================================================================
+    // getInitialValue() lenient parsing — regression tests for defect B1
+    // (docs/plans/V10_FIDELITY_PLAN.md). Before the fix, a non-numeric initial_value
+    // (notably the "{structure}" sentinel previously emitted by L5XParser.extractValue()
+    // for array/UDT/STRING Data elements, and empty strings) caused
+    // JsonPrimitive.getAsInt()/getAsFloat()/getAsLong()/getAsDouble() to throw
+    // NumberFormatException, aborting the entire address-space build - see
+    // plc-dod/item2-addressspace-error.txt and AddressSpaceBuilderIntegrationTest.
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getInitialValue() lenient parsing (defect B1)")
+    class GetInitialValueLenientParsingTests {
+
+        @Test
+        @DisplayName("\"{structure}\" for BOOL returns default false")
+        void testStructureSentinelBool() {
+            JsonObject tag = makeTag("MyBit", "BOOL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "BOOL")).isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for DINT returns default 0 instead of throwing")
+        void testStructureSentinelDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for INT returns default 0 instead of throwing")
+        void testStructureSentinelInt16() {
+            JsonObject tag = makeTag("MyShort", "INT");
+            tag.addProperty("initial_value", "{structure}");
+            // Matches the pre-existing no-initial_value default for this type family (Integer 0),
+            // not the Short the parsed-value branch produces - a pre-existing quirk, not a
+            // regression introduced by the B1 fix.
+            assertThat(builder.getInitialValue(tag, "INT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for LINT returns default 0L instead of throwing")
+        void testStructureSentinelLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for REAL returns default 0.0f instead of throwing")
+        void testStructureSentinelReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for LREAL returns default 0.0 instead of throwing")
+        void testStructureSentinelLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for STRING is returned as-is (getAsString never throws)")
+        void testStructureSentinelString() {
+            JsonObject tag = makeTag("MyStr", "STRING");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "STRING")).isEqualTo("{structure}");
+        }
+
+        @Test
+        @DisplayName("empty string for DINT returns default 0 instead of throwing")
+        void testEmptyStringDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("empty string for LINT returns default 0L instead of throwing")
+        void testEmptyStringLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("empty string for REAL returns default 0.0f instead of throwing")
+        void testEmptyStringReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("empty string for LREAL returns default 0.0 instead of throwing")
+        void testEmptyStringLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("garbage string for DINT returns default 0 instead of throwing")
+        void testGarbageStringDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("garbage string for INT returns default 0 instead of throwing")
+        void testGarbageStringInt16() {
+            JsonObject tag = makeTag("MyShort", "INT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "INT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("garbage string for LINT returns default 0L instead of throwing")
+        void testGarbageStringLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("garbage string for REAL returns default 0.0f instead of throwing")
+        void testGarbageStringReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("garbage string for LREAL returns default 0.0 instead of throwing")
+        void testGarbageStringLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("garbage string for BOOL is treated as false (no exception)")
+        void testGarbageStringBool() {
+            JsonObject tag = makeTag("MyBit", "BOOL");
+            tag.addProperty("initial_value", "not-a-boolean");
+            assertThat(builder.getInitialValue(tag, "BOOL")).isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("valid numeric strings still parse correctly for every numeric type family")
+        void testValidValuesStillParseAfterLeniencyChange() {
+            JsonObject boolTag = makeTag("MyBit", "BOOL");
+            boolTag.addProperty("initial_value", "true");
+            assertThat(builder.getInitialValue(boolTag, "BOOL")).isEqualTo(true);
+
+            JsonObject sintTag = makeTag("MySint", "SINT");
+            sintTag.addProperty("initial_value", "7");
+            assertThat(builder.getInitialValue(sintTag, "SINT")).isEqualTo((short) 7);
+
+            JsonObject dintTag = makeTag("MyDint", "DINT");
+            dintTag.addProperty("initial_value", "123");
+            assertThat(builder.getInitialValue(dintTag, "DINT")).isEqualTo(123);
+
+            JsonObject lintTag = makeTag("MyLint", "LINT");
+            lintTag.addProperty("initial_value", "123456789012");
+            assertThat(builder.getInitialValue(lintTag, "LINT")).isEqualTo(123456789012L);
+
+            JsonObject realTag = makeTag("MyReal", "REAL");
+            realTag.addProperty("initial_value", "2.5");
+            assertThat(builder.getInitialValue(realTag, "REAL")).isEqualTo(2.5f);
+
+            JsonObject lrealTag = makeTag("MyLreal", "LREAL");
+            lrealTag.addProperty("initial_value", "2.5");
+            assertThat(builder.getInitialValue(lrealTag, "LREAL")).isEqualTo(2.5);
+
+            JsonObject stringTag = makeTag("MyStr", "STRING");
+            stringTag.addProperty("initial_value", "hello");
+            assertThat(builder.getInitialValue(stringTag, "STRING")).isEqualTo("hello");
+        }
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 

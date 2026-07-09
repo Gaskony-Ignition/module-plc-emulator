@@ -250,6 +250,42 @@ class L5XParserTest {
     }
 
     @Test
+    @DisplayName("Should not emit the '{structure}' sentinel as initial_value for a Decorated array Data element (regression test for defect B1)")
+    void testArrayDataDoesNotEmitStructureSentinel() {
+        // Real Studio 5000 exports render an array's Data element as an <Array> of <Element>
+        // children, never a <DataValue>. Before the B1 fix, extractValue() treated this as
+        // "complex" and returned the "{structure}" sentinel, which AddressSpaceBuilder then tried
+        // (and failed) to parse as a number - see item2-addressspace-error.txt.
+        String contentWithArrayData = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyArray" DataType="DINT" Dimensions="3">
+                            <Data Format="Decorated">
+                                <Array DataType="DINT" Dimensions="3">
+                                    <Element Index="[0]" Value="0"/>
+                                    <Element Index="[1]" Value="0"/>
+                                    <Element Index="[2]" Value="0"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithArrayData, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).hasSize(1);
+        JsonObject tag = tags.get(0).getAsJsonObject();
+
+        assertThat(tag.has("initial_value")).isFalse();
+    }
+
+    @Test
     @DisplayName("Should parse AOI definitions")
     void testParseAOI() {
         String contentWithAoi = """

@@ -53,14 +53,39 @@ dependencies {
     testImplementation(libs.opc.ua.gateway.api)
 }
 
+// Fidelity tests (@Tag("fidelity")) encode the TARGET driver-matching NodeId behaviour from
+// docs/plans/ADDRESSING.md (Stage C, spec in progress) and are enabled per-fix as that work
+// lands. They are excluded from the default `test` task and instead run via the `fidelityTest`
+// task, or by passing -PincludeFidelity to `test` itself. See
+// AddressSpaceBuilderFidelityTest's Javadoc for the full explanation.
+val includeFidelity = project.hasProperty("includeFidelity")
+
 tasks.test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        if (!includeFidelity) {
+            excludeTags("fidelity")
+        }
+    }
     testLogging {
         events("passed", "skipped", "failed")
         exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
         showStandardStreams = false
     }
     finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.register<Test>("fidelityTest") {
+    description = "Runs only the @Tag(\"fidelity\") suite (Stage C driver-matching NodeId assertions)."
+    group = "verification"
+    useJUnitPlatform {
+        includeTags("fidelity")
+    }
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    testLogging {
+        events("passed", "skipped", "failed")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+    }
 }
 
 jacoco {
