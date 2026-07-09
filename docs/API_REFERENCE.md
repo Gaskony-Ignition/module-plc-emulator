@@ -1,7 +1,8 @@
 # API Reference - Logix PLC Emulator
 
 **Version**: 9.2.14
-**Last Updated**: 2026-07-10 (auth/routes/limits corrected — defect B7, v10.0.0 fidelity plan)
+**Last Updated**: 2026-07-10 (auth/routes/limits corrected — defect B7; file version list/revert
+routes added — defect B5; v10.0.0 fidelity plan)
 **Base URL**: `http://your-gateway:8088`
 
 ---
@@ -124,10 +125,10 @@ robust path for scripted device creation.
 
 ### Endpoint Summary
 
-This is the real, non-phantom route list mounted by `FileUploadRoutes`/`Routes.java` (18 routes
+This is the real, non-phantom route list mounted by `FileUploadRoutes`/`Routes.java` (20 routes
 total, all under `/data/logixemulator/`). This document covers upload, device listing, per-device
-status, delete, and system stats; the remaining tag/simulation/log/auth-check routes are not
-documented here yet.
+status, delete, file versions, and system stats; the remaining tag/simulation/log/auth-check
+routes are not documented here yet.
 
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
@@ -135,6 +136,8 @@ documented here yet.
 | `GET` | `/data/logixemulator/devices` | List all registered devices | Yes |
 | `GET` | `/data/logixemulator/device/:name/status` | Get status/file info for one device | Yes |
 | `DELETE` | `/data/logixemulator/device/:name/delete` | Delete a device's uploaded file | Yes |
+| `GET` | `/data/logixemulator/device/:name/versions` | List retained file versions for a device (defect B5) | Yes |
+| `POST` | `/data/logixemulator/device/:name/versions/revert` | Revert a device's file to a retained version (defect B5) | Yes |
 | `GET` | `/data/logixemulator/system/stats` | Get module/system stats (CPU, RAM, device count) | Yes |
 
 > **Phantom routes corrected**: earlier revisions of this document described `GET`/`DELETE
@@ -480,6 +483,144 @@ curl -X DELETE -b cookies.txt -H "X-Requested-With: XMLHttpRequest" \
 > **Phantom route corrected**: there is no `DELETE /data/logixemulator/devices/{name}` endpoint —
 > the real route is `/device/:name/delete` (note singular `device`, and the `/delete` suffix).
 
+### GET /data/logixemulator/device/:name/versions
+
+List the file versions retained for a device (charter §2.7: "retains the last 5 uploads and can
+revert"), newest first, flagging which entry is the device's current live file. Read endpoint —
+subject to the **read** rate limiter (see [Rate Limiting](#rate-limiting)), not the write limiter.
+
+> **Defect B5, fixed 10/07/2026**: this route did not exist at all before v10.0.0 —
+> `FileVersionManager.saveVersion()` was never called on the REST upload path, so no versions were
+> ever written, and `getVersions()`/`restoreVersion()` had zero callers anywhere in the codebase
+> (`plc-dod/item7-versioning-FAIL.txt`). A successful `/upload` (see above) now calls `saveVersion`
+> after the file is confirmed to have parsed and built; a failed upload does not consume a
+> retention slot.
+
+#### Request
+
+**Method**: `GET`
+
+**URL**: `/data/logixemulator/device/:name/versions` (e.g. `/device/DodPLC1/versions`)
+
+**Headers**:
+```
+Cookie: JSESSIONID=<session cookie from Gateway login>
+```
+
+#### Examples
+
+**cURL**:
+```bash
+curl -b cookies.txt http://localhost:8088/data/logixemulator/device/DodPLC1/versions
+```
+
+#### Response
+
+**Success (200 OK)** — matches `VersionController.handleListVersions()`:
+```json
+{
+  "success": true,
+  "deviceName": "DodPLC1",
+  "versions": [
+    { "filename": "DodPLC1_ver.csv", "size": 1024, "timestamp": 1752100000000, "current": true },
+    { "filename": "ver_20260710_120000.csv", "size": 998, "timestamp": 1752099000000, "current": false }
+  ],
+  "count": 2,
+  "maxVersions": 5
+}
+```
+
+**Error (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "Device not found: NonExistentDevice"
+}
+```
+
+### POST /data/logixemulator/device/:name/versions/revert
+
+Restore a device's current file from one of its retained versions, then reload the device through
+the **same code path a REST upload uses** (`DeviceFileManager.reloadDevice()`), so the reverted
+content is actually re-parsed and re-applied — not just copied to disk. Write endpoint — subject
+to CSRF (`X-Requested-With`) and the **write** rate limiter (see [Rate Limiting](#rate-limiting)).
+
+A successful revert is itself treated as a new upload for versioning purposes: it becomes the
+newest retained snapshot, so the version just reverted-from is not immediately pushed out of the
+5-version retention window by its own restore.
+
+#### Request
+
+**Method**: `POST`
+
+**URL**: `/data/logixemulator/device/:name/versions/revert` (e.g. `/device/DodPLC1/versions/revert`)
+
+**Headers**:
+```
+Cookie: JSESSIONID=<session cookie from Gateway login>
+Content-Type: application/json
+X-Requested-With: XMLHttpRequest
+```
+
+**Body**:
+```json
+{ "filename": "ver_20260710_120000.csv" }
+```
+
+`filename` must be one of the `filename` values previously returned by
+`GET /device/:name/versions` — it is matched against that same listing server-side (never used to
+build a file path directly), so an arbitrary or path-traversal filename cannot be restored.
+
+#### Examples
+
+**cURL**:
+```bash
+curl -X POST -b cookies.txt -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -d '{"filename":"ver_20260710_120000.csv"}' \
+  http://localhost:8088/data/logixemulator/device/DodPLC1/versions/revert
+```
+
+#### Response
+
+**Success (200 OK)** — matches `VersionController.handleRevertVersion()`:
+```json
+{
+  "success": true,
+  "deviceName": "DodPLC1",
+  "restoredFrom": "ver_20260710_120000.csv",
+  "status": "Running"
+}
+```
+
+**Error (404 Not Found)** — unknown version filename:
+```json
+{
+  "success": false,
+  "error": "Unknown version: does-not-exist.csv"
+}
+```
+
+**Error (409 Conflict)** — device has never had a file uploaded (nothing to revert into):
+```json
+{
+  "success": false,
+  "error": "Device has no current file to revert - upload a file first"
+}
+```
+
+**Error (422 Unprocessable Entity)** — same honesty convention as `/upload` (defect B4): the
+version was restored to disk, but the reload that followed failed to parse/build it:
+```json
+{
+  "success": false,
+  "deviceName": "DodPLC1",
+  "restoredFrom": "ver_20260710_120000.csv",
+  "error": "Version restored to disk but failed to apply to device: Error: Hot reload failed - ...",
+  "status": "Error: Hot reload failed - ..."
+}
+```
+
 ### GET /data/logixemulator/system/stats
 
 Get module/system stats (CPU, RAM, registered device count).
@@ -660,8 +801,8 @@ independent limiters, each tracking per-user and per-IP counts over a rolling 1-
 | Limiter | Applies to | Per-user limit | Per-IP limit |
 |---------|-----------|-----------------|--------------|
 | Upload | `/upload` | 100/hour | 1000/hour |
-| Read | tag/status/list reads | 300/hour | 3000/hour |
-| Write | tag writes, simulation toggles, delete | 60/hour | 600/hour |
+| Read | tag/status/list reads, `versions` list | 300/hour | 3000/hour |
+| Write | tag writes, simulation toggles, delete, `versions/revert` | 60/hour | 600/hour |
 
 > The module's `CLAUDE.md` previously said "file upload (60/hr)" — that is actually the **write**
 > limiter's per-user figure; upload is 100/hour/user, confirmed both by the `RateLimiter`

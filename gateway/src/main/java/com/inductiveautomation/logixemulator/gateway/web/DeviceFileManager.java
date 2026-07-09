@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.web;
 
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -148,6 +149,19 @@ public class DeviceFileManager {
      */
     public String getDeviceFilePath(LogixEmulatorDevice device) {
         return device.getCurrentFilePath();
+    }
+
+    /**
+     * Get a {@link FileVersionManager} scoped to this device's uploaded files (defect B5).
+     *
+     * <p>{@link FileVersionManager} holds no mutable state beyond the storage directory and
+     * device name it was constructed with, so a fresh instance can be created on demand rather
+     * than threading a long-lived one through the device lifecycle. This is what lets the REST
+     * upload path (which never touches {@code FilePreparation}, the only other place a version
+     * manager previously existed) version files without any wider plumbing changes.</p>
+     */
+    public FileVersionManager getVersionManager(LogixEmulatorDevice device) {
+        return new FileVersionManager(getStorageDirectory(), device.getName());
     }
 
     /**

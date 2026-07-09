@@ -16,6 +16,8 @@ public final class Routes {
     public static final String DEVICE_SIMULATION_SCOPE = "/device/:name/simulation/scope";
     public static final String DEVICE_SIMULATION_ALL   = "/device/:name/simulation/all";
     public static final String DEVICE_DELETE           = "/device/:name/delete";
+    public static final String DEVICE_VERSIONS         = "/device/:name/versions";
+    public static final String DEVICE_VERSIONS_REVERT  = "/device/:name/versions/revert";
     public static final String SYSTEM_STATS            = "/system/stats";
     public static final String SYSTEM_LOGS             = "/system/logs";
     public static final String HEALTH                  = "/health";

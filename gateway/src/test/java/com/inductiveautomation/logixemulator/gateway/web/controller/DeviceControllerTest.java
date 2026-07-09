@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
@@ -249,5 +250,62 @@ class DeviceControllerTest {
         verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         verify(deviceManager, never()).reloadDevice(any());
         assertThat(result.getBoolean("success")).isFalse();
+    }
+
+    // -------------------------------------------------------------------------
+    // processDeviceUpload — defect B5: version wiring
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("processDeviceUpload() saves a file version only after a successful reload "
+        + "(defect B5 — saveVersion was never called on the REST upload path at all)")
+    void testProcessDeviceUploadSavesVersionOnSuccess() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        FileVersionManager versionManager = mock(FileVersionManager.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn("Running");
+        when(deviceManager.getDeviceFilePath(device)).thenReturn("/data/logix-emulator/DodPLC1_tags.csv");
+        when(deviceManager.getVersionManager(device)).thenReturn(versionManager);
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "TagName,DataType\nTag1,DINT\n", "tags.csv");
+
+        assertThat(result.getBoolean("success")).isTrue();
+        verify(versionManager).saveVersion(
+            argThat(f -> f.getPath().equals("/data/logix-emulator/DodPLC1_tags.csv")),
+            eq("DodPLC1_tags.csv"));
+    }
+
+    @Test
+    @DisplayName("processDeviceUpload() does NOT save a file version when the reload leaves the "
+        + "device in an error status — a failed upload must not consume a retention slot")
+    void testProcessDeviceUploadDoesNotSaveVersionOnBuildFailure() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn("Error: Hot reload failed - bad file");
+
+        controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "<bad/>", "real-world.l5x");
+
+        verify(deviceManager, never()).getVersionManager(any());
+    }
+
+    @Test
+    @DisplayName("processDeviceUpload() skips versioning gracefully when the device has no "
+        + "current file path (defensive guard, should not happen in practice post-save)")
+    void testProcessDeviceUploadSkipsVersioningWhenNoFilePath() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn("Running");
+        when(deviceManager.getDeviceFilePath(device)).thenReturn(null);
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "content", "tags.csv");
+
+        assertThat(result.getBoolean("success")).isTrue();
+        verify(deviceManager, never()).getVersionManager(any());
     }
 }

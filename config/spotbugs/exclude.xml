@@ -43,6 +43,10 @@
         <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.TagController" />
         <Bug pattern="EI_EXPOSE_REP2" />
     </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.VersionController" />
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
 
     <!-- ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD: Singleton pattern, single-threaded startup -->
     <Match>

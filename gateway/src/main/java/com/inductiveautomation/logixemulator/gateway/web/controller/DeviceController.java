@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.validation.FileValidator;
@@ -164,10 +165,35 @@ public class DeviceController {
                 .put("status", status);
         }
 
+        // Defect B5: version the file only now that it is confirmed to have actually parsed and
+        // built — a failed upload (the branch above) must not consume one of the 5 retained
+        // slots. This is the only place on the REST upload path where success is known; the old
+        // FilePreparation.saveVersion() call is config-content-only and is never reached here.
+        saveUploadVersion(device, deviceName);
+
         return result.put("success", true).put("filename", filename)
             .put("size", fileContent.length()).put("device", deviceName)
             .put("message", "File uploaded and applied to device successfully")
             .put("status", status);
+    }
+
+    /**
+     * Snapshot the device's current on-disk file as a new version (defect B5). Best-effort: a
+     * failure here only means the retention history is thinner than it should be, not that the
+     * upload itself failed, so it is logged rather than turned into an error response.
+     */
+    private void saveUploadVersion(LogixEmulatorDevice device, String deviceName) {
+        String filePath = deviceManager.getDeviceFilePath(device);
+        if (filePath == null || filePath.isEmpty()) {
+            return;
+        }
+
+        File uploadedFile = new File(filePath);
+        FileVersionManager versionManager = deviceManager.getVersionManager(device);
+        if (!versionManager.saveVersion(uploadedFile, uploadedFile.getName())) {
+            logger.warn("Failed to save file version for device {} after successful upload",
+                GatewayAuthHelper.sanitizeForLog(deviceName));
+        }
     }
 
     /**

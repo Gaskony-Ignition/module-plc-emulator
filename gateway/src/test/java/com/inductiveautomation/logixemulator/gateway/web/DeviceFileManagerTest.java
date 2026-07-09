@@ -3,6 +3,7 @@ package com.inductiveautomation.logixemulator.gateway.web;
 import com.inductiveautomation.ignition.gateway.model.GatewayContext;
 import com.inductiveautomation.ignition.gateway.system.SystemManager;
 import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -216,6 +217,39 @@ class DeviceFileManagerTest {
 
         verify(device).setCurrentFilePath(null);
         verify(device).clearAndReset();
+    }
+
+    // ========== getVersionManager() — defect B5 ==========
+
+    @Test
+    @DisplayName("getVersionManager() returns a FileVersionManager scoped to the device's storage directory and name")
+    void testGetVersionManagerScopedToDevice() throws Exception {
+        when(device.getName()).thenReturn("TestDevice");
+
+        FileVersionManager versionManager = manager.getVersionManager(device);
+
+        assertThat(versionManager).isNotNull();
+        // Behavioural check rather than reflection: a version saved through this instance must
+        // land under versions/TestDevice/ inside this manager's storage directory.
+        Files.createDirectories(manager.getStorageDirectory().toPath());
+        File toVersion = new File(manager.getStorageDirectory(), "TestDevice_program.l5x");
+        Files.writeString(toVersion.toPath(), "content");
+
+        assertThat(versionManager.saveVersion(toVersion, "program.l5x")).isTrue();
+        File expectedVersionsDir = new File(new File(manager.getStorageDirectory(), "versions"), "TestDevice");
+        assertThat(expectedVersionsDir).exists().isDirectory();
+        assertThat(expectedVersionsDir.listFiles()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("getVersionManager() returns a fresh instance each call (stateless wrapper)")
+    void testGetVersionManagerIsStateless() {
+        when(device.getName()).thenReturn("TestDevice");
+
+        FileVersionManager first = manager.getVersionManager(device);
+        FileVersionManager second = manager.getVersionManager(device);
+
+        assertThat(first).isNotSameAs(second);
     }
 
     // ========== Constructor / migration ==========
