@@ -26,6 +26,14 @@ public class DeviceController {
 
     private static final Logger logger = LoggerFactory.getLogger(DeviceController.class);
 
+    /**
+     * 422 Unprocessable Entity - not defined as a constant on {@link HttpServletResponse}, used
+     * (consistent with the existing literal-429 style in {@code handleDeleteFile}) for an upload
+     * whose file was saved but whose parse/address-space build then failed (defect B4): the
+     * request itself was well-formed, but the file's content could not be applied to the device.
+     */
+    private static final int SC_UNPROCESSABLE_ENTITY = 422;
+
     private final DeviceFileManager deviceManager;
     private final DeviceRegistry registry;
     private final RateLimiter rateLimiter;
@@ -125,8 +133,8 @@ public class DeviceController {
         }
     }
 
-    private JSONObject processDeviceUpload(HttpServletResponse resp, JSONObject result,
-                                            String deviceName, String fileContent, String filename)
+    JSONObject processDeviceUpload(HttpServletResponse resp, JSONObject result,
+                                    String deviceName, String fileContent, String filename)
             throws JSONException {
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -136,16 +144,41 @@ public class DeviceController {
         }
 
         LogixEmulatorDevice device = deviceOpt.get();
-        if (deviceManager.saveFileToDevice(device, fileContent, filename)) {
-            deviceManager.reloadDevice(device);
-            return result.put("success", true).put("filename", filename)
-                .put("size", fileContent.length()).put("device", deviceName)
-                .put("message", "File uploaded and applied to device successfully")
-                .put("status", device.getStatus());
+        if (!deviceManager.saveFileToDevice(device, fileContent, filename)) {
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return result.put("success", false).put("error", "Failed to update device configuration");
         }
 
-        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        return result.put("success", false).put("error", "Failed to update device configuration");
+        // File is saved; now attempt to apply it (parse + address-space build). This can fail
+        // even though the file was saved fine, in which case reloadDevice() records the failure
+        // on the device's status rather than throwing (defect B4 - a caller must not be told the
+        // upload succeeded when the tag tree never actually built).
+        deviceManager.reloadDevice(device);
+        String status = device.getStatus();
+
+        if (isBuildFailureStatus(status)) {
+            resp.setStatus(SC_UNPROCESSABLE_ENTITY);
+            return result.put("success", false).put("filename", filename)
+                .put("size", fileContent.length()).put("device", deviceName)
+                .put("error", "File saved but failed to apply to device: " + status)
+                .put("status", status);
+        }
+
+        return result.put("success", true).put("filename", filename)
+            .put("size", fileContent.length()).put("device", deviceName)
+            .put("message", "File uploaded and applied to device successfully")
+            .put("status", status);
+    }
+
+    /**
+     * True when {@code status} (the device's {@code getStatus()} immediately after a reload
+     * attempt) indicates the parse/address-space build actually failed, rather than completing
+     * successfully (defect B4). The device's hot-reload pipeline ({@code HotReloadCoordinator} /
+     * {@code LogixEmulatorDevice.onStartup}) always prefixes a build-failure status with
+     * {@code "Error"} - that convention is the load-bearing signal checked here.
+     */
+    static boolean isBuildFailureStatus(String status) {
+        return status != null && status.startsWith("Error");
     }
 
     public JSONObject handleListDevices(RequestContext ctx, HttpServletResponse resp) throws JSONException {

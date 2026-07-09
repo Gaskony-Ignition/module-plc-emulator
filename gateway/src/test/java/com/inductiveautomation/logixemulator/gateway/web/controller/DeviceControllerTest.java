@@ -178,4 +178,76 @@ class DeviceControllerTest {
         assertThat(result).isNotNull();
         assertThat(result.getBoolean("success")).isFalse();
     }
+
+    // -------------------------------------------------------------------------
+    // processDeviceUpload — defect B4: honest success/failure reporting
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("isBuildFailureStatus() recognises the 'Error' status prefixes the hot-reload "
+        + "pipeline actually produces")
+    void testIsBuildFailureStatusRecognisesErrorPrefix() {
+        assertThat(DeviceController.isBuildFailureStatus("Running")).isFalse();
+        assertThat(DeviceController.isBuildFailureStatus("Reloading")).isFalse();
+        assertThat(DeviceController.isBuildFailureStatus(null)).isFalse();
+        assertThat(DeviceController.isBuildFailureStatus(
+            "Error: Hot reload failed - For input string: \"{structure}\"")).isTrue();
+        assertThat(DeviceController.isBuildFailureStatus("Error: Failed to parse file after reload")).isTrue();
+    }
+
+    @Test
+    @DisplayName("processDeviceUpload() reports failure (non-2xx, success=false) when the file "
+        + "saves but the reload leaves the device in an error status (defect B4 regression test - "
+        + "previously this returned HTTP 200 success=true, see plc-dod/item2-upload-real.txt)")
+    void testProcessDeviceUploadReportsFailureWhenBuildFails() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn("Error: Hot reload failed - For input string: \"{structure}\"");
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "<RSLogix5000Content/>", "real-world.l5x");
+
+        verify(resp).setStatus(422);
+        verify(deviceManager).reloadDevice(device);
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error")).contains("Error: Hot reload failed");
+        assertThat(result.getString("status")).isEqualTo("Error: Hot reload failed - For input string: \"{structure}\"");
+        assertThat(result.getString("device")).isEqualTo("DodPLC1");
+        assertThat(result.getString("filename")).isEqualTo("real-world.l5x");
+    }
+
+    @Test
+    @DisplayName("processDeviceUpload() reports success only when the device actually reaches a "
+        + "non-error status after reload")
+    void testProcessDeviceUploadReportsSuccessWhenBuildSucceeds() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn("Running");
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "TagName,DataType\nTag1,DINT\n", "tags.csv");
+
+        verify(resp, never()).setStatus(anyInt());
+        verify(deviceManager).reloadDevice(device);
+        assertThat(result.getBoolean("success")).isTrue();
+        assertThat(result.getString("status")).isEqualTo("Running");
+        assertThat(result.getString("device")).isEqualTo("DodPLC1");
+    }
+
+    @Test
+    @DisplayName("processDeviceUpload() returns 500 when the file itself cannot be saved to disk")
+    void testProcessDeviceUploadReportsFailureWhenSaveFails() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(false);
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "content", "tags.csv");
+
+        verify(resp).setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+        verify(deviceManager, never()).reloadDevice(any());
+        assertThat(result.getBoolean("success")).isFalse();
+    }
 }

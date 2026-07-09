@@ -141,6 +141,43 @@ class L5XParserTest {
         // The XXE should be blocked by our security configuration
     }
 
+    /**
+     * Regression test for defect B8 ({@code docs/plans/V10_FIDELITY_PLAN.md}): the original
+     * {@code malicious-xxe.l5x} fixture is only 235 bytes, which is below the REST-level pre-parse
+     * size sanity check ({@code FileValidator} - "L5X file too small... typically 10KB or
+     * larger"), so an end-to-end upload of that fixture never actually reaches the XML parser -
+     * the earlier size gate rejects it first (see {@code plc-dod/item6-validation.txt}: XXE was
+     * only ever verified via {@link #testXXEPrevention} calling {@link L5XParser} directly).
+     *
+     * <p>{@code xxe-big.l5x} (padded with benign tags to be a realistic-sized export, from the
+     * v10.0.0 DoD run) is large enough to clear that size gate, so this test both proves the
+     * fixture would actually reach the parser via a real upload, and asserts the parser itself
+     * safely rejects the DOCTYPE/entity: no exception escapes, no {@code /etc/passwd} content is
+     * disclosed anywhere in the (null or entity-free) result.
+     */
+    @Test
+    @DisplayName("SECURITY (B8): a realistically-sized XXE payload clears the upload size gate "
+        + "but is still safely rejected by the L5X parser")
+    void testXXEPreventionWithRealisticallySizedFixture() throws Exception {
+        String maliciousContent = Files.readString(
+            Path.of("src/test/resources/test-files/xxe-big.l5x"));
+
+        // Prove this fixture is big enough to actually reach the parser through the real upload
+        // path (unlike the original 235-byte fixture) - see FileValidator's ".l5x" size check.
+        assertThat(
+            com.inductiveautomation.logixemulator.gateway.validation.FileValidator
+                .validateContent(maliciousContent, "xxe-big.l5x")
+                .isValid())
+            .as("xxe-big.l5x must clear the REST-level pre-parse size gate")
+            .isTrue();
+
+        JsonObject result = parser.parseContent(maliciousContent, "xxe-big.l5x");
+
+        // disallow-doctype-decl is enabled in L5XParser, so a DOCTYPE-bearing document must fail
+        // to parse entirely (null), not partially parse with the entity silently dropped.
+        assertThat(result).as("a DOCTYPE-bearing L5X must be rejected outright, not parsed").isNull();
+    }
+
     @Test
     @DisplayName("Should handle malformed XML gracefully")
     void testMalformedXML() {
