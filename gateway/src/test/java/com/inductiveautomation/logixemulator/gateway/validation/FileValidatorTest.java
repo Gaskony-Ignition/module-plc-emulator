@@ -77,6 +77,23 @@ class FileValidatorTest {
     }
 
     @Test
+    @DisplayName("Regression test for B6: an all-NUL-byte payload is NOT reported as empty "
+        + "(String.trim() strips control bytes <= U+0020, previously making a large NUL-only "
+        + "upload indistinguishable from a genuinely empty one - item6-validation.txt)")
+    void testAllNulBytePayloadIsNotReportedAsEmpty() {
+        // A small stand-in for the DoD's 11MB all-0x00 file - same defect, faster test.
+        String content = "\0".repeat(4096);
+
+        FileValidator.ValidationResult result = FileValidator.validateContent(content, "test.l5k");
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getErrorMessage())
+            .as("must not claim the content is empty - it has real bytes, just no readable data")
+            .doesNotContain("File content is empty");
+        assertThat(result.getErrorMessage()).contains("4096 bytes");
+    }
+
+    @Test
     @DisplayName("Should reject null content")
     void testNullContent() {
         FileValidator.ValidationResult result = FileValidator.validateContent(null, "test.l5k");
