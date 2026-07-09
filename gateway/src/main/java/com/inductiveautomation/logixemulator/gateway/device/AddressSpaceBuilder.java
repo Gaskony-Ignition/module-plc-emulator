@@ -82,6 +82,8 @@ public class AddressSpaceBuilder {
 
         logger.info("Building address space for device: {}", deviceName);
 
+        int skippedTags = 0;
+
         // Create Controller:Global folder for global tags
         if (plcData.has("global_tags")) {
             JsonArray globalTags = plcData.getAsJsonArray("global_tags");
@@ -96,7 +98,9 @@ public class AddressSpaceBuilder {
                 // Add global tags
                 for (JsonElement tagElement : globalTags) {
                     JsonObject tag = tagElement.getAsJsonObject();
-                    addTag(tag, controllerFolder, context, "Controller:Global", rootNode);
+                    if (!tryAddTag(tag, controllerFolder, context, "Controller:Global", rootNode)) {
+                        skippedTags++;
+                    }
                 }
 
                 logger.info("Created Controller:Global with {} tags", globalTags.size());
@@ -132,7 +136,9 @@ public class AddressSpaceBuilder {
                         JsonArray programTags = program.getAsJsonArray("tags");
                         for (JsonElement tagElement : programTags) {
                             JsonObject tag = tagElement.getAsJsonObject();
-                            addTag(tag, programFolder, context, "Programs/" + programName, null);
+                            if (!tryAddTag(tag, programFolder, context, "Programs/" + programName, null)) {
+                                skippedTags++;
+                            }
                         }
 
                         logger.info("Created Programs/{} with {} tags", programName, programTags.size());
@@ -150,6 +156,36 @@ public class AddressSpaceBuilder {
             logger.warn("Check that your file contains valid PLC tag definitions.");
         } else {
             logger.info("[OK] Address space building complete - {} total tags created", totalTags);
+        }
+
+        if (skippedTags > 0) {
+            logger.warn(
+                "Address space build for device '{}' completed with {} tag(s) skipped due to errors "
+                    + "- see preceding WARN entries for the affected tag names",
+                deviceName, skippedTags);
+        }
+    }
+
+    /**
+     * Adds a single tag to the address space, catching and logging any exception so that one
+     * malformed tag cannot abort the whole address-space build (defect B1). Returns {@code true}
+     * on success, {@code false} if the tag was skipped due to an error.
+     */
+    private boolean tryAddTag(
+        JsonObject tag,
+        UaFolderNode parentFolder,
+        NodeContext context,
+        String pathPrefix,
+        UaFolderNode rootNode) {
+
+        String tagName = tag.has("name") ? tag.get("name").getAsString() : "<unnamed>";
+        try {
+            addTag(tag, parentFolder, context, pathPrefix, rootNode);
+            return true;
+        } catch (RuntimeException e) {
+            logger.warn("Skipping tag '{}' under '{}' - failed to add to address space: {}",
+                tagName, pathPrefix, e.toString(), e);
+            return false;
         }
     }
 
@@ -445,29 +481,49 @@ public class AddressSpaceBuilder {
      * Package-private for unit testing.
      */
     Object getInitialValue(JsonObject tag, String dataType) {
+        Object defaultValue = defaultInitialValue(dataType);
+
         if (!tag.has("initial_value") || tag.get("initial_value").isJsonNull()) {
-            return switch (dataType.toUpperCase()) {
-                case "BOOL", "BOOLEAN" -> false;
-                case "INT1", "SINT", "BYTE", "INT2", "INT", "INT4", "DINT" -> 0;
-                case "INT8", "LINT" -> 0L;
-                case "FLOAT4", "REAL", "FLOAT" -> 0.0f;
-                case "FLOAT8", "LREAL", "DOUBLE" -> 0.0;
-                case "STRING" -> "";
-                default -> "";
-            };
+            return defaultValue;
         }
 
         JsonElement initialValueElement = tag.get("initial_value");
 
+        try {
+            return switch (dataType.toUpperCase()) {
+                case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
+                case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
+                case "INT4", "DINT" -> initialValueElement.getAsInt();
+                case "INT8", "LINT" -> initialValueElement.getAsLong();
+                case "FLOAT4", "REAL", "FLOAT" -> initialValueElement.getAsFloat();
+                case "FLOAT8", "LREAL", "DOUBLE" -> initialValueElement.getAsDouble();
+                case "STRING" -> initialValueElement.getAsString();
+                default -> initialValueElement.getAsString();
+            };
+        } catch (NumberFormatException | UnsupportedOperationException | IllegalStateException e) {
+            // Non-numeric/unparseable initial_value (e.g. the "{structure}" sentinel, an empty
+            // string, or any other value that doesn't fit the declared data type) - fall back to
+            // the type-appropriate default rather than aborting the whole tag/build (defect B1).
+            logger.debug(
+                "Unparseable initial_value {} for data type {} - using default {}",
+                initialValueElement, dataType, defaultValue, e);
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Type-appropriate default value used both when a tag has no initial_value and when its
+     * initial_value cannot be parsed as the declared data type.
+     */
+    private static Object defaultInitialValue(String dataType) {
         return switch (dataType.toUpperCase()) {
-            case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
-            case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
-            case "INT4", "DINT" -> initialValueElement.getAsInt();
-            case "INT8", "LINT" -> initialValueElement.getAsLong();
-            case "FLOAT4", "REAL", "FLOAT" -> initialValueElement.getAsFloat();
-            case "FLOAT8", "LREAL", "DOUBLE" -> initialValueElement.getAsDouble();
-            case "STRING" -> initialValueElement.getAsString();
-            default -> initialValueElement.getAsString();
+            case "BOOL", "BOOLEAN" -> false;
+            case "INT1", "SINT", "BYTE", "INT2", "INT", "INT4", "DINT" -> 0;
+            case "INT8", "LINT" -> 0L;
+            case "FLOAT4", "REAL", "FLOAT" -> 0.0f;
+            case "FLOAT8", "LREAL", "DOUBLE" -> 0.0;
+            case "STRING" -> "";
+            default -> "";
         };
     }
 

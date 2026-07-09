@@ -527,11 +527,11 @@ public class L5XParser implements PLCParser {
                 return valueElement.getTextContent();
             }
 
-            // For complex types, return structure indicator
-            if (dataElement.hasChildNodes()) {
-                return "{structure}";
-            }
-
+            // For complex/structured types (arrays, UDT/AOI Structure elements, STRING Structure
+            // elements, etc.) there is no single scalar value to extract here - return null so
+            // AddressSpaceBuilder.getInitialValue() takes its type-appropriate default path
+            // instead of receiving a sentinel it would try (and fail) to parse as a number
+            // (defect B1).
             return null;
 
         } catch (Exception e) {
