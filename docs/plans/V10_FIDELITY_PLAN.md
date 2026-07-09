@@ -6,6 +6,18 @@ decisions (09/07/2026): one combined v10.0.0 release (no interim 9.3.0); leave
 the portal's 9.2.14 alone until v10 ships; charter §2.2 amended to require
 swap-compatible NodeId paths.
 
+**Maintainer decisions 10/07/2026:** (a) one primary export format per vendor
+— for Rockwell that is **L5X** (modern Studio 5000 default; the corpus is
+L5X-heavy; the DoD crash is in shared code so the fix covers both formats
+anyway). L5K becomes best-effort: it must fail loudly, nothing more (C7
+descoped). (b) Long-term hope is **other vendors' export files** becoming
+addable. No non-Rockwell work in v10, but it is an architecture constraint:
+the parser boundary (ParserFactory → common parsed-tag JSON model) stays
+pluggable, and Stage C fixes must keep Rockwell-specific addressing rules out
+of vendor-neutral code (driver-matching NodeId emission would be per-vendor
+policy, not hardcoded). A charter Won't-Do amendment for this awaits the
+maintainer's explicit sign-off.
+
 This plan is agent-executable: a lead session should be able to resume from
 this document alone. Work is delegated to Sonnet agents (implementation,
 tests, mechanical work) and Opus agents (design, address-scheme decisions,
@@ -89,7 +101,7 @@ green):
 | C4 | Predefined member sets hand-approximated (`RockwellBuiltInTypes.java`): TIMER has phantom `.ER` (:52-59); PID 14/~46 members; CONTROL missing `.UL/.IN/.FD`; AXIS/CAM/PHASE abbreviated (:99-343) | Correct member tables from Rockwell docs (research task) |
 | C5 | `<Modules>` never parsed → no `Local:1:I.Data` I/O tags; `ExternalAccess=None` tags exposed writable (driver hides them) (`L5XParser.java:190-207`) | Parse Modules section → I/O tag nodes; honour ExternalAccess |
 | C6 | v32+ unsigned atomics (USINT/UINT/UDINT/ULINT) and DT/LDT/LTIME degrade to String | Proper type mapping |
-| C7 | L5K parser only ever validated against synthetic grammar; real `.L5K` failing the regex silently degrades to a single `L5K_ParseError` demo tag (`L5KParser.java:125,389`) | Corpus has an L5X+L5K pair for the same controller — add a parser-equivalence test (both produce identical tree); fix divergences; fail loudly instead of demo-tag fallback |
+| C7 | L5K parser only ever validated against synthetic grammar; real `.L5K` failing the regex silently degrades to a single `L5K_ParseError` demo tag (`L5KParser.java:125,389`) | **DESCOPED 10/07/2026** (maintainer: one primary format per vendor). L5X is the primary, fully-verified Rockwell format; L5K is best-effort — the only required change is failing loudly (clear error to the user) instead of the silent demo-tag fallback. No equivalence testing, no L5K-specific hardening |
 
 Corpus gaps (no public GuardLogix/motion/produced-consumed/SoftLogix exports
 found): synthesise targeted L5X fragments for those constructs, marked
