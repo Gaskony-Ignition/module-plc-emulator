@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.device;
 
 import com.google.gson.JsonObject;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -147,6 +149,45 @@ class FilePreparationTest {
         Files.writeString(tempDir.resolve("MyDevice2_program.l5k"), "x");
 
         assertThat(prep.findExistingFileForDevice(tempDir.toFile())).isNull();
+    }
+
+    @Test
+    @DisplayName("findExistingFileForDevice() picks the most recently modified file when several "
+        + "match (defect B5 — previously the first match from an unordered listFiles() won, so "
+        + "a Gateway restart could load a stale or arbitrary file instead of the latest upload)")
+    void findsMostRecentlyModifiedAmongMultipleMatches() throws Exception {
+        File older = tempDir.resolve("MyDevice_old.l5x").toFile();
+        File newer = tempDir.resolve("MyDevice_new.l5x").toFile();
+        Files.writeString(older.toPath(), "old");
+        Files.writeString(newer.toPath(), "new");
+        Files.setLastModifiedTime(older.toPath(), FileTime.fromMillis(System.currentTimeMillis() - 100_000));
+        Files.setLastModifiedTime(newer.toPath(), FileTime.fromMillis(System.currentTimeMillis()));
+
+        File found = prep.findExistingFileForDevice(tempDir.toFile());
+
+        assertThat(found).isEqualTo(newer);
+    }
+
+    @Test
+    @DisplayName("findExistingFileForDevice() prunes matching files beyond the retention limit, "
+        + "keeping only the most recent ones (charter §2.7 — files were previously never pruned "
+        + "at all, see plc-dod/item7-versioning-FAIL.txt side note)")
+    void prunesStaleFilesBeyondRetentionLimit() throws Exception {
+        int maxRetained = FileVersionManager.getMaxVersions();
+        File[] files = new File[maxRetained + 1];
+        for (int i = 0; i < files.length; i++) {
+            files[i] = tempDir.resolve("MyDevice_v" + i + ".l5x").toFile();
+            Files.writeString(files[i].toPath(), "v" + i);
+            // Spread mtimes so ordering is deterministic: v0 is oldest, last index is newest.
+            Files.setLastModifiedTime(files[i].toPath(),
+                FileTime.fromMillis(System.currentTimeMillis() - (files.length - i) * 100_000L));
+        }
+
+        File found = prep.findExistingFileForDevice(tempDir.toFile());
+
+        assertThat(found).isEqualTo(files[files.length - 1]);
+        assertThat(tempDir.toFile().listFiles()).hasSize(maxRetained);
+        assertThat(files[0]).doesNotExist(); // the oldest one was pruned
     }
 
     @Test

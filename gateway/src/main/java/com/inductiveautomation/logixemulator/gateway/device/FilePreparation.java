@@ -12,6 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Owns file-system preparation and parser dispatch for a Logix Emulator
@@ -21,9 +24,11 @@ import java.nio.file.Files;
  * Sprint 3 P6 refactor. Responsibilities:</p>
  * <ul>
  *   <li>Sanitise user-supplied filenames via {@link PathSecurity}.</li>
- *   <li>Locate an existing PLC file on disk for the device (the heuristic
- *       the review flagged as questionable; preserved as-is — drop is a
- *       behavioural decision out of scope).</li>
+ *   <li>Locate the most recently uploaded PLC file on disk for the device,
+ *       deterministically by last-modified time, pruning stale ones beyond
+ *       the version-manager retention limit (defect B5, fixed 10/07/2026 —
+ *       previously an unordered {@code listFiles()} scan could pick an
+ *       arbitrary/stale file on Gateway restart).</li>
  *   <li>Save uploaded file content to the data dir and version older copies.</li>
  *   <li>Pick the right parser (L5K vs L5X for {@code rockwell} type, falling
  *       back to extension detection).</li>
@@ -86,12 +91,22 @@ public final class FilePreparation {
     }
 
     /**
-     * Find an existing PLC file in the storage directory previously uploaded
-     * for THIS device. Only returns files with the device-specific prefix
-     * to prevent cross-device file sharing.
+     * Find the most recently uploaded PLC file in the storage directory for
+     * THIS device. Only considers files with the device-specific prefix to
+     * prevent cross-device file sharing.
+     *
+     * <p>Defect B5 (10/07/2026): this previously returned the first match
+     * from {@link File#listFiles()}, whose iteration order is unspecified —
+     * on Gateway restart the device could silently load a stale or arbitrary
+     * file instead of the one most recently uploaded via REST
+     * ({@code plc-dod/item7-versioning-FAIL.txt}). Candidates are now sorted
+     * by last-modified time (newest first) and any beyond the version
+     * manager's retention limit ({@link FileVersionManager#getMaxVersions()})
+     * are pruned, so a device that has been re-uploaded to under many
+     * different filenames does not accumulate files here unboundedly.</p>
      *
      * @param storageDir directory to search
-     * @return the matched file, or {@code null} if none
+     * @return the most recently modified matching file, or {@code null} if none
      */
     public File findExistingFileForDevice(File storageDir) {
         if (storageDir == null || !storageDir.exists()) {
@@ -104,6 +119,7 @@ public final class FilePreparation {
         }
 
         String deviceName = context.getName();
+        List<File> candidates = new ArrayList<>();
         for (File file : files) {
             String name = file.getName();
             if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
@@ -112,13 +128,33 @@ public final class FilePreparation {
             if (name.startsWith(deviceName + "_")) {
                 for (String ext : PLC_EXTENSIONS) {
                     if (name.endsWith(ext)) {
-                        logger.info("Found device-specific file: {}", file.getName());
-                        return file;
+                        candidates.add(file);
+                        break;
                     }
                 }
             }
         }
-        return null;
+
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        candidates.sort(Comparator.comparingLong(File::lastModified).reversed());
+
+        int maxRetained = FileVersionManager.getMaxVersions();
+        if (candidates.size() > maxRetained) {
+            for (File stale : candidates.subList(maxRetained, candidates.size())) {
+                if (stale.delete()) {
+                    logger.info("Pruned stale uploaded file beyond retention ({}): {}", maxRetained, stale.getName());
+                } else {
+                    logger.warn("Failed to prune stale uploaded file: {}", stale.getAbsolutePath());
+                }
+            }
+        }
+
+        File mostRecent = candidates.get(0);
+        logger.info("Found most recently uploaded device-specific file: {}", mostRecent.getName());
+        return mostRecent;
     }
 
     /**
