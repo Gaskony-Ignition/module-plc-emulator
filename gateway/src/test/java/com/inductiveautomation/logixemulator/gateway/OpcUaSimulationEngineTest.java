@@ -231,67 +231,14 @@ class OpcUaSimulationEngineTest {
     }
 
     // -------------------------------------------------------------------------
-    // 14. enableSimulationByScope() enables all matching prefix
+    // 14-16 (removed, v10 C1): the engine's enableSimulationByScope/
+    // disableSimulationByScope prefix matchers were deleted — raw startsWith()
+    // scope matching is wrong under the canonical NodeId scheme (the controller
+    // scope has an EMPTY prefix). Scope semantics now live solely in
+    // TagSimulationFacade via AddressPolicy.matchesScope() and are covered by
+    // TagSimulationFacadeTest. Per-tag pattern clearing on disable is covered
+    // by the existing disableTagSimulation tests below.
     // -------------------------------------------------------------------------
-    @Test
-    @DisplayName("enableSimulationByScope() enables all tags whose path starts with the given prefix")
-    void testEnableSimulationByScope() {
-        Set<String> allTags = Set.of(
-            "Controller:Global/Alpha",
-            "Controller:Global/Beta",
-            "Programs/Main/LocalTag"
-        );
-
-        engine.enableSimulationByScope("Controller:Global", allTags);
-
-        assertThat(engine.isTagSimulated("Controller:Global/Alpha")).isTrue();
-        assertThat(engine.isTagSimulated("Controller:Global/Beta")).isTrue();
-    }
-
-    // -------------------------------------------------------------------------
-    // 15. enableSimulationByScope() does not enable non-matching paths
-    // -------------------------------------------------------------------------
-    @Test
-    @DisplayName("enableSimulationByScope() does not enable tags that do not match the prefix")
-    void testEnableSimulationByScopeNonMatching() {
-        Set<String> allTags = Set.of(
-            "Controller:Global/Alpha",
-            "Programs/Main/LocalTag"
-        );
-
-        engine.enableSimulationByScope("Controller:Global", allTags);
-
-        assertThat(engine.isTagSimulated("Programs/Main/LocalTag")).isFalse();
-    }
-
-    // -------------------------------------------------------------------------
-    // 16. disableSimulationByScope() removes matching, keeps non-matching
-    // -------------------------------------------------------------------------
-    @Test
-    @DisplayName("disableSimulationByScope() removes matching tags and preserves non-matching ones")
-    void testDisableSimulationByScope() {
-        engine.enableTagSimulation("Controller:Global/T1");
-        engine.enableTagSimulation("Controller:Global/T2");
-        engine.enableTagSimulation("Programs/Main/Keep");
-
-        engine.disableSimulationByScope("Controller:Global");
-
-        assertThat(engine.isTagSimulated("Controller:Global/T1")).isFalse();
-        assertThat(engine.isTagSimulated("Controller:Global/T2")).isFalse();
-        assertThat(engine.isTagSimulated("Programs/Main/Keep")).isTrue();
-    }
-
-    @Test
-    @DisplayName("disableSimulationByScope() also clears per-tag pattern overrides for removed tags")
-    void testDisableSimulationByScopeClearsPatterns() {
-        engine.enableTagSimulation("Controller:Global/Scoped", LogixEmulatorConfig.SimulationPattern.RANDOM);
-
-        engine.disableSimulationByScope("Controller:Global");
-
-        // Pattern override should be gone — falls back to default
-        assertThat(engine.getTagPattern("Controller:Global/Scoped"))
-            .isEqualTo(LogixEmulatorConfig.SimulationPattern.STATIC);
-    }
 
     // -------------------------------------------------------------------------
     // 17. enableAllSimulation() enables all provided paths

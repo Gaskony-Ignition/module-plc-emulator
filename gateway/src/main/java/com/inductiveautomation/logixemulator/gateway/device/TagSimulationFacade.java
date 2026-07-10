@@ -1,6 +1,8 @@
 package com.inductiveautomation.logixemulator.gateway.device;
 
 import com.inductiveautomation.logixemulator.gateway.OpcUaSimulationEngine;
+import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
+import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,6 +32,14 @@ public final class TagSimulationFacade {
 
     private final Supplier<OpcUaSimulationEngine> engineSupplier;
     private final Supplier<Set<String>> allTagPathsSupplier;
+
+    /**
+     * Vendor addressing policy used for scope membership (v10 C1): under the canonical NodeId
+     * scheme the controller scope has an EMPTY identifier prefix (controller tags are bare), so
+     * scope matching needs policy knowledge — a naive {@code startsWith("")} would match every
+     * tag, including program-scoped ones.
+     */
+    private final AddressPolicy policy = new RockwellLogixPolicy();
 
     /**
      * @param engineSupplier returns the current simulation engine (may be
@@ -136,21 +146,41 @@ public final class TagSimulationFacade {
         return engine != null ? engine.getSimulatedTagCount() : 0;
     }
 
-    /** Enable simulation for every tag whose path begins with the given scope. */
+    /**
+     * Enable simulation for every tag within the given canonical scope selector (empty selector =
+     * controller scope, {@code Program:} = all programs, {@code Program:<Prog>} = one program).
+     * Membership is decided by {@link AddressPolicy#matchesScope} — see the {@code policy} field
+     * note for why plain prefix matching is wrong under the v10 canonical NodeId scheme.
+     */
     public void enableSimulationByScope(String scope) {
         OpcUaSimulationEngine engine = engineSupplier.get();
         if (engine == null) {
             return;
         }
-        engine.enableSimulationByScope(scope, allTagPathsSupplier.get());
+        int count = 0;
+        for (String tagPath : allTagPathsSupplier.get()) {
+            if (policy.matchesScope(tagPath, scope)) {
+                engine.enableTagSimulation(tagPath);
+                count++;
+            }
+        }
+        logger.info("Enabled simulation for {} tags in scope: {}", count, scope);
     }
 
-    /** Disable simulation for every tag whose path begins with the given scope. */
+    /** Disable simulation for every currently-simulated tag within the given scope selector. */
     public void disableSimulationByScope(String scope) {
         OpcUaSimulationEngine engine = engineSupplier.get();
-        if (engine != null) {
-            engine.disableSimulationByScope(scope);
+        if (engine == null) {
+            return;
         }
+        int count = 0;
+        for (String tagPath : engine.getSimulatedTags()) {
+            if (policy.matchesScope(tagPath, scope)) {
+                engine.disableTagSimulation(tagPath);
+                count++;
+            }
+        }
+        logger.info("Disabled simulation for {} tags in scope: {}", count, scope);
     }
 
     /** Enable simulation for every known tag path. */

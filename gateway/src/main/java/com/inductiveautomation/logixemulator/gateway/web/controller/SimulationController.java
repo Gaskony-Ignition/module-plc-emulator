@@ -1,6 +1,8 @@
 package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
+import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.GatewayAuthHelper;
@@ -24,6 +26,9 @@ public class SimulationController {
     private final DeviceFileManager deviceManager;
     private final RateLimiter writeRateLimiter;
 
+    /** Vendor addressing policy — maps the browse-tree (slash) path clients send to canonical NodeIds. */
+    private final AddressPolicy policy = new RockwellLogixPolicy();
+
     public SimulationController(DeviceFileManager deviceManager, RateLimiter writeRateLimiter) {
         this.deviceManager = deviceManager;
         this.writeRateLimiter = writeRateLimiter;
@@ -34,18 +39,53 @@ public class SimulationController {
     // -------------------------------------------------------------------------
 
     /**
-     * Convert slash notation tag path to OPC-UA NodeId dot notation.
-     * Controller:Global/Motor1/Speed -> Controller:Global.Motor1.Speed
+     * Convert a browse-tree (slash-notation) tag path from the web UI into the canonical OPC-UA
+     * NodeId identifier the address space assigns (v10 C1 — ADDRESSING.md §2.2). The cosmetic
+     * browse folders are dropped: a {@code Controller:Global/} path resolves to the bare identifier
+     * and a {@code Programs/<Prog>/} path resolves to the {@code Program:<Prog>.} selector form.
+     *
+     * <ul>
+     *   <li>{@code Controller:Global/Motor1/Speed} -&gt; {@code Motor1.Speed}</li>
+     *   <li>{@code Programs/MainProgram/Counter} -&gt; {@code Program:MainProgram.Counter}</li>
+     *   <li>{@code Controller:Global} (bulk scope) -&gt; {@code ""} — the controller-scope
+     *       selector; scope membership is decided by {@code AddressPolicy.matchesScope}, which
+     *       treats the empty selector as "every non-program tag"</li>
+     *   <li>{@code Programs} (bulk scope) -&gt; {@code Program:} (every program-scoped tag)</li>
+     *   <li>{@code Programs/MainProgram} (bulk scope) -&gt; {@code Program:MainProgram}</li>
+     * </ul>
      */
     String convertToNodeIdPath(String tagPath) {
         if (tagPath == null) return null;
 
-        if (tagPath.startsWith("Controller:Global/")) {
-            return "Controller:Global." + tagPath.substring("Controller:Global/".length()).replace("/", ".");
+        String controllerFolder = policy.controllerBrowseFolder();
+        String programsFolder = policy.programsBrowseFolder();
+
+        if (tagPath.equals(controllerFolder)) {
+            // Bulk "all controller tags" scope. Controller identifiers are bare, so the scope
+            // selector is empty; matchesScope() gives it "not program-scoped" semantics.
+            return policy.controllerScopePrefix();
         }
-        if (tagPath.startsWith("Programs/")) {
-            return tagPath.replace("/", ".");
+        if (tagPath.startsWith(controllerFolder + "/")) {
+            String rest = tagPath.substring((controllerFolder + "/").length());
+            return rest.replace("/", ".");
         }
+
+        if (tagPath.equals(programsFolder)) {
+            // Bulk "all programs" scope -> the generic Program: selector.
+            return policy.allProgramsScopeSelector();
+        }
+        if (tagPath.startsWith(programsFolder + "/")) {
+            String rest = tagPath.substring((programsFolder + "/").length());
+            int slash = rest.indexOf('/');
+            if (slash < 0) {
+                // "Programs/<Prog>" bulk scope -> "Program:<Prog>".
+                return policy.programScopePrefix(rest);
+            }
+            String programName = rest.substring(0, slash);
+            String remainder = rest.substring(slash + 1).replace("/", ".");
+            return policy.join(policy.programScopePrefix(programName), remainder);
+        }
+
         return tagPath.replace("/", ".");
     }
 
@@ -329,10 +369,11 @@ public class SimulationController {
                 return result.put("success", false).put("error", "scope required");
             }
 
-            // Same DOT-vs-slash notation gap as handleToggleTagSimulation (defect B3):
-            // the engine matches scope prefixes against live DOT-notation NodeId
-            // identifiers, so a slash-notation scope like "Programs/MainProgram" must be
-            // converted before being handed to the engine.
+            // Convert the browse-tree scope to a canonical scope selector before handing it to
+            // the device (defect B3 lineage): "Controller:Global" -> "" (controller scope),
+            // "Programs" -> "Program:", "Programs/MainProgram" -> "Program:MainProgram". Scope
+            // membership against canonical NodeIds is decided by AddressPolicy.matchesScope in
+            // TagSimulationFacade.
             String opcuaScope = convertToNodeIdPath(scope);
 
             if (enabled) {

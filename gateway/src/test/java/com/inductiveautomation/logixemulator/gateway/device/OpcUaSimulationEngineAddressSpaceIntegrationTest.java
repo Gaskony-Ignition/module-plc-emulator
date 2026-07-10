@@ -43,17 +43,17 @@ import static org.mockito.Mockito.when;
  * <p>Builds a real address space via {@link AddressSpaceBuilder} against the same stubbed
  * {@link AddressSpaceBuilder.NodeContext} used by {@link AddressSpaceBuilderIntegrationTest} — no
  * live OPC-UA server or Ignition gateway is required — then registers simulation for a tag using
- * the DOT-notation NodeId identifier the live address space actually assigns it (the same
- * conversion {@code SimulationController.convertToNodeIdPath()} performs on the client-facing
- * slash-notation path), ticks the engine, and asserts the node's OPC-UA value actually changes.
+ * the canonical NodeId identifier the live address space actually assigns it (the same conversion
+ * {@code SimulationController.convertToNodeIdPath()} performs on the client-facing slash-notation
+ * path), ticks the engine, and asserts the node's OPC-UA value actually changes.
  *
  * <p><b>Root cause this guards against:</b> before the B3 fix,
  * {@code SimulationController.handleToggleTagSimulation()} registered tags with the engine using
  * the raw slash-notation {@code tagPath} straight from the request body (e.g.
  * {@code "Controller:Global/RampInt"}), while {@link OpcUaSimulationEngine#updateSimulatedValues}
- * derives its per-tick lookup key from the live {@code NodeId}'s identifier, which
- * {@link AddressSpaceBuilder} always builds in DOT notation (e.g.
- * {@code "Controller:Global.RampInt"}). The two never matched, so {@code isTagSimulated()} was
+ * derives its per-tick lookup key from the live {@code NodeId}'s identifier, which under the v10
+ * canonical scheme (C1) is the bare {@code "RampInt"} for a controller tag. The two never matched,
+ * so {@code isTagSimulated()} was
  * always {@code false} for every live data item — the registry reported tags as simulated
  * (API success, {@code simulatedTagCount > 0}) while every OPC-UA node value stayed frozen forever
  * (see {@code ~/Downloads/plc-v10-artifacts/plc-dod/item3-simulation-FAIL.txt}).
@@ -141,16 +141,16 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     }
 
     /**
-     * Finds the long-path variable node created for a {@code Controller:Global} atomic tag
-     * (ignores the duplicate short-path alias node the builder also creates at the device root).
+     * Finds the single canonical variable node created for a controller-scoped atomic tag (v10 C1:
+     * one node per tag, bare identifier — no more long/short duplicate pair).
      */
-    private UaVariableNode variableNodeFor(String dotNotationTagPath) {
+    private UaVariableNode variableNodeFor(String canonicalIdentifier) {
         return addedNodes.stream()
             .filter(UaVariableNode.class::isInstance)
             .map(UaVariableNode.class::cast)
-            .filter(n -> dotNotationTagPath.equals(n.getNodeId().getIdentifier().toString()))
+            .filter(n -> canonicalIdentifier.equals(n.getNodeId().getIdentifier().toString()))
             .findFirst()
-            .orElseThrow(() -> new AssertionError("No variable node found for " + dotNotationTagPath));
+            .orElseThrow(() -> new AssertionError("No variable node found for " + canonicalIdentifier));
     }
 
     private static DataItem dataItemFor(NodeId nodeId) {
@@ -167,7 +167,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void rampPatternChangesNumericNodeValueOverTicks() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode rampNode = variableNodeFor("Controller:Global.RampInt");
+        UaVariableNode rampNode = variableNodeFor("RampInt");
         List<DataItem> dataItems = List.of(dataItemFor(rampNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(
@@ -177,8 +177,8 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         );
 
         // The exact key SimulationController.convertToNodeIdPath("Controller:Global/RampInt")
-        // produces — i.e. what the client sent, converted to the live NodeId's DOT notation.
-        engine.enableTagSimulation("Controller:Global.RampInt", LogixEmulatorConfig.SimulationPattern.RAMP);
+        // produces — the bare canonical controller identifier (v10 C1).
+        engine.enableTagSimulation("RampInt", LogixEmulatorConfig.SimulationPattern.RAMP);
         engine.start(() -> dataItems);
 
         Object initialValue = rampNode.getValue().getValue().getValue();
@@ -198,7 +198,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void togglePatternFlipsBooleanNodeValueOverTicks() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode toggleNode = variableNodeFor("Controller:Global.ToggleBool");
+        UaVariableNode toggleNode = variableNodeFor("ToggleBool");
         List<DataItem> dataItems = List.of(dataItemFor(toggleNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(
@@ -207,7 +207,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
             nodesByNodeId::get
         );
 
-        engine.enableTagSimulation("Controller:Global.ToggleBool", LogixEmulatorConfig.SimulationPattern.TOGGLE);
+        engine.enableTagSimulation("ToggleBool", LogixEmulatorConfig.SimulationPattern.TOGGLE);
         engine.start(() -> dataItems);
 
         Object initialValue = toggleNode.getValue().getValue().getValue();
@@ -237,11 +237,11 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void sinePatternOscillatesWithinBounds() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode sineNode = variableNodeFor("Controller:Global.SineReal");
+        UaVariableNode sineNode = variableNodeFor("SineReal");
         List<DataItem> dataItems = List.of(dataItemFor(sineNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodesByNodeId::get);
-        engine.enableTagSimulation("Controller:Global.SineReal", LogixEmulatorConfig.SimulationPattern.SINE);
+        engine.enableTagSimulation("SineReal", LogixEmulatorConfig.SimulationPattern.SINE);
         engine.start(() -> dataItems);
 
         // Wait for at least one tick to fire before sampling, so the pre-simulation default
@@ -275,11 +275,11 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void randomPatternStaysWithinBounds() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode randomNode = variableNodeFor("Controller:Global.RandomReal");
+        UaVariableNode randomNode = variableNodeFor("RandomReal");
         List<DataItem> dataItems = List.of(dataItemFor(randomNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodesByNodeId::get);
-        engine.enableTagSimulation("Controller:Global.RandomReal", LogixEmulatorConfig.SimulationPattern.RANDOM);
+        engine.enableTagSimulation("RandomReal", LogixEmulatorConfig.SimulationPattern.RANDOM);
         engine.start(() -> dataItems);
 
         Set<Float> sampledValues = new HashSet<>();
@@ -306,11 +306,11 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void staticPatternLeavesValueUnchanged() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode staticNode = variableNodeFor("Controller:Global.StaticReal");
+        UaVariableNode staticNode = variableNodeFor("StaticReal");
         List<DataItem> dataItems = List.of(dataItemFor(staticNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.SINE, 50, nodesByNodeId::get);
-        engine.enableTagSimulation("Controller:Global.StaticReal", LogixEmulatorConfig.SimulationPattern.STATIC);
+        engine.enableTagSimulation("StaticReal", LogixEmulatorConfig.SimulationPattern.STATIC);
         engine.start(() -> dataItems);
 
         // STATIC always resolves to the midpoint of the default 0-100 range — give it several
@@ -341,7 +341,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     void slashNotationRegistrationNeverMatchesLiveDotNotationNode() {
         buildFiveTagAddressSpace();
 
-        UaVariableNode rampNode = variableNodeFor("Controller:Global.RampInt");
+        UaVariableNode rampNode = variableNodeFor("RampInt");
         List<DataItem> dataItems = List.of(dataItemFor(rampNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.RAMP, 50, nodesByNodeId::get);
@@ -355,7 +355,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
 
         // Give the engine several ticks — the value must NOT change, because the registry key
         // ("Controller:Global/RampInt") never matches the live NodeId identifier
-        // ("Controller:Global.RampInt") that updateSimulatedValues() looks up per tick.
+        // ("RampInt") that updateSimulatedValues() looks up per tick.
         try {
             Thread.sleep(300);
         } catch (InterruptedException e) {

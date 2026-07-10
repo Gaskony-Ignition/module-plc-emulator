@@ -477,40 +477,12 @@ public class OpcUaSimulationEngine {
         logger.info("Disabled simulation for all tags");
     }
 
-    /**
-     * Enable simulation for all tags matching a scope prefix.
-     * @param prefix The scope prefix (e.g., "Controller:Global", "Programs/MainProgram")
-     * @param allTagPaths All available tag paths to filter
-     */
-    public void enableSimulationByScope(String prefix, Set<String> allTagPaths) {
-        int count = 0;
-        for (String tagPath : allTagPaths) {
-            if (tagPath.startsWith(prefix)) {
-                simulatedTags.add(tagPath);
-                count++;
-            }
-        }
-        logger.info("Enabled simulation for {} tags matching scope: {}", count, prefix);
-    }
-
-    /**
-     * Disable simulation for all tags matching a scope prefix.
-     * @param prefix The scope prefix
-     */
-    public void disableSimulationByScope(String prefix) {
-        int count = 0;
-        var iterator = simulatedTags.iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().startsWith(prefix)) {
-                iterator.remove();
-                count++;
-            }
-        }
-        // Also clean up patterns and baselines for disabled tags
-        tagPatterns.keySet().removeIf(k -> k.startsWith(prefix));
-        tagBaselines.keySet().removeIf(k -> k.startsWith(prefix));
-        logger.info("Disabled simulation for {} tags matching scope: {}", count, prefix);
-    }
+    // NOTE (v10 C1): the former enableSimulationByScope/disableSimulationByScope prefix matchers
+    // were removed. Under the canonical NodeId scheme the controller scope has an EMPTY identifier
+    // prefix, so raw startsWith() matching is wrong (it would match every tag, program-scoped
+    // included). Scope membership is now decided by AddressPolicy.matchesScope() in
+    // TagSimulationFacade, which drives the per-tag enable/disable API here — keeping scope
+    // semantics in exactly one place.
 
     /**
      * Enable simulation for all provided tag paths.

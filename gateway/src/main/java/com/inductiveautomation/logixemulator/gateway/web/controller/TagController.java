@@ -1,6 +1,8 @@
 package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
+import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.GatewayAuthHelper;
@@ -25,6 +27,9 @@ public class TagController {
 
     private final DeviceFileManager deviceManager;
     private final RateLimiter readRateLimiter;
+
+    /** Vendor addressing policy — maps canonical NodeIds back to browse-tree paths for the UI. */
+    private final AddressPolicy policy = new RockwellLogixPolicy();
 
     public TagController(DeviceFileManager deviceManager, RateLimiter readRateLimiter) {
         this.deviceManager = deviceManager;
@@ -229,14 +234,10 @@ public class TagController {
             for (var entry : liveValues.entrySet()) {
                 Object value = entry.getValue();
                 if (value != null) {
-                    String path = entry.getKey();
-                    if (path.startsWith("Controller:Global.")) {
-                        path = "Controller:Global/" + path.substring("Controller:Global.".length()).replace(".", "/");
-                    } else if (path.startsWith("Programs.")) {
-                        path = path.replace(".", "/");
-                    } else if (path.contains(".")) {
-                        continue;
-                    }
+                    // Keys are canonical NodeId identifiers (v10 C1: bare for controller scope,
+                    // Program:<Prog>. for program scope); the UI's tag tree uses browse-folder
+                    // slash paths, so map each identifier back through the policy.
+                    String path = policy.toBrowsePath(entry.getKey());
                     values.put(path, value.toString());
                 }
             }

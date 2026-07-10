@@ -164,7 +164,9 @@ class IncrementalAddressSpaceUpdaterTest {
         IncrementalAddressSpaceUpdater.CompareResult result = updater.compare(oldData, newData);
 
         assertThat(result.hasChanges()).isTrue();
-        assertThat(result.changedTags).containsKey("Programs.MainProgram.Counter");
+        // v10 C1: program-scoped tags are keyed by their canonical NodeId identifier
+        // "Program:<Prog>.Tag" (ADDRESSING.md §3.2), not the old "Programs.<Prog>.Tag" form.
+        assertThat(result.changedTags).containsKey("Program:MainProgram.Counter");
     }
 
     // Helper methods to create test data

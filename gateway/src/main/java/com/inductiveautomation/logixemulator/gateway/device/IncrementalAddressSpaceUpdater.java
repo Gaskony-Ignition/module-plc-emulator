@@ -3,6 +3,8 @@ package com.inductiveautomation.logixemulator.gateway.device;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
+import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
@@ -34,6 +36,7 @@ public class IncrementalAddressSpaceUpdater {
     private final Function<NodeId, UaNode> nodeLookup;
     private final Function<String, NodeId> nodeIdFactory;
     private final String deviceName;
+    private final AddressPolicy policy;
 
     /**
      * Result of comparing two PLC data structures.
@@ -76,9 +79,18 @@ public class IncrementalAddressSpaceUpdater {
             Function<NodeId, UaNode> nodeLookup,
             Function<String, NodeId> nodeIdFactory,
             String deviceName) {
+        this(nodeLookup, nodeIdFactory, deviceName, new RockwellLogixPolicy());
+    }
+
+    public IncrementalAddressSpaceUpdater(
+            Function<NodeId, UaNode> nodeLookup,
+            Function<String, NodeId> nodeIdFactory,
+            String deviceName,
+            AddressPolicy policy) {
         this.nodeLookup = nodeLookup;
         this.nodeIdFactory = nodeIdFactory;
         this.deviceName = deviceName;
+        this.policy = policy;
     }
 
     /**
@@ -153,12 +165,10 @@ public class IncrementalAddressSpaceUpdater {
 
         for (TagChange change : changes.changedTags.values()) {
             try {
-                // Tag paths from extractAllTags already include scope prefix:
-                // Global tags: "TagName" or "UDT.Member" -> need "Controller:Global." prefix
-                // Program tags: "Programs.ProgramName.TagName" -> already fully qualified
-                String nodeIdPath = change.tagPath.startsWith("Programs.")
-                    ? change.tagPath
-                    : "Controller:Global." + change.tagPath;
+                // Tag paths from extractAllTags ARE the canonical NodeId identifiers (v10 C1):
+                // controller tags/members are bare ("TagName", "UDT.Member"); program tags carry
+                // the Program:<Prog> selector ("Program:MainProgram.TagName"). No further prefixing.
+                String nodeIdPath = change.tagPath;
                 NodeId nodeId = nodeIdFactory.apply(nodeIdPath);
                 UaNode node = nodeLookup.apply(nodeId);
 
@@ -206,16 +216,17 @@ public class IncrementalAddressSpaceUpdater {
             for (JsonElement elem : globalTags) {
                 JsonObject tag = elem.getAsJsonObject();
                 if (tag.has("name")) {
-                    String name = tag.get("name").getAsString();
+                    // Controller-scoped canonical identifier is the bare tag name (v10 C1).
+                    String name = policy.join(policy.controllerScopePrefix(), tag.get("name").getAsString());
                     tags.put(name, tag);
 
-                    // Also extract UDT members
+                    // Also extract UDT members (canonical dotted member identifiers)
                     if (tag.has("udt_members")) {
                         JsonArray members = tag.getAsJsonArray("udt_members");
                         for (JsonElement memberElem : members) {
                             JsonObject member = memberElem.getAsJsonObject();
                             if (member.has("name")) {
-                                String memberPath = name + "." + member.get("name").getAsString();
+                                String memberPath = policy.join(name, member.get("name").getAsString());
                                 tags.put(memberPath, member);
                             }
                         }
@@ -233,10 +244,12 @@ public class IncrementalAddressSpaceUpdater {
 
                 if (program.has("tags")) {
                     JsonArray programTags = program.getAsJsonArray("tags");
+                    String scopePrefix = policy.programScopePrefix(programName);
                     for (JsonElement tagElem : programTags) {
                         JsonObject tag = tagElem.getAsJsonObject();
                         if (tag.has("name")) {
-                            String tagPath = "Programs." + programName + "." + tag.get("name").getAsString();
+                            // Program-scoped canonical identifier: Program:<Prog>.TagName (v10 C1).
+                            String tagPath = policy.join(scopePrefix, tag.get("name").getAsString());
                             tags.put(tagPath, tag);
                         }
                     }

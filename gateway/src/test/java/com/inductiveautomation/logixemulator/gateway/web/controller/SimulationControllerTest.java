@@ -57,17 +57,40 @@ class SimulationControllerTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("convertToNodeIdPath() converts Controller:Global/ prefix correctly")
+    @DisplayName("convertToNodeIdPath() drops the Controller:Global browse folder — controller "
+        + "identifiers are bare (v10 C1, ADDRESSING.md §2.2)")
     void testConvertToNodeIdPathGlobal() {
         assertThat(controller.convertToNodeIdPath("Controller:Global/Motor1/Speed"))
-            .isEqualTo("Controller:Global.Motor1.Speed");
+            .isEqualTo("Motor1.Speed");
     }
 
     @Test
-    @DisplayName("convertToNodeIdPath() converts Programs/ prefix correctly")
+    @DisplayName("convertToNodeIdPath() maps a Programs/ browse path to the Program:<Prog>. "
+        + "selector form (v10 C1, ADDRESSING.md §3.2)")
     void testConvertToNodeIdPathPrograms() {
         assertThat(controller.convertToNodeIdPath("Programs/MainProgram/Counter"))
-            .isEqualTo("Programs.MainProgram.Counter");
+            .isEqualTo("Program:MainProgram.Counter");
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps the bare Controller:Global bulk scope to the empty "
+        + "controller-scope selector (matchesScope treats it as every non-program tag)")
+    void testConvertToNodeIdPathControllerBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Controller:Global")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps the bare Programs bulk scope to the generic "
+        + "Program: selector")
+    void testConvertToNodeIdPathProgramsBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Programs")).isEqualTo("Program:");
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps a Programs/<Prog> bulk scope to Program:<Prog>")
+    void testConvertToNodeIdPathSingleProgramBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Programs/MainProgram"))
+            .isEqualTo("Program:MainProgram");
     }
 
     @Test
@@ -239,7 +262,7 @@ class SimulationControllerTest {
             "DodPLC1",
             "{\"tagPath\":\"Controller:Global/RampInt\",\"enabled\":true,\"pattern\":\"ramp\"}"
         );
-        when(device.getTagSimulationPattern("Controller:Global.RampInt")).thenReturn("ramp");
+        when(device.getTagSimulationPattern("RampInt")).thenReturn("ramp");
         when(device.getSimulatedTagCount()).thenReturn(1);
 
         JSONObject result = controller.handleToggleTagSimulation(ctx, resp);
@@ -247,9 +270,9 @@ class SimulationControllerTest {
         assertThat(result).isNotNull();
         assertThat(result.getBoolean("success")).isTrue();
 
-        // The engine must be called with the DOT-notation path (matching the live
-        // NodeId identifier) — never the raw slash-notation path from the request.
-        verify(device).enableTagSimulation("Controller:Global.RampInt", "ramp");
+        // The engine must be called with the canonical NodeId identifier (bare for a controller
+        // tag, v10 C1) — never the raw slash-notation browse path from the request.
+        verify(device).enableTagSimulation("RampInt", "ramp");
         verify(device, never()).enableTagSimulation(eq("Controller:Global/RampInt"), any());
         verify(device, never()).enableTagSimulation(eq("Controller:Global/RampInt"));
 
@@ -264,11 +287,11 @@ class SimulationControllerTest {
             "DodPLC1",
             "{\"tagPath\":\"Programs/MainProgram/Counter\",\"enabled\":true}"
         );
-        when(device.getTagSimulationPattern("Programs.MainProgram.Counter")).thenReturn("sine");
+        when(device.getTagSimulationPattern("Program:MainProgram.Counter")).thenReturn("sine");
 
         controller.handleToggleTagSimulation(ctx, resp);
 
-        verify(device).enableTagSimulation("Programs.MainProgram.Counter");
+        verify(device).enableTagSimulation("Program:MainProgram.Counter");
     }
 
     @Test
