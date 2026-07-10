@@ -258,11 +258,12 @@ public class L5XParser implements PLCParser {
                 }
             }
 
-            // Try to extract initial value
-            NodeList dataElements = tagElement.getElementsByTagName("Data");
-            if (dataElements.getLength() > 0) {
-                Element dataElement = (Element) dataElements.item(0);
-                String value = extractValue(dataElement, dataType);
+            // Try to extract initial value. A tag can carry more than one sibling <Data> block
+            // (an "L5K" text-format block alongside a "Decorated" one); the DataValue/Value
+            // attribute we need only ever lives in the Decorated block (defect C8).
+            Element decoratedData = findDecoratedData(tagElement);
+            if (decoratedData != null) {
+                String value = extractValue(decoratedData, dataType);
                 if (value != null) {
                     tag.addProperty("initial_value", value);
                 }
@@ -611,29 +612,90 @@ public class L5XParser implements PLCParser {
     }
 
     /**
-     * Extract value from Data element.
+     * Finds a tag's Decorated-format {@code <Data>} element. A tag can carry more than one
+     * sibling {@code <Data>} block (an "L5K" text-format block alongside the "Decorated" one that
+     * holds the {@code <DataValue>}/{@code Value} attribute we need - defect C8); falls back to
+     * the first {@code <Data>} element found if none is explicitly marked "Decorated" (preserves
+     * behaviour for fixtures that omit the {@code Format} attribute).
+     */
+    private static Element findDecoratedData(Element tagElement) {
+        NodeList dataElements = tagElement.getElementsByTagName("Data");
+        for (int i = 0; i < dataElements.getLength(); i++) {
+            Element candidate = (Element) dataElements.item(i);
+            if ("Decorated".equals(candidate.getAttribute("Format"))) {
+                return candidate;
+            }
+        }
+        return dataElements.getLength() > 0 ? (Element) dataElements.item(0) : null;
+    }
+
+    /**
+     * Extract the scalar initial value from a Decorated {@code <Data>} element (defect C8).
+     *
+     * <p>Real Studio 5000 exports render a scalar/atomic tag's value as a self-closing
+     * {@code <DataValue DataType="..." Value="42"/>} - the value lives in the {@code Value}
+     * attribute, never as element text content (which is always empty for a self-closing tag).
+     * This reads that attribute, falling back to text content for any export style that puts the
+     * value there instead.
+     *
+     * <p>Array ({@code <Array>/<Element>}) and structured (UDT/AOI {@code <Structure>}, STRING
+     * {@code <Structure>}) Data elements have no {@code <DataValue>} child at all, so this
+     * correctly returns {@code null} for them - {@code AddressSpaceBuilder.getInitialValue()}
+     * then takes its type-appropriate default path (defect B1's fix). Per-member/per-element
+     * initial values for those constructs are deliberately out of scope for C8 - ADDRESSING.md
+     * does not cover initial values, so this stays conservative: only the single scalar tag
+     * value is read.
      */
     private String extractValue(Element dataElement, String dataType) {
         try {
-            String format = dataElement.getAttribute("Format");
-
-            // For simple types, look for DataValue element
             NodeList dataValues = dataElement.getElementsByTagName("DataValue");
-            if (dataValues.getLength() > 0) {
-                Element valueElement = (Element) dataValues.item(0);
-                return valueElement.getTextContent();
+            if (dataValues.getLength() == 0) {
+                return null;
             }
 
-            // For complex/structured types (arrays, UDT/AOI Structure elements, STRING Structure
-            // elements, etc.) there is no single scalar value to extract here - return null so
-            // AddressSpaceBuilder.getInitialValue() takes its type-appropriate default path
-            // instead of receiving a sentinel it would try (and fail) to parse as a number
-            // (defect B1).
-            return null;
+            Element valueElement = (Element) dataValues.item(0);
+            String valueAttr = valueElement.getAttribute("Value");
+            String rawValue = (valueAttr != null && !valueAttr.isEmpty())
+                ? valueAttr
+                : valueElement.getTextContent();
+
+            if (rawValue == null || rawValue.isEmpty()) {
+                return null;
+            }
+
+            return normalizeValueForType(rawValue, dataType);
 
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Normalises a raw decorated {@code Value} string for its declared data type so that
+     * {@code AddressSpaceBuilder.getInitialValue()}'s per-type parsing round-trips correctly.
+     * Studio 5000 renders BOOL values as {@code "0"}/{@code "1"}, which
+     * {@code Boolean.parseBoolean} would silently misread ({@code "1"} -&gt; {@code false}) - this
+     * is the only normalisation C8 requires; every other atomic type's {@code Value} text already
+     * round-trips through its numeric/string parser unchanged. Binary/hex-radix literals (e.g.
+     * {@code "2#0000_...."}, {@code "16#0c"}) and Date/Time literals (e.g.
+     * {@code "DT#1970-01-01..."}) are intentionally left as-is: they are not numeric per
+     * {@code Integer}/{@code Long} parsing, so they fall back to the type default via the
+     * existing B1 safety net rather than being decoded here (kept conservative; a future
+     * enhancement could decode them).
+     */
+    private static String normalizeValueForType(String rawValue, String dataType) {
+        String upperType = dataType == null ? "" : dataType.toUpperCase();
+        if (!"BOOL".equals(upperType) && !"BOOLEAN".equals(upperType)) {
+            return rawValue;
+        }
+        String trimmed = rawValue.trim();
+        if ("0".equals(trimmed)) {
+            return "false";
+        }
+        if ("1".equals(trimmed)) {
+            return "true";
+        }
+        return rawValue;
     }
 
     /**

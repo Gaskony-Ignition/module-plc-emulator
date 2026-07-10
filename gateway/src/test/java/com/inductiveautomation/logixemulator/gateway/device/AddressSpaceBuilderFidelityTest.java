@@ -37,10 +37,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * per the normative grammar in {@code docs/plans/ADDRESSING.md}. That NodeId match is the entire
  * "develop on emulator, swap in the real PLC later" contract.
  *
- * <p><b>Scope of this class.</b> It covers the C1 (canonical NodeIds), C2 (full array expansion)
- * and C3 (DWORD-packed BOOL arrays) fixes and their §5 checklist rows. Assertions that depend on
- * out-of-scope fixes (C4 predefined member tables, C5 External-Access / Modules) are marked
- * {@link Disabled} with the owning task, so this suite stays green for the C1-C3 work.
+ * <p><b>Scope of this class.</b> It covers the C1 (canonical NodeIds), C2 (full array expansion),
+ * C3 (DWORD-packed BOOL arrays), C5 (ExternalAccess/OpcUaAccess, AOI element-name parsing, module
+ * I/O tags) and C6/C8 (atomic type mapping, initial values) fixes and their §5 checklist rows.
+ * Assertions that depend on the still out-of-scope C4 (predefined member tables) are marked
+ * {@link Disabled} with the owning task.
  *
  * <p><b>Enable mechanism.</b> {@code @Tag("fidelity")} tests are excluded from the default
  * {@code ./gradlew test}; run them via {@code ./gradlew :gateway:fidelityTest} or
@@ -59,6 +60,7 @@ class AddressSpaceBuilderFidelityTest {
     private static final String CORPUS_L5SHARP = "corpus/ControlLogix-1756L83E-fw36-L5Sharp.L5X";
     private static final String CORPUS_IOTRUSTLAB_CONTROLLER =
         "corpus/ControlLogix-1756L72-fw37-iotrustlab-controller.L5X";
+    private static final String CORPUS_DMROEDER = "corpus/CompactLogix5380-5069L320ERM-fw34-dmroeder.L5X";
     private static final String SYNTHETIC_BOOLPACK = "test-files/synthetic-boolpack.l5x";
 
     private AddressSpaceBuilder builder;
@@ -346,11 +348,14 @@ class AddressSpaceBuilderFidelityTest {
     // =====================================================================================
     // §3.14 Atomic type mapping — v32+ unsigned atomics (C6) — ControlLogix-1756L83E-fw36-L5Sharp.L5X
     // These tags also carry OpcUaAccess="None" (ExternalAccess="Read/Write"), reinforcing §5.5's
-    // OpcUaAccess-ignored assertion.
+    // OpcUaAccess-ignored assertion, and SimpleUSint's Value="255" doubles as a C8 initial-value
+    // check (255 does not fit a signed SByte, so this also proves the unsigned Byte mapping is
+    // exercised end-to-end, not just type-labelled).
     // =====================================================================================
 
     @Test
-    @DisplayName("§3.14 v32+ unsigned atomics map to their unsigned OPC-UA types (C6)")
+    @DisplayName("§3.14 v32+ unsigned atomics map to their unsigned OPC-UA types and keep their "
+        + "real initial value (C6, C8)")
     void unsignedAtomicTypeMapping() throws IOException {
         Map<String, UaNode> nodes = build(CORPUS_L5SHARP);
 
@@ -358,6 +363,32 @@ class AddressSpaceBuilderFidelityTest {
         assertType(nodes, "SimpleUInt", OpcUaDataType.UInt16);
         assertType(nodes, "SimpleUDint", OpcUaDataType.UInt32);
         assertType(nodes, "SimpleULint", OpcUaDataType.UInt64);
+
+        UaVariableNode simpleUSint = (UaVariableNode) nodes.get("SimpleUSint");
+        Object value = simpleUSint.getValue().getValue().getValue();
+        assertThat(value)
+            .as("SimpleUSint Value=\"255\" from the real export must reach the built node (C8)")
+            .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(255));
+    }
+
+    // =====================================================================================
+    // C8 — initial values read from the decorated Value attribute — dmroeder corpus file
+    // =====================================================================================
+
+    @Test
+    @DisplayName("C8: a real export's DataValue Value attribute becomes the node's initial value, "
+        + "not the type default")
+    void initialValueReadFromDataValueAttribute() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_DMROEDER);
+
+        // Program:GetMEDName.CharCount is a program-scoped DINT with Value="18" in the real
+        // export - before C8, extractValue() never read the Value attribute, so every tag
+        // silently started at its type default (0) regardless of the file's contents.
+        assertType(nodes, "Program:GetMEDName.CharCount", OpcUaDataType.Int32);
+        UaVariableNode charCount = (UaVariableNode) nodes.get("Program:GetMEDName.CharCount");
+        assertThat(charCount.getValue().getValue().getValue())
+            .as("CharCount's real export value (18) must appear on the built node, not the DINT default (0)")
+            .isEqualTo(18);
     }
 
     // =====================================================================================

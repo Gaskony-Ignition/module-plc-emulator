@@ -758,4 +758,63 @@ class L5XParserTest {
             assertThat(elem.getAsJsonObject().get("name").getAsString()).doesNotStartWith("An_In_1:");
         }
     }
+
+    // =========================================================================================
+    // C8 — initial values read from the Decorated Data element's Value attribute
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C8: a scalar tag's DataValue Value attribute becomes its initial_value")
+    void testInitialValueReadFromValueAttribute() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Counter" DataType="DINT" ExternalAccess="Read/Write">
+                            <Data Format="L5K">
+                                <![CDATA[18]]>
+                            </Data>
+                            <Data Format="Decorated">
+                                <DataValue DataType="DINT" Radix="Decimal" Value="18"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("18");
+    }
+
+    @Test
+    @DisplayName("C8: a BOOL tag's Value=\"1\" is normalised to \"true\" (Boolean.parseBoolean(\"1\") "
+        + "would otherwise silently read as false)")
+    void testBoolInitialValueOneNormalisedToTrue() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Flag" DataType="BOOL" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="BOOL" Value="1"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("true");
+    }
 }
