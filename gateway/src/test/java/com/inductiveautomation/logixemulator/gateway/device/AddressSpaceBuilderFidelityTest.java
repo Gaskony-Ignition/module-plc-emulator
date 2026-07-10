@@ -57,6 +57,8 @@ class AddressSpaceBuilderFidelityTest {
     private static final String CORPUS_NODEBLUE = "corpus/CompactLogix5370-1769L33ER-fw33-NodeblueAI.L5X";
     private static final String CORPUS_STELLENTUS = "corpus/CompactLogix5370-1769L33ER-fw30-stellentus.L5X";
     private static final String CORPUS_L5SHARP = "corpus/ControlLogix-1756L83E-fw36-L5Sharp.L5X";
+    private static final String CORPUS_IOTRUSTLAB_CONTROLLER =
+        "corpus/ControlLogix-1756L72-fw37-iotrustlab-controller.L5X";
     private static final String SYNTHETIC_BOOLPACK = "test-files/synthetic-boolpack.l5x";
 
     private AddressSpaceBuilder builder;
@@ -187,14 +189,24 @@ class AddressSpaceBuilderFidelityTest {
     }
 
     @Test
-    @Disabled("External-Access filtering is C5 (out of scope for C1-C3). ADDRESSING.md §5.3 requires "
-        + "AOI LocalTags with ExternalAccess=None (RunLatch, FaultTimer) to be omitted; the parser "
-        + "does not yet read ExternalAccess, so they are still emitted. Enable when C5 lands.")
-    @DisplayName("§5.3 AOI LocalTags with ExternalAccess=None are omitted (C5)")
+    @DisplayName("§5.3 AOI LocalTags with ExternalAccess=None are omitted (C5a)")
     void aoiExternalAccessNoneOmitted() throws IOException {
         Map<String, UaNode> nodes = build(CORPUS_NODEBLUE);
         assertThat(nodes).doesNotContainKey("Program:MainProgram.Motor1_AOI.RunLatch");
         assertThat(nodes.keySet()).noneMatch(id -> id.startsWith("Program:MainProgram.Motor1_AOI.FaultTimer"));
+    }
+
+    @Test
+    @DisplayName("§3.12 Constant=\"true\" controller tags are created read-only (C5a)")
+    void constantTagsAreReadOnly() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_IOTRUSTLAB_CONTROLLER);
+
+        // "True"/"False" are Constant="true" ExternalAccess="Read/Write" BOOL tags in the corpus -
+        // ADDRESSING.md §3.12 requires Constant tags to be read-only regardless of ExternalAccess.
+        assertThat(nodes).containsKey("True");
+        UaVariableNode trueTag = (UaVariableNode) nodes.get("True");
+        assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(trueTag.getAccessLevel()))
+            .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
     }
 
     // =====================================================================================

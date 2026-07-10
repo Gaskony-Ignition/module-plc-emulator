@@ -413,12 +413,25 @@ public class AddressSpaceBuilder {
 
         OpcUaDataType opcType = mapDataType(dataType);
         Object initialValue = getInitialValue(valueSource, dataType);
+        boolean readOnly = isReadOnly(valueSource);
 
-        UaVariableNode variableNode = context.createVariableNode(nodeIdPath, browseName, opcType.getNodeId());
+        UaVariableNode variableNode =
+            context.createVariableNode(nodeIdPath, browseName, opcType.getNodeId(), readOnly);
         variableNode.setValue(new DataValue(new Variant(initialValue)));
-        enableWrites(variableNode);
+        if (!readOnly) {
+            enableWrites(variableNode);
+        }
         nodeAdder.accept(variableNode);
         return variableNode;
+    }
+
+    /**
+     * @return {@code true} if the parsed tag/member is marked read-only (ADDRESSING.md §3.12:
+     *     {@code ExternalAccess="Read Only"}, or a {@code Constant="true"} tag) - the node is
+     *     then created with {@code AccessLevel.READ_ONLY} and no write filter (C5a).
+     */
+    private static boolean isReadOnly(JsonObject valueSource) {
+        return valueSource.has("read_only") && valueSource.get("read_only").getAsBoolean();
     }
 
     /** Browse-name subscript for an array element, e.g. {@code [0]} or {@code [1,3]}. */
@@ -605,17 +618,28 @@ public class AddressSpaceBuilder {
         }
 
         /**
-         * Create a variable node. Override in tests to return a mock.
+         * Create a read-write variable node. Override in tests to return a mock.
          */
         protected UaVariableNode createVariableNode(String nodeIdPath, String name, NodeId dataType) {
+            return createVariableNode(nodeIdPath, name, dataType, false);
+        }
+
+        /**
+         * Create a variable node with the given access level (ADDRESSING.md §3.12, C5a: a
+         * {@code readOnly} node gets {@code AccessLevel.READ_ONLY} and no write filter - see
+         * {@code AddressSpaceBuilder.createLeafVariable}). Override in tests to return a mock.
+         */
+        protected UaVariableNode createVariableNode(
+            String nodeIdPath, String name, NodeId dataType, boolean readOnly) {
+            var accessLevel = readOnly ? AccessLevel.READ_ONLY : AccessLevel.READ_WRITE;
             return UaVariableNode.build(nodeContext, b ->
                 b.setNodeId(nodeId(nodeIdPath))
                     .setBrowseName(qualifiedName(name))
                     .setDisplayName(new LocalizedText(name))
                     .setDataType(dataType)
                     .setTypeDefinition(NodeIds.BaseDataVariableType)
-                    .setAccessLevel(AccessLevel.READ_WRITE)
-                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setAccessLevel(accessLevel)
+                    .setUserAccessLevel(accessLevel)
                     .build()
             );
         }

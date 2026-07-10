@@ -472,4 +472,133 @@ class L5XParserTest {
         }
         assertThat(memberNames).contains("PRE", "ACC", "DN", "EN");
     }
+
+    // =========================================================================================
+    // C5a — ExternalAccess honoured, OpcUaAccess ignored (ADDRESSING.md §3.12)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5a: a tag with ExternalAccess=\"None\" is omitted entirely")
+    void testExternalAccessNoneTagOmitted() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Hidden" DataType="DINT" ExternalAccess="None"/>
+                        <Tag Name="Visible" DataType="DINT" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        var names = new java.util.ArrayList<String>();
+        for (var elem : tags) {
+            names.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(names).containsExactly("Visible");
+    }
+
+    @Test
+    @DisplayName("C5a: ExternalAccess=\"Read Only\" and Constant=\"true\" tags are marked read_only; "
+        + "plain Read/Write tags are not")
+    void testExternalAccessReadOnlyMarking() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="ReadOnlyTag" DataType="DINT" ExternalAccess="Read Only"/>
+                        <Tag Name="ConstantTag" DataType="DINT" Constant="true" ExternalAccess="Read/Write"/>
+                        <Tag Name="WritableTag" DataType="DINT" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        JsonObject readOnlyTag = null;
+        JsonObject constantTag = null;
+        JsonObject writableTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            switch (tag.get("name").getAsString()) {
+                case "ReadOnlyTag" -> readOnlyTag = tag;
+                case "ConstantTag" -> constantTag = tag;
+                case "WritableTag" -> writableTag = tag;
+                default -> { }
+            }
+        }
+
+        assertThat(readOnlyTag).isNotNull();
+        assertThat(readOnlyTag.has("read_only")).isTrue();
+        assertThat(constantTag).isNotNull();
+        assertThat(constantTag.has("read_only")).isTrue();
+        assertThat(writableTag).isNotNull();
+        assertThat(writableTag.has("read_only")).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5a: the sibling OpcUaAccess attribute is deliberately ignored - a tag with "
+        + "OpcUaAccess=\"None\" but ExternalAccess=\"Read/Write\" stays visible")
+    void testOpcUaAccessIgnored() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="NativeOpcUaHidden" DataType="DINT" ExternalAccess="Read/Write" OpcUaAccess="None"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).hasSize(1);
+        assertThat(tags.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("NativeOpcUaHidden");
+    }
+
+    @Test
+    @DisplayName("C5a: a UDT member with ExternalAccess=\"None\" is omitted from the expanded instance")
+    void testUdtMemberExternalAccessNoneOmitted() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <DataTypes>
+                        <DataType Name="MyType" Family="NoFamily">
+                            <Members>
+                                <Member Name="Visible" DataType="DINT" ExternalAccess="Read/Write"/>
+                                <Member Name="Hidden" DataType="DINT" ExternalAccess="None"/>
+                            </Members>
+                        </DataType>
+                    </DataTypes>
+                    <Tags>
+                        <Tag Name="Instance" DataType="MyType" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonArray members = instance.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(memberNames).containsExactly("Visible");
+    }
 }

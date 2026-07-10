@@ -185,13 +185,24 @@ public class L5XParser implements PLCParser {
      */
     private JsonObject parseTag(Element tagElement, Map<String, JsonObject> udtDefinitions) {
         try {
-            JsonObject tag = new JsonObject();
-
             String name = tagElement.getAttribute("Name");
             String dataType = tagElement.getAttribute("DataType");
             String usage = tagElement.getAttribute("Usage");
             String constant = tagElement.getAttribute("Constant");
 
+            // ExternalAccess governs Ignition's CIP-based Logix driver (ADDRESSING.md §3.12):
+            // "None" tags are never returned by the real driver, so the emulator must not create
+            // a node for them at all (defect C5a). Note the DELIBERATE omission of the sibling
+            // OpcUaAccess attribute here - it governs the controller's own native OPC-UA server,
+            // not Ignition's driver, and reading it would wrongly hide the 132 corpus tags that
+            // carry OpcUaAccess="None" alongside a visible ExternalAccess.
+            String externalAccess = tagElement.getAttribute("ExternalAccess");
+            if (isExternalAccessNone(externalAccess)) {
+                logger.debug("Tag '{}' has ExternalAccess=None - omitting (ADDRESSING.md §3.12)", name);
+                return null;
+            }
+
+            JsonObject tag = new JsonObject();
             tag.addProperty("name", name);
             tag.addProperty("data_type", dataType);
 
@@ -201,6 +212,10 @@ public class L5XParser implements PLCParser {
 
             if ("true".equalsIgnoreCase(constant)) {
                 tag.addProperty("constant", true);
+                // A Constant tag is never writable on the real driver either (ADDRESSING.md §3.12).
+                tag.addProperty("read_only", true);
+            } else if (isExternalAccessReadOnly(externalAccess)) {
+                tag.addProperty("read_only", true);
             }
 
             // Check for array dimensions
@@ -269,6 +284,17 @@ public class L5XParser implements PLCParser {
 
         for (int i = 0; i < members.size(); i++) {
             JsonObject memberDef = members.get(i).getAsJsonObject();
+
+            // ExternalAccess=None members are never returned by the real driver either
+            // (ADDRESSING.md §3.12, C5a) - e.g. the Motor_Control AOI's RunLatch/FaultTimer
+            // LocalTags. Omit them from the expanded instance entirely rather than emitting a
+            // node the driver would never surface.
+            if (memberDef.has("hidden") && memberDef.get("hidden").getAsBoolean()) {
+                logger.debug("Member '{}' has ExternalAccess=None - omitting (ADDRESSING.md §3.12)",
+                    memberDef.get("name").getAsString());
+                continue;
+            }
+
             JsonObject member = new JsonObject();
 
             String memberName = memberDef.get("name").getAsString();
@@ -279,6 +305,10 @@ public class L5XParser implements PLCParser {
 
             if (memberDef.has("dimensions")) {
                 member.addProperty("dimensions", memberDef.get("dimensions").getAsString());
+            }
+
+            if (memberDef.has("read_only") && memberDef.get("read_only").getAsBoolean()) {
+                member.addProperty("read_only", true);
             }
 
             // Check if this member is itself a UDT/AOI that needs expansion
@@ -298,6 +328,34 @@ public class L5XParser implements PLCParser {
         tag.add("udt_members", udtMembers);
     }
 
+    /**
+     * @return {@code true} if the L5X {@code ExternalAccess} attribute is exactly {@code "None"}
+     *     (ADDRESSING.md §3.12) - the tag/member must not be created at all.
+     */
+    private static boolean isExternalAccessNone(String externalAccess) {
+        return "None".equalsIgnoreCase(externalAccess);
+    }
+
+    /**
+     * @return {@code true} if the L5X {@code ExternalAccess} attribute is exactly
+     *     {@code "Read Only"} (ADDRESSING.md §3.12) - the tag/member must be created read-only.
+     */
+    private static boolean isExternalAccessReadOnly(String externalAccess) {
+        return "Read Only".equalsIgnoreCase(externalAccess);
+    }
+
+    /**
+     * Marks a UDT/AOI member definition's JSON with the ADDRESSING.md §3.12 disposition of its
+     * {@code ExternalAccess} attribute, for {@link #expandUdtInstance} to honour when the
+     * definition is later expanded into an instance's members.
+     */
+    private static void markExternalAccess(JsonObject member, String externalAccess) {
+        if (isExternalAccessNone(externalAccess)) {
+            member.addProperty("hidden", true);
+        } else if (isExternalAccessReadOnly(externalAccess)) {
+            member.addProperty("read_only", true);
+        }
+    }
 
     /**
      * Parse a program element.
@@ -366,6 +424,8 @@ public class L5XParser implements PLCParser {
                 if (dimensions != null && !dimensions.isEmpty()) {
                     member.addProperty("dimensions", dimensions);
                 }
+
+                markExternalAccess(member, memberElement.getAttribute("ExternalAccess"));
 
                 members.add(member);
             }
@@ -442,6 +502,8 @@ public class L5XParser implements PLCParser {
                     member.addProperty("dimensions", dimensions);
                 }
 
+                markExternalAccess(member, paramElement.getAttribute("ExternalAccess"));
+
                 members.add(member);
             }
 
@@ -467,6 +529,8 @@ public class L5XParser implements PLCParser {
                 if (dimensions != null && !dimensions.isEmpty()) {
                     member.addProperty("dimensions", dimensions);
                 }
+
+                markExternalAccess(member, localTagElement.getAttribute("ExternalAccess"));
 
                 members.add(member);
             }
