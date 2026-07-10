@@ -159,12 +159,7 @@ class AddressSpaceBuilderFidelityTest {
     // =====================================================================================
 
     @Test
-    @Disabled("Blocked by a pre-existing AOI-parser gap unrelated to C1-C3: L5XParser looks for "
-        + "<AddOnInstructionDefinition> but this corpus file wraps AOIs as <AddOnInstruction>, so "
-        + "Motor1_AOI is not expanded into members (it becomes a scalar). The canonical program-scope "
-        + "member-path contract this row exercises is already proven by §5.2 (Program:MainProgram."
-        + "MainTimer.PRE etc.). Enable once the AOI element-name parsing is fixed (C5-adjacent).")
-    @DisplayName("§5.3 AOI backing-tag members carry the canonical program prefix (C1)")
+    @DisplayName("§5.3 AOI backing-tag members carry the canonical program prefix (C1, unblocked by C5b)")
     void aoiMemberCanonicalPaths() throws IOException {
         Map<String, UaNode> nodes = build(CORPUS_NODEBLUE);
 
@@ -194,6 +189,28 @@ class AddressSpaceBuilderFidelityTest {
         Map<String, UaNode> nodes = build(CORPUS_NODEBLUE);
         assertThat(nodes).doesNotContainKey("Program:MainProgram.Motor1_AOI.RunLatch");
         assertThat(nodes.keySet()).noneMatch(id -> id.startsWith("Program:MainProgram.Motor1_AOI.FaultTimer"));
+    }
+
+    @Test
+    @DisplayName("§5.3/§3.12 AOI Output parameters with ExternalAccess=\"Read Only\" are created "
+        + "read-only, with no write filter (C5a)")
+    void aoiReadOnlyOutputParameterEnforced() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_NODEBLUE);
+
+        // "Running" is an AOI Output parameter with ExternalAccess="Read Only" in the corpus.
+        assertThat(nodes).containsKey("Program:MainProgram.Motor1_AOI.Running");
+        UaVariableNode running = (UaVariableNode) nodes.get("Program:MainProgram.Motor1_AOI.Running");
+        assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(running.getAccessLevel()))
+            .as("Read Only parameter must be created with AccessLevel.READ_ONLY, no write filter")
+            .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+        assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(running.getUserAccessLevel()))
+            .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+
+        // "Start" is a Read/Write Input parameter and must remain fully read-write.
+        assertThat(nodes).containsKey("Program:MainProgram.Motor1_AOI.Start");
+        UaVariableNode start = (UaVariableNode) nodes.get("Program:MainProgram.Motor1_AOI.Start");
+        assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(start.getAccessLevel()))
+            .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_WRITE);
     }
 
     @Test

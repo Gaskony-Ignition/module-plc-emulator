@@ -15,7 +15,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.inductiveautomation.logixemulator.gateway.parser.DataTypeUtils.*;
@@ -103,11 +105,17 @@ public class L5XParser implements PLCParser {
                 }
             }
 
-            // Parse Add-On Instructions (AOIs) - they expand like UDTs
+            // Parse Add-On Instructions (AOIs) - they expand like UDTs. Modern Studio 5000 exports
+            // wrap each definition as <AddOnInstruction> (singular element name matches the plural
+            // <AddOnInstructionDefinitions> container); some tooling/older exports instead use the
+            // fully-spelled-out <AddOnInstructionDefinition>. Support both element names so AOIs
+            // from either export style are found and expanded (defect C5b - a real corpus file,
+            // NodeblueAI, uses the <AddOnInstruction> form and its AOI instance tags were silently
+            // left unexpanded).
             JsonArray aois = new JsonArray();
-            NodeList aoiElements = controller.getElementsByTagName("AddOnInstructionDefinition");
-            for (int i = 0; i < aoiElements.getLength(); i++) {
-                Element aoiElement = (Element) aoiElements.item(i);
+            List<Element> aoiElements = elementsByAnyTagName(controller,
+                "AddOnInstructionDefinition", "AddOnInstruction");
+            for (Element aoiElement : aoiElements) {
                 JsonObject aoi = parseAOI(aoiElement);
                 if (aoi != null) {
                     aois.add(aoi);
@@ -544,6 +552,22 @@ public class L5XParser implements PLCParser {
             logger.error("Error parsing AOI element", e);
             return null;
         }
+    }
+
+    /**
+     * Collects every descendant element matching any of the given tag names, in document order
+     * per name (used by C5b to accept both {@code <AddOnInstructionDefinition>} and
+     * {@code <AddOnInstruction>} as the AOI-definition element name).
+     */
+    private static List<Element> elementsByAnyTagName(Element parent, String... tagNames) {
+        List<Element> result = new ArrayList<>();
+        for (String tagName : tagNames) {
+            NodeList nodes = parent.getElementsByTagName(tagName);
+            for (int i = 0; i < nodes.getLength(); i++) {
+                result.add((Element) nodes.item(i));
+            }
+        }
+        return result;
     }
 
     /**

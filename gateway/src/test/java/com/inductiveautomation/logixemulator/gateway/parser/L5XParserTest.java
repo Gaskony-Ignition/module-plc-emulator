@@ -601,4 +601,55 @@ class L5XParserTest {
         }
         assertThat(memberNames).containsExactly("Visible");
     }
+
+    // =========================================================================================
+    // C5b — AOI element name: both <AddOnInstructionDefinition> and <AddOnInstruction> supported
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5b: an AOI wrapped as <AddOnInstruction> (not <AddOnInstructionDefinition>) is "
+        + "still parsed and its instance tags still expand")
+    void testParseAoiWithAddOnInstructionElementName() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstruction Name="Motor_Control" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="Start" TagType="Base" DataType="BOOL" Usage="Input" ExternalAccess="Read/Write"/>
+                                <Parameter Name="Running" TagType="Base" DataType="BOOL" Usage="Output" ExternalAccess="Read Only"/>
+                            </Parameters>
+                            <LocalTags>
+                                <LocalTag Name="RunLatch" DataType="BOOL" ExternalAccess="None"/>
+                            </LocalTags>
+                        </AddOnInstruction>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="Motor1" DataType="Motor_Control" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        assertThat(result.has("aois")).isTrue();
+        JsonArray aois = result.getAsJsonArray("aois");
+        assertThat(aois).hasSize(1);
+        assertThat(aois.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("Motor_Control");
+
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(instance.has("udt_members")).isTrue();
+        JsonArray members = instance.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        // RunLatch (ExternalAccess=None) must be omitted; Start/Running must be present.
+        assertThat(memberNames).contains("Start", "Running").doesNotContain("RunLatch");
+    }
 }
