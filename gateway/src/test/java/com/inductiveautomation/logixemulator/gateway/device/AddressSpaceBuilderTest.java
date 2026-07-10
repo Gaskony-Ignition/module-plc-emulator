@@ -219,6 +219,47 @@ class AddressSpaceBuilderTest {
             assertThat(builder.mapDataType("dint")).isEqualTo(OpcUaDataType.Int32);
             assertThat(builder.mapDataType("real")).isEqualTo(OpcUaDataType.Float);
         }
+
+        // =====================================================================================
+        // v32+ unsigned atomics and Date/Time-family types (ADDRESSING.md §3.14, defect C6) -
+        // before this fix every one of these degraded to OpcUaDataType.String.
+        // =====================================================================================
+
+        @Test
+        @DisplayName("maps USINT → OpcUaDataType.Byte (C6)")
+        void testUsint() {
+            assertThat(builder.mapDataType("USINT")).isEqualTo(OpcUaDataType.Byte);
+        }
+
+        @Test
+        @DisplayName("maps UINT/WORD → OpcUaDataType.UInt16 (C6)")
+        void testUint16() {
+            assertThat(builder.mapDataType("UINT")).isEqualTo(OpcUaDataType.UInt16);
+            assertThat(builder.mapDataType("WORD")).isEqualTo(OpcUaDataType.UInt16);
+        }
+
+        @Test
+        @DisplayName("maps UDINT/DWORD → OpcUaDataType.UInt32 (C6)")
+        void testUint32() {
+            assertThat(builder.mapDataType("UDINT")).isEqualTo(OpcUaDataType.UInt32);
+            assertThat(builder.mapDataType("DWORD")).isEqualTo(OpcUaDataType.UInt32);
+        }
+
+        @Test
+        @DisplayName("maps ULINT/LWORD → OpcUaDataType.UInt64 (C6)")
+        void testUint64() {
+            assertThat(builder.mapDataType("ULINT")).isEqualTo(OpcUaDataType.UInt64);
+            assertThat(builder.mapDataType("LWORD")).isEqualTo(OpcUaDataType.UInt64);
+        }
+
+        @Test
+        @DisplayName("maps DT/LDT/LTIME/TIME → OpcUaDataType.Int64 (C6, INFERRED safe default)")
+        void testTimeFamily() {
+            assertThat(builder.mapDataType("DT")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("LDT")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("LTIME")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("TIME")).isEqualTo(OpcUaDataType.Int64);
+        }
     }
 
     // =========================================================================
@@ -311,6 +352,55 @@ class AddressSpaceBuilderTest {
             JsonObject tag = makeTag("MyTag", "DINT");
             tag.add("initial_value", com.google.gson.JsonNull.INSTANCE);
             assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        // =====================================================================================
+        // v32+ unsigned atomics and Date/Time-family types (ADDRESSING.md §3.14, defect C6)
+        // =====================================================================================
+
+        @Test
+        @DisplayName("returns UByte(0)/UShort(0)/UInteger(0)/ULong(0) defaults for the new unsigned types (C6)")
+        void testUnsignedDefaults() {
+            assertThat(builder.getInitialValue(makeTag("T", "USINT"), "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(0));
+            assertThat(builder.getInitialValue(makeTag("T", "UINT"), "UINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort(0));
+            assertThat(builder.getInitialValue(makeTag("T", "UDINT"), "UDINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint(0));
+            assertThat(builder.getInitialValue(makeTag("T", "ULINT"), "ULINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong(0L));
+        }
+
+        @Test
+        @DisplayName("returns 0L default for DT/LDT/LTIME/TIME (C6)")
+        void testTimeFamilyDefaults() {
+            assertThat(builder.getInitialValue(makeTag("T", "DT"), "DT")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "LDT"), "LDT")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "LTIME"), "LTIME")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "TIME"), "TIME")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("parses a real initial_value for each new unsigned type (C6/C8)")
+        void testUnsignedParsedValues() {
+            JsonObject usint = makeTag("T", "USINT");
+            usint.addProperty("initial_value", "255");
+            assertThat(builder.getInitialValue(usint, "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(255));
+
+            JsonObject udint = makeTag("T", "UDINT");
+            udint.addProperty("initial_value", "4000000000");
+            assertThat(builder.getInitialValue(udint, "UDINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint(4000000000L));
+        }
+
+        @Test
+        @DisplayName("garbage initial_value for a new unsigned type falls back to default instead of throwing (B1-style leniency)")
+        void testUnsignedGarbageFallsBackToDefault() {
+            JsonObject usint = makeTag("T", "USINT");
+            usint.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(usint, "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(0));
         }
     }
 

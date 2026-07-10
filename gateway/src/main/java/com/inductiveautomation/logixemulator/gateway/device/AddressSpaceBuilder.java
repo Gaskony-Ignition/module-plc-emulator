@@ -19,6 +19,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.LocalizedText;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned;
 import org.slf4j.Logger;
 
 import java.util.List;
@@ -413,12 +414,25 @@ public class AddressSpaceBuilder {
 
         OpcUaDataType opcType = mapDataType(dataType);
         Object initialValue = getInitialValue(valueSource, dataType);
+        boolean readOnly = isReadOnly(valueSource);
 
-        UaVariableNode variableNode = context.createVariableNode(nodeIdPath, browseName, opcType.getNodeId());
+        UaVariableNode variableNode =
+            context.createVariableNode(nodeIdPath, browseName, opcType.getNodeId(), readOnly);
         variableNode.setValue(new DataValue(new Variant(initialValue)));
-        enableWrites(variableNode);
+        if (!readOnly) {
+            enableWrites(variableNode);
+        }
         nodeAdder.accept(variableNode);
         return variableNode;
+    }
+
+    /**
+     * @return {@code true} if the parsed tag/member is marked read-only (ADDRESSING.md §3.12:
+     *     {@code ExternalAccess="Read Only"}, or a {@code Constant="true"} tag) - the node is
+     *     then created with {@code AccessLevel.READ_ONLY} and no write filter (C5a).
+     */
+    private static boolean isReadOnly(JsonObject valueSource) {
+        return valueSource.has("read_only") && valueSource.get("read_only").getAsBoolean();
     }
 
     /** Browse-name subscript for an array element, e.g. {@code [0]} or {@code [1,3]}. */
@@ -465,9 +479,17 @@ public class AddressSpaceBuilder {
         return switch (dataType.toUpperCase()) {
             case "BOOL", "BOOLEAN" -> OpcUaDataType.Boolean;
             case "INT1", "SINT", "BYTE" -> OpcUaDataType.SByte;
+            case "USINT" -> OpcUaDataType.Byte;
             case "INT2", "INT" -> OpcUaDataType.Int16;
+            case "UINT", "WORD" -> OpcUaDataType.UInt16;
             case "INT4", "DINT" -> OpcUaDataType.Int32;
+            case "UDINT", "DWORD" -> OpcUaDataType.UInt32;
             case "INT8", "LINT" -> OpcUaDataType.Int64;
+            case "ULINT", "LWORD" -> OpcUaDataType.UInt64;
+            // DT/LDT/LTIME/TIME have no dedicated Logix->OPC-UA presentation confirmed by a live
+            // driver diff; Int64 (epoch/duration) is ADDRESSING.md §3.14's documented safe
+            // default (INFERRED, C6) until a bench diff is available.
+            case "DT", "LDT", "LTIME", "TIME" -> OpcUaDataType.Int64;
             case "FLOAT4", "REAL", "FLOAT" -> OpcUaDataType.Float;
             case "FLOAT8", "LREAL", "DOUBLE" -> OpcUaDataType.Double;
             case "STRING" -> OpcUaDataType.String;
@@ -492,8 +514,16 @@ public class AddressSpaceBuilder {
             return switch (dataType.toUpperCase()) {
                 case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
                 case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
+                case "USINT" -> Unsigned.ubyte(initialValueElement.getAsInt());
+                case "UINT", "WORD" -> Unsigned.ushort(initialValueElement.getAsInt());
                 case "INT4", "DINT" -> initialValueElement.getAsInt();
-                case "INT8", "LINT" -> initialValueElement.getAsLong();
+                case "UDINT", "DWORD" -> Unsigned.uint(initialValueElement.getAsLong());
+                case "INT8", "LINT", "DT", "LDT", "LTIME", "TIME" -> initialValueElement.getAsLong();
+                // ULINT/LWORD can in principle exceed Long.MAX_VALUE; getAsLong() truncates rather
+                // than throwing for such pathological literals - accepted as a conservative
+                // limitation (ADDRESSING.md §3.14 is INFERRED for this type; no corpus example
+                // approaches the boundary).
+                case "ULINT", "LWORD" -> Unsigned.ulong(initialValueElement.getAsLong());
                 case "FLOAT4", "REAL", "FLOAT" -> initialValueElement.getAsFloat();
                 case "FLOAT8", "LREAL", "DOUBLE" -> initialValueElement.getAsDouble();
                 case "STRING" -> initialValueElement.getAsString();
@@ -518,7 +548,11 @@ public class AddressSpaceBuilder {
         return switch (dataType.toUpperCase()) {
             case "BOOL", "BOOLEAN" -> false;
             case "INT1", "SINT", "BYTE", "INT2", "INT", "INT4", "DINT" -> 0;
-            case "INT8", "LINT" -> 0L;
+            case "USINT" -> Unsigned.ubyte(0);
+            case "UINT", "WORD" -> Unsigned.ushort(0);
+            case "UDINT", "DWORD" -> Unsigned.uint(0);
+            case "INT8", "LINT", "DT", "LDT", "LTIME", "TIME" -> 0L;
+            case "ULINT", "LWORD" -> Unsigned.ulong(0L);
             case "FLOAT4", "REAL", "FLOAT" -> 0.0f;
             case "FLOAT8", "LREAL", "DOUBLE" -> 0.0;
             case "STRING" -> "";
@@ -605,17 +639,28 @@ public class AddressSpaceBuilder {
         }
 
         /**
-         * Create a variable node. Override in tests to return a mock.
+         * Create a read-write variable node. Override in tests to return a mock.
          */
         protected UaVariableNode createVariableNode(String nodeIdPath, String name, NodeId dataType) {
+            return createVariableNode(nodeIdPath, name, dataType, false);
+        }
+
+        /**
+         * Create a variable node with the given access level (ADDRESSING.md §3.12, C5a: a
+         * {@code readOnly} node gets {@code AccessLevel.READ_ONLY} and no write filter - see
+         * {@code AddressSpaceBuilder.createLeafVariable}). Override in tests to return a mock.
+         */
+        protected UaVariableNode createVariableNode(
+            String nodeIdPath, String name, NodeId dataType, boolean readOnly) {
+            var accessLevel = readOnly ? AccessLevel.READ_ONLY : AccessLevel.READ_WRITE;
             return UaVariableNode.build(nodeContext, b ->
                 b.setNodeId(nodeId(nodeIdPath))
                     .setBrowseName(qualifiedName(name))
                     .setDisplayName(new LocalizedText(name))
                     .setDataType(dataType)
                     .setTypeDefinition(NodeIds.BaseDataVariableType)
-                    .setAccessLevel(AccessLevel.READ_WRITE)
-                    .setUserAccessLevel(AccessLevel.READ_WRITE)
+                    .setAccessLevel(accessLevel)
+                    .setUserAccessLevel(accessLevel)
                     .build()
             );
         }

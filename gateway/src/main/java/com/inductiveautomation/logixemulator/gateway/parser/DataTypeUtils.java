@@ -17,6 +17,12 @@ public class DataTypeUtils {
         return switch (dataType.toUpperCase()) {
             case "BOOL", "BOOLEAN" -> "false";
             case "SINT", "INT", "DINT", "LINT", "BYTE", "INT1", "INT2", "INT4" -> "0";
+            // v32+ unsigned atomics and the Date/Time-family types (ADDRESSING.md §3.14, C6) -
+            // all integer-backed, so "0" (already the fallback default below) is correct; listed
+            // explicitly to document the full v10 atomic set rather than relying on silent
+            // pass-through.
+            case "USINT", "UINT", "UDINT", "ULINT", "WORD", "DWORD", "LWORD",
+                 "DT", "LDT", "LTIME", "TIME" -> "0";
             case "REAL", "LREAL", "FLOAT", "FLOAT4" -> "0.0";
             case "STRING" -> "";
             default -> "0";
