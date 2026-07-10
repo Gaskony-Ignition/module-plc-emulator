@@ -1,6 +1,6 @@
-# Logix PLC Emulator - Testing Guide v9.2.14
+# Logix PLC Emulator - Testing Guide v10.0.0
 
-**Version**: 9.2.14
+**Version**: 10.0.0
 **Last Updated**: 2026-02-21
 **Status**: Production Ready - Security Hardened & Fully Tested
 
@@ -215,7 +215,7 @@ unzip -l build/LogixPLCEmulator-{version}.modl | head -20
 
 Check module details:
 - **Name**: Logix PLC Emulator
-- **Version**: 9.2.14
+- **Version**: 10.0.0
 - **License**: Free Module
 - **Scopes**: G (Gateway only)
 - **Status**: Running
@@ -990,7 +990,7 @@ https://github.com/nigelgwork/ignition-plc-simulator/actions
 
 ## Version Information
 
-**Module Version**: 9.2.14
+**Module Version**: 10.0.0
 **Ignition Compatibility**: 8.3.0+
 **Java Version**: 17
 **Test Framework**: JUnit Jupiter 5.10.1

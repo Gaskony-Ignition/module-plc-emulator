@@ -4,7 +4,7 @@
 
 This document outlines the development history and future direction of the Logix PLC Emulator module.
 
-## Current State (v9.2.14)
+## Current State (v10.0.0)
 
 The module is production-ready, focused on Rockwell Logix PLC emulation with the following capabilities:
 
@@ -122,4 +122,4 @@ The module is production-ready, focused on Rockwell Logix PLC emulation with the
 - Security and stability always take priority over new features
 - The module requires Ignition 8.3+
 
-**Last Updated**: February 2026 (v9.2.14 release)
+**Last Updated**: February 2026 (v10.0.0 release)

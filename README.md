@@ -20,7 +20,7 @@ release decision.
 
 ## Current Status
 
-**Version**: v9.2.14
+**Version**: v10.0.0
 **Status**: Production Ready
 **Requires**: Ignition 8.3+ | Java 17
 
