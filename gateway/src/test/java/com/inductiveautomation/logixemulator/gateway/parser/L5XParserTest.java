@@ -652,4 +652,110 @@ class L5XParserTest {
         // RunLatch (ExternalAccess=None) must be omitted; Start/Running must be present.
         assertThat(memberNames).contains("Start", "Running").doesNotContain("RunLatch");
     }
+
+    // =========================================================================================
+    // C5c — Module I/O tags (ADDRESSING.md §3.13, INFERRED)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5c: a digital I/O module's <Modules> section synthesises a "
+        + "<ModuleName>:I.Data tag")
+    void testModuleIoTagSynthesised() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Modules>
+                        <Module Name="Dig_In_1" CatalogNumber="1756-IB32/B" ParentModule="Local">
+                            <Ports>
+                                <Port Id="1" Address="2" Type="ICP" Upstream="true"/>
+                            </Ports>
+                            <Communications>
+                                <ConfigTag ExternalAccess="Read/Write">
+                                    <Data Format="Decorated">
+                                        <Structure DataType="AB:1756_DI:C:1">
+                                            <DataValueMember Name="FilterOffOn_0_7" DataType="SINT" Value="1"/>
+                                        </Structure>
+                                    </Data>
+                                </ConfigTag>
+                                <Connections>
+                                    <Connection Name="StandardInput">
+                                        <InputTag ExternalAccess="Read/Write">
+                                            <Data Format="Decorated">
+                                                <Structure DataType="AB:1756_DI:I:0">
+                                                    <DataValueMember Name="Fault" DataType="DINT" Value="0"/>
+                                                    <DataValueMember Name="Data" DataType="DINT" Value="0"/>
+                                                </Structure>
+                                            </Data>
+                                        </InputTag>
+                                    </Connection>
+                                </Connections>
+                            </Communications>
+                        </Module>
+                    </Modules>
+                    <Tags/>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        JsonObject moduleTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            if ("Dig_In_1:I".equals(tag.get("name").getAsString())) {
+                moduleTag = tag;
+            }
+        }
+        assertThat(moduleTag).as("a Dig_In_1:I tag must be synthesised from the Modules section").isNotNull();
+        JsonArray members = moduleTag.getAsJsonArray("udt_members");
+        assertThat(members).hasSize(1);
+        JsonObject dataMember = members.get(0).getAsJsonObject();
+        assertThat(dataMember.get("name").getAsString()).isEqualTo("Data");
+        assertThat(dataMember.get("data_type").getAsString()).isEqualTo("DINT");
+    }
+
+    @Test
+    @DisplayName("C5c: a module whose Input/OutputTag has no top-level \"Data\" member (e.g. an "
+        + "analog module with per-channel members) contributes no I/O tag")
+    void testModuleWithoutDataMemberContributesNoTag() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Modules>
+                        <Module Name="An_In_1" CatalogNumber="1756-IF16/B" ParentModule="Local">
+                            <Ports>
+                                <Port Id="1" Address="7" Type="ICP" Upstream="true"/>
+                            </Ports>
+                            <Communications>
+                                <Connections>
+                                    <Connection Name="Input">
+                                        <InputTag ExternalAccess="Read/Write">
+                                            <Data Format="Decorated">
+                                                <Structure DataType="AB:1756_IF8_Float:I:0">
+                                                    <DataValueMember Name="Ch0Data" DataType="REAL" Value="0.0"/>
+                                                </Structure>
+                                            </Data>
+                                        </InputTag>
+                                    </Connection>
+                                </Connections>
+                            </Communications>
+                        </Module>
+                    </Modules>
+                    <Tags/>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        for (var elem : tags) {
+            assertThat(elem.getAsJsonObject().get("name").getAsString()).doesNotStartWith("An_In_1:");
+        }
+    }
 }

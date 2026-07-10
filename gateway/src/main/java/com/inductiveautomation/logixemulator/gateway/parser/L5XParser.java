@@ -1,6 +1,7 @@
 package com.inductiveautomation.logixemulator.gateway.parser;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -151,6 +152,14 @@ public class L5XParser implements PLCParser {
                     tag.addProperty("scope", "Controller");
                     controllerTags.add(tag);
                 }
+            }
+
+            // Synthesise I/O module tags from the <Modules> section (ADDRESSING.md §3.13, C5c,
+            // INFERRED) as ordinary controller-scope tags - AddressSpaceBuilder needs no
+            // module-specific handling since they reuse the same UDT-instance-with-members shape.
+            JsonArray moduleIoTags = parseModuleIoTags(controller);
+            for (JsonElement moduleTag : moduleIoTags) {
+                controllerTags.add(moduleTag);
             }
 
             result.add("global_tags", controllerTags);  // Fixed: Changed from "tags" to "global_tags" to match AddressSpaceBuilder expectations
@@ -639,6 +648,105 @@ public class L5XParser implements PLCParser {
             parent = parent.getParentNode();
         }
         return false;
+    }
+
+    /**
+     * Parses the L5X {@code <Modules>} section into synthetic controller-scope tags representing
+     * each module's readable I/O data (ADDRESSING.md §3.13 - I/O module tags, INFERRED; defect
+     * C5c). Each synthesised tag reuses the ordinary UDT-instance-with-members shape
+     * ({@code udt_members}) so {@code AddressSpaceBuilder} needs no module-specific handling: a
+     * tag named {@code <ModuleName>:I} (or {@code :O}) with a single member named {@code Data}
+     * expands, through the existing generic machinery, to {@code <ModuleName>:I.Data} (scalar or
+     * array, per the member's declared type/dimensions).
+     *
+     * <p><b>Scope (per ADDRESSING.md §3.13's explicit guidance):</b> only the module's
+     * Input/OutputTag member literally named {@code "Data"} is synthesised - the module's
+     * ConfigTag and any other diagnostic/config sub-members (e.g. an analog module's per-channel
+     * status/alarm/calibration members) are deliberately NOT modelled; a module whose
+     * Input/OutputTag structure has no top-level member named {@code "Data"} (e.g. the analog
+     * {@code AB:1756_IF8_Float} modules in the corpus, which expose per-channel {@code ChNData}
+     * members instead) contributes no tag at all, rather than guessing at its layout. The
+     * {@code Local:&lt;slot&gt;:} alias form ADDRESSING.md §3.13 says MAY be added for
+     * local-chassis modules is likewise not emitted - the canonical {@code <ModuleName>:} form is
+     * sufficient and keeps this INFERRED area's surface minimal pending a bench diff.
+     */
+    private JsonArray parseModuleIoTags(Element controller) {
+        JsonArray moduleTags = new JsonArray();
+        NodeList moduleElements = controller.getElementsByTagName("Module");
+
+        for (int i = 0; i < moduleElements.getLength(); i++) {
+            Element moduleElement = (Element) moduleElements.item(i);
+            String moduleName = moduleElement.getAttribute("Name");
+            if (moduleName == null || moduleName.isEmpty()) {
+                continue;
+            }
+
+            Element inputData = findConnectionDataMember(moduleElement, "InputTag");
+            if (inputData != null) {
+                addModuleIoTag(moduleTags, moduleName + ":I", inputData);
+            }
+
+            Element outputData = findConnectionDataMember(moduleElement, "OutputTag");
+            if (outputData != null) {
+                addModuleIoTag(moduleTags, moduleName + ":O", outputData);
+            }
+        }
+
+        return moduleTags;
+    }
+
+    /**
+     * Finds the direct "Data" member (a {@code DataValueMember} or {@code ArrayMember} whose
+     * {@code Name} is exactly {@code "Data"}) inside a module's InputTag/OutputTag Decorated
+     * {@code <Structure>}, if any. Only direct children of the outer {@code <Structure>} are
+     * considered - nested {@code <StructureMember>} sub-groups (diagnostic/config detail) are
+     * out of scope (ADDRESSING.md §3.13).
+     */
+    private static Element findConnectionDataMember(Element moduleElement, String connectionTagName) {
+        NodeList connectionTags = moduleElement.getElementsByTagName(connectionTagName);
+        for (int i = 0; i < connectionTags.getLength(); i++) {
+            Element connectionTag = (Element) connectionTags.item(i);
+            NodeList structures = connectionTag.getElementsByTagName("Structure");
+            for (int j = 0; j < structures.getLength(); j++) {
+                Element structure = (Element) structures.item(j);
+                NodeList children = structure.getChildNodes();
+                for (int k = 0; k < children.getLength(); k++) {
+                    Node child = children.item(k);
+                    if (child instanceof Element && "Data".equals(((Element) child).getAttribute("Name"))) {
+                        return (Element) child;
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Adds a synthesised module I/O tag ({@code <ModuleName>:I} or {@code :O}) with a single
+     * {@code Data} member to {@code moduleTags}.
+     */
+    private static void addModuleIoTag(JsonArray moduleTags, String tagName, Element dataMember) {
+        JsonObject member = new JsonObject();
+        member.addProperty("name", "Data");
+        member.addProperty("data_type", dataMember.getAttribute("DataType"));
+
+        String dimensions = dataMember.getAttribute("Dimensions");
+        if (dimensions != null && !dimensions.isEmpty()) {
+            member.addProperty("dimensions", dimensions);
+        }
+
+        JsonArray members = new JsonArray();
+        members.add(member);
+
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", tagName);
+        // Never used for OPC type mapping (the tag becomes an Object node because it carries
+        // udt_members, regardless of this string) - kept only as human-readable provenance.
+        tag.addProperty("data_type", "MODULE_IO");
+        tag.addProperty("scope", "Controller");
+        tag.add("udt_members", members);
+
+        moduleTags.add(tag);
     }
 
     @Override

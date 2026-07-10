@@ -315,6 +315,35 @@ class AddressSpaceBuilderFidelityTest {
     }
 
     // =====================================================================================
+    // §5.10 I/O modules — ControlLogix-1756L72-fw37-iotrustlab-controller.L5X
+    // =====================================================================================
+
+    @Test
+    @DisplayName("§5.10 module I/O tags: a parsed digital I/O module contributes an :I.Data node "
+        + "(ADDRESSING.md §3.13, INFERRED, C5c)")
+    void moduleIoDataTagsSynthesised() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_IOTRUSTLAB_CONTROLLER);
+
+        // Dig_In_1 is a 1756-IB32/B digital input module at <Port Address="2"> - its InputTag
+        // Structure has a top-level "Data" (DINT) member (ADDRESSING.md §3.13/§5.10).
+        assertType(nodes, "Dig_In_1:I.Data", OpcUaDataType.Int32);
+
+        // Dig_Out_1 is a 1756-OB32 digital output module - it has BOTH an input status echo
+        // (:I.Data) and the actual output command (:O.Data).
+        assertType(nodes, "Dig_Out_1:I.Data", OpcUaDataType.Int32);
+        assertType(nodes, "Dig_Out_1:O.Data", OpcUaDataType.Int32);
+
+        // An_IN_1 is an analog module (1756-IF16/B) whose InputTag exposes per-channel
+        // Ch0Data..Ch7Data members, not a single top-level "Data" member - ADDRESSING.md §3.13's
+        // scope guidance is to not guess at that layout, so it must contribute no :I tag at all.
+        assertThat(nodes.keySet()).noneMatch(id -> id.startsWith("An_IN_1:I"));
+
+        // The "Local" pseudo-module (the controller/chassis itself) has no Connections and must
+        // not contribute a tag either.
+        assertThat(nodes.keySet()).noneMatch(id -> id.startsWith("Local:I") || id.startsWith("Local:O"));
+    }
+
+    // =====================================================================================
     // Helpers
     // =====================================================================================
 
