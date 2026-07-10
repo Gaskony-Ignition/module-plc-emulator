@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture (not a real Studio 5000 export) for the C3 BOOL-array DWORD-packing
+  fidelity test (ADDRESSING.md §3.8, §5.7). The licensed corpus contains only UDT-member
+  BOOL[32] arrays; this mirrors the (unlicensed, un-vendorable) 1768 export's top-level
+  PID_Enable : BOOL[32] with an added BOOL[64] to exercise the second DWORD word.
+  Studio 5000 requires standalone BOOL array dimensions to be a multiple of 32.
+-->
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="BoolPackSynthetic" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="PackBits" DataType="BOOL" Dimensions="32" Radix="Decimal" ExternalAccess="Read/Write"/>
+            <Tag Name="PackBits2" DataType="BOOL" Dimensions="64" Radix="Decimal" ExternalAccess="Read/Write"/>
+            <Tag Name="PlainBool" DataType="BOOL" Radix="Decimal" ExternalAccess="Read/Write"/>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>
