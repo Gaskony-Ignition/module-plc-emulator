@@ -37,10 +37,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  * per the normative grammar in {@code docs/plans/ADDRESSING.md}. That NodeId match is the entire
  * "develop on emulator, swap in the real PLC later" contract.
  *
- * <p><b>Scope of this class.</b> It covers the C1 (canonical NodeIds), C2 (full array expansion)
- * and C3 (DWORD-packed BOOL arrays) fixes and their §5 checklist rows. Assertions that depend on
- * out-of-scope fixes (C4 predefined member tables, C5 External-Access / Modules) are marked
- * {@link Disabled} with the owning task, so this suite stays green for the C1-C3 work.
+ * <p><b>Scope of this class.</b> It covers the C1 (canonical NodeIds), C2 (full array expansion),
+ * C3 (DWORD-packed BOOL arrays) and C4 (predefined structured-type member tables, §5.9) fixes and
+ * their §5 checklist rows. Assertions that depend on the still out-of-scope C5 fix
+ * (External-Access / Modules) are marked {@link Disabled} with the owning task, so this suite
+ * stays green pending that work.
  *
  * <p><b>Enable mechanism.</b> {@code @Tag("fidelity")} tests are excluded from the default
  * {@code ./gradlew test}; run them via {@code ./gradlew :gateway:fidelityTest} or
@@ -58,6 +59,9 @@ class AddressSpaceBuilderFidelityTest {
     private static final String CORPUS_STELLENTUS = "corpus/CompactLogix5370-1769L33ER-fw30-stellentus.L5X";
     private static final String CORPUS_L5SHARP = "corpus/ControlLogix-1756L83E-fw36-L5Sharp.L5X";
     private static final String SYNTHETIC_BOOLPACK = "test-files/synthetic-boolpack.l5x";
+    private static final String SYNTHETIC_CONTROL = "test-files/synthetic-control.l5x";
+    private static final String SYNTHETIC_PID = "test-files/synthetic-pid.l5x";
+    private static final String SYNTHETIC_PIDE_ALIAS = "test-files/synthetic-pide-alias.l5x";
 
     private AddressSpaceBuilder builder;
     private AddressSpaceBuilder.NodeContext context;
@@ -130,13 +134,14 @@ class AddressSpaceBuilderFidelityTest {
     void programScopeSelectorForm() throws IOException {
         Map<String, UaNode> nodes = build(CORPUS_NODEBLUE);
 
-        // TIMER members inherit the program prefix (ADDRESSING.md §3.2). NOTE: .ER absence is a
-        // C4 (predefined member-table) assertion, deliberately not checked here.
+        // TIMER members inherit the program prefix (ADDRESSING.md §3.2).
         assertThat(nodes).containsKey("Program:MainProgram.MainTimer");
         assertType(nodes, "Program:MainProgram.MainTimer.PRE", OpcUaDataType.Int32);
         assertThat(nodes)
             .containsKeys("Program:MainProgram.MainTimer.ACC", "Program:MainProgram.MainTimer.EN",
                 "Program:MainProgram.MainTimer.TT", "Program:MainProgram.MainTimer.DN");
+        // TIMER has NO .ER member (ADDRESSING.md §3.11, C4) — the phantom .ER is gone.
+        assertThat(nodes).doesNotContainKey("Program:MainProgram.MainTimer.ER");
 
         // COUNTER members (ADDRESSING.md §3.11 COUNTER set is already correct in the emulator).
         assertType(nodes, "Program:MainProgram.CycleCounter.ACC", OpcUaDataType.Int32);
@@ -283,6 +288,56 @@ class AddressSpaceBuilderFidelityTest {
         long packBits2Count = nodes.keySet().stream().filter(id -> id.startsWith("PackBits2[")).count();
         assertThat(packBitsCount).isEqualTo(32);
         assertThat(packBits2Count).isEqualTo(64);
+    }
+
+    // =====================================================================================
+    // §5.9 Predefined member correctness — synthetic fixtures + corpus (C4)
+    // =====================================================================================
+
+    @Test
+    @DisplayName("§5.9 CONTROL: all 10 members present incl. .UL, .IN, .FD (C4)")
+    void controlFullMemberSet() throws IOException {
+        Map<String, UaNode> nodes = build(SYNTHETIC_CONTROL);
+
+        assertThat(nodes).containsKey("TestControl");
+        assertType(nodes, "TestControl.LEN", OpcUaDataType.Int32);
+        assertType(nodes, "TestControl.POS", OpcUaDataType.Int32);
+        assertThat(nodes).containsKeys(
+            "TestControl.EN", "TestControl.EU", "TestControl.DN", "TestControl.EM",
+            "TestControl.ER", "TestControl.UL", "TestControl.IN", "TestControl.FD");
+
+        long controlMemberCount = nodes.keySet().stream()
+            .filter(id -> id.startsWith("TestControl.")).count();
+        assertThat(controlMemberCount).as("CONTROL has exactly 10 members").isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("§5.9 PID (classic): status/parameter members present, .ERR is Float not Int (C4)")
+    void pidFullMemberSet() throws IOException {
+        Map<String, UaNode> nodes = build(SYNTHETIC_PID);
+
+        assertThat(nodes).containsKey("TestPid");
+        assertThat(nodes).containsKeys(
+            "TestPid.SP", "TestPid.KP", "TestPid.KI", "TestPid.KD", "TestPid.OUT", "TestPid.SO",
+            "TestPid.MAXO");
+        assertType(nodes, "TestPid.SP", OpcUaDataType.Float);
+        // PID.ERR is a scaled REAL, distinct from MESSAGE.ERR (INT) (ADDRESSING.md §3.11).
+        assertType(nodes, "TestPid.ERR", OpcUaDataType.Float);
+    }
+
+    @Test
+    @DisplayName("§5.9 PIDE (PID_ENHANCED): type-name alias resolves and core members are present (C4)")
+    void pideAliasAndCoreMembers() throws IOException {
+        Map<String, UaNode> nodes = build(SYNTHETIC_PIDE_ALIAS);
+
+        // The tag's DataType is the genuine L5X string PID_ENHANCED, not PIDE (ADDRESSING.md
+        // §3.11) — if the alias did not resolve, none of these member nodes would exist.
+        assertThat(nodes).containsKey("TestPide");
+        assertType(nodes, "TestPide.PV", OpcUaDataType.Float);
+        assertType(nodes, "TestPide.SP", OpcUaDataType.Float);
+        assertType(nodes, "TestPide.CVEU", OpcUaDataType.Float);
+        assertType(nodes, "TestPide.PGain", OpcUaDataType.Float);
+        assertType(nodes, "TestPide.InstructFault", OpcUaDataType.Boolean);
     }
 
     // =====================================================================================

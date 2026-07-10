@@ -464,12 +464,16 @@ class L5XParserTest {
         assertThat(timerTag.get("data_type").getAsString()).isEqualTo("TIMER");
         assertThat(timerTag.has("udt_members")).isTrue();
 
-        // Check for standard TIMER members
+        // TIMER's COMPLETE member set (ADDRESSING.md §3.11): exactly PRE, ACC, EN, TT, DN.
+        // A previous version of this test only asserted contains("PRE", "ACC", "DN", "EN"),
+        // which never fails on an extra member -- that's how the phantom .ER member (fixed in
+        // RockwellBuiltInTypes, C4) went unnoticed. Assert the full set and its absence.
         JsonArray members = timerTag.getAsJsonArray("udt_members");
         var memberNames = new java.util.ArrayList<String>();
         for (var elem : members) {
             memberNames.add(elem.getAsJsonObject().get("name").getAsString());
         }
-        assertThat(memberNames).contains("PRE", "ACC", "DN", "EN");
+        assertThat(memberNames).containsExactlyInAnyOrder("PRE", "ACC", "EN", "TT", "DN");
+        assertThat(memberNames).doesNotContain("ER");
     }
 }

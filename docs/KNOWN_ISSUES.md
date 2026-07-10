@@ -53,6 +53,35 @@ Hot reload performs full address space rebuild when PLC file changes. For very l
 
 ---
 
+#### 4. Predefined Motion/Coordinate Structured Types Are Incomplete Member Sets
+
+**Status**: Known Limitation (v10.0.0, ADDRESSING.md §3.11.1 policy)
+**Severity**: Low (affects motion/coordinate tags only)
+
+`AXIS_CIP_DRIVE`, `AXIS_VIRTUAL`, `AXIS_SERVO_DRIVE`, `MOTION_GROUP` and `COORDINATE_SYSTEM`
+are real Rockwell predefined types with hundreds of members each (approximate DOC-CONFIRMED
+counts: AXIS_CIP_DRIVE ~468, AXIS_SERVO_DRIVE ~200-260, AXIS_VIRTUAL ~110-150,
+COORDINATE_SYSTEM ~80-120, MOTION_GROUP ~12). No public Studio 5000 export containing these
+types has been found, so full fidelity cannot be corpus-tested in v10.
+
+**Current behaviour**: `RockwellBuiltInTypes` emits only the ~10-15 most-referenced members for
+the AXIS_* family (INFERRED: ActualPosition, CommandPosition, ActualVelocity, CommandVelocity,
+ActualAcceleration, CommandAcceleration, PositionError, AverageVelocity, MasterOffset, AxisFault,
+AxisState, MotionStatus, ServoActionStatus, DriveEnableStatus, plus ActualTorque and
+MotorVelocityFeedback for AXIS_CIP_DRIVE), so common motion faceplate bindings line up. Both
+MOTION_GROUP and COORDINATE_SYSTEM retain their pre-v10 placeholder member sets unchanged —
+these are best-effort and not verified against a real export.
+
+**Impact**: A tag/binding referencing a AXIS_*/MOTION_GROUP/COORDINATE_SYSTEM member outside the
+minimum set above will not resolve on the emulator even though it would on a real controller.
+
+**Workaround**: None currently. The full member lists are documented in Rockwell's MOTION-RM003
+(CIP drives) / 1756-RM007 (servo) manuals and are best captured from a live-controller pycomm3
+template read or an IA bench export — deliberately not hand-authored from memory here, per
+policy (see `docs/plans/ADDRESSING.md` §3.11.1).
+
+---
+
 ## Reporting New Issues
 
 If you encounter issues not listed here:
