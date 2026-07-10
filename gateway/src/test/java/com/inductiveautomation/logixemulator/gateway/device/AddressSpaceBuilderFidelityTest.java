@@ -344,6 +344,23 @@ class AddressSpaceBuilderFidelityTest {
     }
 
     // =====================================================================================
+    // §3.14 Atomic type mapping — v32+ unsigned atomics (C6) — ControlLogix-1756L83E-fw36-L5Sharp.L5X
+    // These tags also carry OpcUaAccess="None" (ExternalAccess="Read/Write"), reinforcing §5.5's
+    // OpcUaAccess-ignored assertion.
+    // =====================================================================================
+
+    @Test
+    @DisplayName("§3.14 v32+ unsigned atomics map to their unsigned OPC-UA types (C6)")
+    void unsignedAtomicTypeMapping() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_L5SHARP);
+
+        assertType(nodes, "SimpleUSint", OpcUaDataType.Byte);
+        assertType(nodes, "SimpleUInt", OpcUaDataType.UInt16);
+        assertType(nodes, "SimpleUDint", OpcUaDataType.UInt32);
+        assertType(nodes, "SimpleULint", OpcUaDataType.UInt64);
+    }
+
+    // =====================================================================================
     // Helpers
     // =====================================================================================
 
