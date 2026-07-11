@@ -82,6 +82,65 @@ policy (see `docs/plans/ADDRESSING.md` §3.11.1).
 
 ---
 
+#### 5. Bit-of-Integer Addressing (`Tag.b`) Not Implemented
+
+**Status**: Not Implemented (post-v10, ADDRESSING.md §3.9)
+**Severity**: Low-Medium (only affects bindings that address a single bit of an
+atomic integer directly, e.g. `Status.5` on a DINT)
+
+Real Logix tags support addressing a single bit of an atomic integer by appending a
+decimal bit number (`Tag.b`), e.g. `Status.5` (SINT: bits 0-7, INT: 0-15, DINT: 0-31,
+LINT: 0-63). The emulator has **no support for this at all** in v10 — neither
+pre-creating the bit nodes nor resolving them on demand.
+
+**Why deferred:** this is a deliberate maintainer decision, not an oversight, blocked
+on two open questions:
+
+1. The bit-width bounds above are INFERRED (they follow logically from the integer
+   width) rather than confirmed against a real driver browse.
+2. Whether bit nodes should be pre-created at address-space build time or resolved
+   on demand is unresolved. Pre-creating all bits for every atomic integer risks a
+   node-count explosion on large controller exports (a single DINT array of 1000
+   elements would add up to 32,000 extra nodes); resolving on demand is cheaper but
+   changes the address-space's node-count-at-build-time invariant the rest of the
+   emulator currently assumes.
+
+**Impact**: a binding that addresses `Tag.b` directly on a plain atomic integer
+(rather than a named bit member of a predefined type, which IS supported — see
+§3.11) will not resolve on the emulator even though it would on a real controller.
+
+**Workaround**: None currently. Confirming this against a real driver bench test
+(or a `pycomm3` live browse) is the prerequisite for scoping the fix; see
+`docs/plans/ADDRESSING.md` §3.9.
+
+---
+
+#### 6. Structure/Array Member Initial Values Not Read From Export
+
+**Status**: Not Implemented (post-v10, ADDRESSING.md §3.10a — C8 scope decision)
+**Severity**: Low (affects only the STARTING value of structure/array members; the
+tag still exists, is browsable, and is writable as normal)
+
+C8 (v10.0.0) added reading of a scalar atomic tag's initial value from its L5X
+`<DataValue Value="...">` element. It deliberately does **not** read initial values
+nested inside a structure or array — a UDT/AOI/predefined instance's
+`<DataValueMember>` elements (e.g. a `TIMER` instance's `.PRE`) and an array's
+per-element `<Element>` values. Every such member/element starts at its
+type-appropriate default (`0`, `false`, `""`, etc.) regardless of what the export
+actually specifies — a real export with `TIMER.PRE=5000` starts the emulator's copy
+at `PRE=0`.
+
+**Impact**: any binding or test that depends on a structure/array member's *initial*
+value matching the export (rather than being written afresh at runtime) will see the
+type default instead.
+
+**Workaround**: write the expected initial value via REST/OPC-UA immediately after
+the device comes up, or treat the export's per-member initial values as
+non-authoritative for the emulator. See `docs/plans/ADDRESSING.md` §3.10a for the
+scope decision and `L5XParser.extractValue()`'s Javadoc for the code-level detail.
+
+---
+
 ## Reporting New Issues
 
 If you encounter issues not listed here:

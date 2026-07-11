@@ -311,6 +311,15 @@ the host integer: SINT 0-7, INT 0-15, DINT 0-31, LINT 0-63.
   atomic integer is a **future** enhancement — mark any test asserting arbitrary
   `Tag.b` on a plain DINT as INFERRED until a live browse confirms the driver
   pre-creates them (it resolves them on demand, so pre-creation is an emulator choice).
+- **v10 status: NOT IMPLEMENTED (post-v10, maintainer decision 11/07/2026).** Neither
+  the "emit bit nodes only where referenced" minimum nor full `.0–.31` synthesis
+  shipped in v10 — arbitrary `Tag.b` bit-of-integer addressing has no emulator support
+  at all yet. Blocked on: the INFERRED range bounds above being bench-confirmed, and
+  the pre-create-vs-on-demand question actually being resolved (on-demand is cheap
+  per-bit but changes the address-space's node-count-at-build-time invariant the rest
+  of the emulator assumes; pre-creating all bits for every atomic integer risks a
+  node-count explosion on large controller exports). See `KNOWN_ISSUES.md` for the
+  user-facing statement of this gap.
 
 ### 3.10 STRING — **DOC-CONFIRMED**
 
@@ -329,6 +338,23 @@ a single `String` value at the parent node **and** with browsable sub-members
   `String` with no members; give it the `.LEN` + `.DATA[i]` structure. `STRING_n`
   currently over-expands to `.LEN` + un-expanded scalar `.DATA` — expand `DATA` per §3.7
   and also surface the parent String value.
+
+### 3.10a Initial values — scope note (maintainer decision, C8/FIX-14, 11/07/2026)
+
+This document does not otherwise specify initial-value derivation (it is a NodeId/
+addressing grammar, not a value semantics one), but the scope boundary C8 drew is
+recorded here so it lives where the rest of the addressing decisions do.
+
+- **v10 status:** `L5XParser.extractValue()` reads only the top-level scalar
+  `<DataValue Value="...">` for an atomic tag (C8). A structure/array's initial values
+  — `<DataValueMember>` elements nested inside a `<Structure>` (e.g. a `TIMER` instance's
+  `.PRE`), and per-element `<Element>` values inside an `<Array>` — are NOT read; every
+  such member/element gets its type-default value regardless of what the export
+  actually contains (a real export with `TIMER.PRE=5000` starts the emulator's copy at
+  `0`).
+- **This is an explicit maintainer decision, not an oversight:** per-member/per-element
+  initial-value derivation is deferred **post-v10**. See `KNOWN_ISSUES.md` for the
+  user-facing statement of this gap.
 
 ### 3.11 Predefined structured-type member sets — **DOC-CONFIRMED (per type)**
 
