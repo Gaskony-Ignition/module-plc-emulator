@@ -290,13 +290,23 @@ public final class FilePreparation {
                 logger.info("Successfully parsed file using {} parser", parser.getParserType());
                 return result;
             } else {
-                logger.error("Parser returned null - file may be invalid or corrupted");
-                return createDemoStructure();
+                // DoD FIX-1 (11/07/2026): a genuine parse failure (garbage/malformed content, an
+                // XXE rejection, etc.) on a file that DOES exist must propagate as null so the
+                // caller (LogixEmulatorDevice.onStartup / HotReloadCoordinator.handleFileChange)
+                // sets an Error-prefixed status and the REST upload gate (DeviceController's B4
+                // check) reports 422 success:false. Previously this substituted a demo tag
+                // structure, so the device silently reached "Running" on a corrupt upload and the
+                // endpoint reported HTTP 200 success:true (plc-dod2/item6-verify.txt).
+                logger.error("Parser returned null for existing file {} - file may be invalid or "
+                    + "corrupted, rejecting rather than substituting demo tags", filePath);
+                return null;
             }
 
         } catch (Exception e) {
-            logger.error("Error in built-in parser", e);
-            return createDemoStructure();
+            // Same honesty requirement as the null-result branch above: an exception while
+            // parsing an existing file is a genuine failure, not a "no file yet" state.
+            logger.error("Error in built-in parser for file {}", filePath, e);
+            return null;
         }
     }
 

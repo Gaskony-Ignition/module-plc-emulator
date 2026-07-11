@@ -248,6 +248,44 @@ class FilePreparationTest {
     }
 
     @Test
+    @DisplayName("DoD FIX-1: parseFileBuiltIn() returns null (not a demo structure) for an "
+        + "existing but malformed/garbage L5X file, so callers can honestly report a build "
+        + "failure instead of HTTP 200 success:true on a corrupt upload "
+        + "(plc-dod2/item6-verify.txt)")
+    void parseGarbageL5xReturnsNullNotDemo() throws Exception {
+        Path garbage = tempDir.resolve("garbage.l5x");
+        // Well-formed-enough-to-not-crash-the-JVM but semantically not an RSLogix5000Content
+        // export — the real L5XParser reads it as valid XML with no recognisable tag data,
+        // so it currently returns null rather than throwing.
+        Files.writeString(garbage, "<NotRSLogix5000Content><garbage/></NotRSLogix5000Content>");
+
+        JsonObject result = prep.parseFileBuiltIn(
+            garbage.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("a genuinely unparseable existing file must propagate null, never demo tags")
+            .isNull();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-1: parseFileBuiltIn() returns null for an XXE-bearing L5X upload "
+        + "(the DOCTYPE rejection inside L5XParser must reach the caller as a real failure, "
+        + "not be masked by a demo-tag fallback)")
+    void parseXxeL5xReturnsNullNotDemo() throws Exception {
+        String xxeContent = Files.readString(
+            Path.of("src/test/resources/test-files/xxe-big.l5x"));
+        Path xxeFile = tempDir.resolve("xxe-big.l5x");
+        Files.writeString(xxeFile, xxeContent);
+
+        JsonObject result = prep.parseFileBuiltIn(
+            xxeFile.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("an XXE-rejected file must propagate null, never demo tags")
+            .isNull();
+    }
+
+    @Test
     @DisplayName("getVersionManager() returns null until prepareFile() runs")
     void versionManagerInitialNull() {
         assertThat(prep.getVersionManager()).isNull();
