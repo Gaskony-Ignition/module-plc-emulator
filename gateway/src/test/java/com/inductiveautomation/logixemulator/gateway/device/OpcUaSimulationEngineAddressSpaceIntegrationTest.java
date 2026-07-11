@@ -6,7 +6,6 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.OpcUaSimulationEngine;
 import org.eclipse.milo.opcua.sdk.server.NodeManager;
 import org.eclipse.milo.opcua.sdk.server.OpcUaServer;
-import org.eclipse.milo.opcua.sdk.server.items.DataItem;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaFolderNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNodeContext;
@@ -14,7 +13,6 @@ import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
 import org.eclipse.milo.opcua.stack.core.NamespaceTable;
 import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.QualifiedName;
-import org.eclipse.milo.opcua.stack.core.types.structured.ReadValueId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -38,7 +37,8 @@ import static org.mockito.Mockito.when;
 
 /**
  * End-to-end regression test for defect B3 ("simulation engine never updates values",
- * {@code docs/plans/V10_FIDELITY_PLAN.md}).
+ * {@code docs/plans/V10_FIDELITY_PLAN.md}) — and specifically for the v10 live-gateway
+ * failure ({@code ~/Downloads/plc-v10-artifacts/plc-dod2/item3-simulation-FAIL.txt}).
  *
  * <p>Builds a real address space via {@link AddressSpaceBuilder} against the same stubbed
  * {@link AddressSpaceBuilder.NodeContext} used by {@link AddressSpaceBuilderIntegrationTest} — no
@@ -47,21 +47,24 @@ import static org.mockito.Mockito.when;
  * {@code SimulationController.convertToNodeIdPath()} performs on the client-facing slash-notation
  * path), ticks the engine, and asserts the node's OPC-UA value actually changes.
  *
- * <p><b>Root cause this guards against:</b> before the B3 fix,
- * {@code SimulationController.handleToggleTagSimulation()} registered tags with the engine using
- * the raw slash-notation {@code tagPath} straight from the request body (e.g.
- * {@code "Controller:Global/RampInt"}), while {@link OpcUaSimulationEngine#updateSimulatedValues}
- * derives its per-tick lookup key from the live {@code NodeId}'s identifier, which under the v10
- * canonical scheme (C1) is the bare {@code "RampInt"} for a controller tag. The two never matched,
- * so {@code isTagSimulated()} was
- * always {@code false} for every live data item — the registry reported tags as simulated
- * (API success, {@code simulatedTagCount > 0}) while every OPC-UA node value stayed frozen forever
- * (see {@code ~/Downloads/plc-v10-artifacts/plc-dod/item3-simulation-FAIL.txt}).
+ * <p><b>Why the OLD version of this test passed while the real gateway failed — the harness
+ * incident this rework fixes:</b> the previous test fed the engine a hand-built list of
+ * {@code DataItem} stubs and the engine iterated THAT list to find nodes to update. On a real
+ * Milo server that list is empty (the server satisfies subscriptions from each node's own value
+ * attribute and never registers device-side {@code DataItem}s), so the engine updated nothing —
+ * but the stub populated the list, so the assertion path and the production path diverged and the
+ * test was green on a broken engine. This reworked test provides <b>no {@code DataItem} layer at
+ * all</b>: it drives the engine exactly as the wiring does — a {@code key -> UaVariableNode}
+ * resolver over the engine's own {@code simulatedTags} registry — and asserts on the very node
+ * object a real server reads. If a future change reintroduces a {@code DataItem}/
+ * {@code SubscriptionModel} dependency, this test can no longer stub it and will fail, which is
+ * the point. Do not add one.
  */
 class OpcUaSimulationEngineAddressSpaceIntegrationTest {
 
     private AddressSpaceBuilder builder;
     private AddressSpaceBuilder.NodeContext context;
+    private DeviceContext deviceContext;
     private UaFolderNode rootNode;
     private List<UaNode> addedNodes;
     private Map<NodeId, UaNode> nodesByNodeId;
@@ -80,7 +83,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         when(uaNodeContext.getServer()).thenReturn(server);
         when(server.getNamespaceTable()).thenReturn(new NamespaceTable());
 
-        DeviceContext deviceContext = mock(DeviceContext.class);
+        deviceContext = mock(DeviceContext.class);
         when(deviceContext.nodeId(any())).thenAnswer(inv -> {
             Object identifier = inv.getArgument(0);
             return new NodeId(1, String.valueOf(identifier));
@@ -141,6 +144,21 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     }
 
     /**
+     * The production resolver, reproduced against the stubbed contexts: map a simulated-tag
+     * registry key to the live variable node by taking it through the SAME
+     * {@code DeviceContext.nodeId(key)} + node-manager lookup the write path uses. This is the
+     * ONLY node-resolution path the engine has — the same one a real Milo server observes when
+     * the engine calls {@code setValue} on the returned node.
+     */
+    private Function<String, UaVariableNode> nodeResolver() {
+        return key -> {
+            NodeId nodeId = deviceContext.nodeId(key);
+            UaNode node = nodesByNodeId.get(nodeId);
+            return (node instanceof UaVariableNode variableNode) ? variableNode : null;
+        };
+    }
+
+    /**
      * Finds the single canonical variable node created for a controller-scoped atomic tag (v10 C1:
      * one node per tag, bare identifier — no more long/short duplicate pair).
      */
@@ -153,14 +171,6 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
             .orElseThrow(() -> new AssertionError("No variable node found for " + canonicalIdentifier));
     }
 
-    private static DataItem dataItemFor(NodeId nodeId) {
-        DataItem item = mock(DataItem.class);
-        ReadValueId rvId = mock(ReadValueId.class);
-        when(item.getReadValueId()).thenReturn(rvId);
-        when(rvId.getNodeId()).thenReturn(nodeId);
-        return item;
-    }
-
     @Test
     @DisplayName("B3 end-to-end: assigning RAMP to a live DINT node changes its value across ticks, "
         + "monotonically within [0, 100] until the ramp period wraps")
@@ -168,18 +178,17 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         buildFiveTagAddressSpace();
 
         UaVariableNode rampNode = variableNodeFor("RampInt");
-        List<DataItem> dataItems = List.of(dataItemFor(rampNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(
             LogixEmulatorConfig.SimulationPattern.SINE, // default pattern; RAMP is a per-tag override below
             50, // fast tick for test speed
-            nodesByNodeId::get
+            nodeResolver()
         );
 
         // The exact key SimulationController.convertToNodeIdPath("Controller:Global/RampInt")
         // produces — the bare canonical controller identifier (v10 C1).
         engine.enableTagSimulation("RampInt", LogixEmulatorConfig.SimulationPattern.RAMP);
-        engine.start(() -> dataItems);
+        engine.start();
 
         Object initialValue = rampNode.getValue().getValue().getValue();
         assertThat(initialValue).as("initial DINT value").isEqualTo(0);
@@ -199,16 +208,15 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         buildFiveTagAddressSpace();
 
         UaVariableNode toggleNode = variableNodeFor("ToggleBool");
-        List<DataItem> dataItems = List.of(dataItemFor(toggleNode.getNodeId()));
 
         engine = new OpcUaSimulationEngine(
             LogixEmulatorConfig.SimulationPattern.STATIC,
             50,
-            nodesByNodeId::get
+            nodeResolver()
         );
 
         engine.enableTagSimulation("ToggleBool", LogixEmulatorConfig.SimulationPattern.TOGGLE);
-        engine.start(() -> dataItems);
+        engine.start();
 
         Object initialValue = toggleNode.getValue().getValue().getValue();
         assertThat(initialValue).as("initial BOOL value").isEqualTo(false);
@@ -238,11 +246,10 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         buildFiveTagAddressSpace();
 
         UaVariableNode sineNode = variableNodeFor("SineReal");
-        List<DataItem> dataItems = List.of(dataItemFor(sineNode.getNodeId()));
 
-        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodesByNodeId::get);
+        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodeResolver());
         engine.enableTagSimulation("SineReal", LogixEmulatorConfig.SimulationPattern.SINE);
-        engine.start(() -> dataItems);
+        engine.start();
 
         // Wait for at least one tick to fire before sampling, so the pre-simulation default
         // value (0.0f) set by the address-space builder isn't counted as a "sampled" value —
@@ -276,11 +283,10 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         buildFiveTagAddressSpace();
 
         UaVariableNode randomNode = variableNodeFor("RandomReal");
-        List<DataItem> dataItems = List.of(dataItemFor(randomNode.getNodeId()));
 
-        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodesByNodeId::get);
+        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.STATIC, 50, nodeResolver());
         engine.enableTagSimulation("RandomReal", LogixEmulatorConfig.SimulationPattern.RANDOM);
-        engine.start(() -> dataItems);
+        engine.start();
 
         Set<Float> sampledValues = new HashSet<>();
         long deadline = System.currentTimeMillis() + 1_000;
@@ -307,11 +313,10 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         buildFiveTagAddressSpace();
 
         UaVariableNode staticNode = variableNodeFor("StaticReal");
-        List<DataItem> dataItems = List.of(dataItemFor(staticNode.getNodeId()));
 
-        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.SINE, 50, nodesByNodeId::get);
+        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.SINE, 50, nodeResolver());
         engine.enableTagSimulation("StaticReal", LogixEmulatorConfig.SimulationPattern.STATIC);
-        engine.start(() -> dataItems);
+        engine.start();
 
         // STATIC always resolves to the midpoint of the default 0-100 range — give it several
         // ticks then assert it has settled there and stays there across further ticks.
@@ -335,27 +340,25 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
     }
 
     @Test
-    @DisplayName("B3 regression: a tag registered under the un-converted slash-notation path is "
-        + "never matched by the engine's per-tick lookup and its value stays frozen (the exact "
-        + "wiring gap fixed in SimulationController)")
-    void slashNotationRegistrationNeverMatchesLiveDotNotationNode() {
+    @DisplayName("B3 regression: a tag registered under the un-converted slash-notation path resolves "
+        + "to no node and its value stays frozen (the exact wiring gap fixed in SimulationController)")
+    void slashNotationRegistrationNeverResolvesLiveNode() {
         buildFiveTagAddressSpace();
 
         UaVariableNode rampNode = variableNodeFor("RampInt");
-        List<DataItem> dataItems = List.of(dataItemFor(rampNode.getNodeId()));
 
-        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.RAMP, 50, nodesByNodeId::get);
+        engine = new OpcUaSimulationEngine(LogixEmulatorConfig.SimulationPattern.RAMP, 50, nodeResolver());
 
         // The pre-fix bug: registering with the raw client-facing slash path instead of the
-        // converted dot path.
+        // converted canonical path. context.nodeId("Controller:Global/RampInt") yields a NodeId
+        // no live node was created under, so the resolver returns null and nothing is written.
         engine.enableTagSimulation("Controller:Global/RampInt");
-        engine.start(() -> dataItems);
+        engine.start();
 
         Object initialValue = rampNode.getValue().getValue().getValue();
 
         // Give the engine several ticks — the value must NOT change, because the registry key
-        // ("Controller:Global/RampInt") never matches the live NodeId identifier
-        // ("RampInt") that updateSimulatedValues() looks up per tick.
+        // ("Controller:Global/RampInt") resolves to no live node.
         try {
             Thread.sleep(300);
         } catch (InterruptedException e) {
@@ -363,7 +366,7 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         }
 
         assertThat(rampNode.getValue().getValue().getValue())
-            .as("value must stay frozen when the engine registry key does not match the live NodeId")
+            .as("value must stay frozen when the engine registry key resolves to no live node")
             .isEqualTo(initialValue);
     }
 }
