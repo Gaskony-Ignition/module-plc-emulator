@@ -357,6 +357,36 @@ class VersionControllerTest {
     }
 
     @Test
+    @DisplayName("DoD FIX-7: handleRevertVersion() does not echo an absolute filesystem path "
+        + "verbatim when the restored file's build failure status carries one")
+    void revertBuildFailureSanitisesPathInStatus(@TempDir Path tempDir)
+            throws Exception {
+        authenticate();
+        passCsrf();
+        allowWriteRate();
+        when(ctx.getParameter("name")).thenReturn("DodPLC1");
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        File currentFile = tempDir.resolve("DodPLC1_ver.csv").toFile();
+        Files.writeString(currentFile.toPath(), "current");
+        when(deviceManager.getDeviceFilePath(device)).thenReturn(currentFile.getAbsolutePath());
+        when(deviceManager.getVersionManager(device)).thenReturn(versionManager);
+
+        File oldVersion = tempDir.resolve("ver_20260101_010000.csv").toFile();
+        Files.writeString(oldVersion.toPath(), "old");
+        when(versionManager.getVersions("DodPLC1_ver.csv")).thenReturn(List.of(oldVersion));
+        when(versionManager.restoreVersion(oldVersion, currentFile)).thenReturn(true);
+        when(device.getStatus()).thenReturn(
+            "Error: /home/nigel/ignition-data/logix-emulator/DodPLC1_ver.csv (No such file or directory)");
+        stubRequestBody("{\"filename\":\"" + oldVersion.getName() + "\"}");
+
+        JSONObject result = controller.handleRevertVersion(ctx, resp);
+
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error")).doesNotContain("/home/nigel");
+        assertThat(result.getString("status")).doesNotContain("/home/nigel");
+    }
+
+    @Test
     @DisplayName("handleRevertVersion() returns 429 when the write rate limiter rejects")
     void revertRateLimited() throws Exception {
         authenticate();

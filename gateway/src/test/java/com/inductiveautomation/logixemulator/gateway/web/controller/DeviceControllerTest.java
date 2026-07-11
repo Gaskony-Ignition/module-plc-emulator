@@ -219,6 +219,29 @@ class DeviceControllerTest {
     }
 
     @Test
+    @DisplayName("DoD FIX-7: processDeviceUpload() does not echo an absolute filesystem path "
+        + "verbatim when the device status carries one from a raw exception message")
+    void testProcessDeviceUploadSanitisesPathInStatus() throws Exception {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
+        when(device.getStatus()).thenReturn(
+            "Error: /home/nigel/ignition-data/logix-emulator/DodPLC1.l5x (No such file or directory)");
+
+        JSONObject result = controller.processDeviceUpload(
+            resp, new JSONObject(), "DodPLC1", "<RSLogix5000Content/>", "real-world.l5x");
+
+        verify(resp).setStatus(422);
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error"))
+            .as("the absolute path must not be echoed verbatim in the error field")
+            .doesNotContain("/home/nigel");
+        assertThat(result.getString("status"))
+            .as("the absolute path must not be echoed verbatim in the status field")
+            .doesNotContain("/home/nigel");
+    }
+
+    @Test
     @DisplayName("processDeviceUpload() reports success only when the device actually reaches a "
         + "non-error status after reload")
     void testProcessDeviceUploadReportsSuccessWhenBuildSucceeds() throws Exception {

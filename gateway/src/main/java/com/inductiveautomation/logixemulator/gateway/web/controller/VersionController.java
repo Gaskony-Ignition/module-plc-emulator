@@ -196,11 +196,14 @@ public class VersionController {
 
         if (DeviceController.isBuildFailureStatus(status)) {
             resp.setStatus(SC_UNPROCESSABLE_ENTITY);
+            // FIX-7 (11/07/2026): same exception-message-leaking-a-path risk as DeviceController's
+            // upload path - sanitise the status before it's echoed to a REST caller.
+            String safeStatus = DeviceConfigService.sanitizeStatusForResponse(status);
             return result.put("success", false)
                 .put("deviceName", deviceName)
                 .put("restoredFrom", versionFileName)
-                .put("error", "Version restored to disk but failed to apply to device: " + status)
-                .put("status", status);
+                .put("error", "Version restored to disk but failed to apply to device: " + safeStatus)
+                .put("status", safeStatus);
         }
 
         // A successful revert is itself treated as a new upload for versioning purposes, so it
