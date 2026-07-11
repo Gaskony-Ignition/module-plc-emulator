@@ -6,6 +6,7 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.parser.PLCParser;
 import com.inductiveautomation.logixemulator.gateway.parser.ParserFactory;
+import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.PathSecurity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,6 +92,16 @@ public final class FilePreparation {
     }
 
     /**
+     * Legacy device/filename separator (pre-FIX-3, 11/07/2026). Device names may themselves
+     * contain {@code "_"} (see {@code DeviceConfigService}'s {@code ^[a-zA-Z0-9_-]+$} name
+     * regex), so {@code startsWith(deviceName + "_")} is ambiguous: device {@code "plc"} also
+     * matches device {@code "plc_test"}'s files. Kept only as a non-authoritative fallback so
+     * files uploaded before this fix aren't orphaned on Gateway restart — see the safety note on
+     * {@link #findExistingFileForDevice}.
+     */
+    private static final String LEGACY_DEVICE_FILE_SEPARATOR = "_";
+
+    /**
      * Find the most recently uploaded PLC file in the storage directory for
      * THIS device. Only considers files with the device-specific prefix to
      * prevent cross-device file sharing.
@@ -104,6 +115,22 @@ public final class FilePreparation {
      * manager's retention limit ({@link FileVersionManager#getMaxVersions()})
      * are pruned, so a device that has been re-uploaded to under many
      * different filenames does not accumulate files here unboundedly.</p>
+     *
+     * <p><b>Defect FIX-3 (11/07/2026, data-safety):</b> matching is now split into two tiers
+     * mirroring {@link com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager}'s
+     * naming scheme precisely:
+     * <ul>
+     *   <li><b>Safe</b> — {@code deviceName + DeviceFileManager.DEVICE_FILE_SEPARATOR} ({@code
+     *       "."}, illegal in any device name, so this prefix can never match a different device's
+     *       file no matter what other devices are registered). This is the only tier that
+     *       participates in retention pruning/deletion.</li>
+     *   <li><b>Legacy</b> — {@code deviceName + "_"}, kept only so files uploaded before this fix
+     *       still get picked up on Gateway restart. Because {@code "_"} IS a legal device-name
+     *       character this tier remains ambiguous between prefix-overlapping device names (e.g.
+     *       {@code "plc"} vs {@code "plc_test"}) — so legacy matches are used for pickup only and
+     *       are <b>never deleted</b> by the pruning below, eliminating the irreversible half of
+     *       the original defect ({@code plc-dod2/item5-write.txt} lineage) even for old files.</li>
+     * </ul>
      *
      * @param storageDir directory to search
      * @return the most recently modified matching file, or {@code null} if none
@@ -119,24 +146,62 @@ public final class FilePreparation {
         }
 
         String deviceName = context.getName();
-        List<File> candidates = new ArrayList<>();
+        String safePrefix = deviceName + DeviceFileManager.DEVICE_FILE_SEPARATOR;
+        String legacyPrefix = deviceName + LEGACY_DEVICE_FILE_SEPARATOR;
+
+        List<File> safeCandidates = new ArrayList<>();
+        List<File> legacyCandidates = new ArrayList<>();
         for (File file : files) {
             String name = file.getName();
             if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
                 continue;
             }
-            if (name.startsWith(deviceName + "_")) {
-                for (String ext : PLC_EXTENSIONS) {
-                    if (name.endsWith(ext)) {
-                        candidates.add(file);
-                        break;
-                    }
-                }
+            if (!matchesExtension(name)) {
+                continue;
+            }
+            if (name.startsWith(safePrefix)) {
+                safeCandidates.add(file);
+            } else if (name.startsWith(legacyPrefix)) {
+                legacyCandidates.add(file);
             }
         }
 
-        if (candidates.isEmpty()) {
+        // Retention pruning only ever touches the unambiguous (safe-separator) tier - a legacy
+        // match can never be deleted here, even if it turns out to belong to a different device.
+        pruneStaleCandidates(safeCandidates);
+
+        List<File> allCandidates = new ArrayList<>(safeCandidates);
+        allCandidates.addAll(legacyCandidates);
+        if (allCandidates.isEmpty()) {
             return null;
+        }
+
+        allCandidates.sort(Comparator.comparingLong(File::lastModified).reversed());
+
+        File mostRecent = allCandidates.get(0);
+        logger.info("Found most recently uploaded device-specific file: {}", mostRecent.getName());
+        return mostRecent;
+    }
+
+    /** @return {@code true} if {@code name} ends with one of {@link #PLC_EXTENSIONS}. */
+    private static boolean matchesExtension(String name) {
+        for (String ext : PLC_EXTENSIONS) {
+            if (name.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Prunes (deletes) candidates beyond the version manager's retention limit, newest first.
+     * Mutates {@code candidates} by sorting it in place (newest-first) so the caller's later
+     * "most recent" selection sees a consistent order; callers must pass only file lists that are
+     * safe to delete from (see the FIX-3 safety note on {@link #findExistingFileForDevice}).
+     */
+    private void pruneStaleCandidates(List<File> candidates) {
+        if (candidates.isEmpty()) {
+            return;
         }
 
         candidates.sort(Comparator.comparingLong(File::lastModified).reversed());
@@ -151,10 +216,6 @@ public final class FilePreparation {
                 }
             }
         }
-
-        File mostRecent = candidates.get(0);
-        logger.info("Found most recently uploaded device-specific file: {}", mostRecent.getName());
-        return mostRecent;
     }
 
     /**
