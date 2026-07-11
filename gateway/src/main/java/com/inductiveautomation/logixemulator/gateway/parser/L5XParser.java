@@ -601,6 +601,9 @@ public class L5XParser implements PLCParser {
                 JsonObject memberJson = new JsonObject();
                 memberJson.addProperty("name", member.getName());
                 memberJson.addProperty("data_type", member.getDataType());
+                if (member.getDimensions() != null && !member.getDimensions().isEmpty()) {
+                    memberJson.addProperty("dimensions", member.getDimensions());
+                }
                 members.add(memberJson);
             }
             typeJson.add("members", members);

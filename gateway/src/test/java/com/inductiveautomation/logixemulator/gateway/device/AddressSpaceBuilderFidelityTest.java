@@ -445,6 +445,40 @@ class AddressSpaceBuilderFidelityTest {
     }
 
     // =====================================================================================
+    // §5.6 STRING — ControlLogix-1756L83E-fw36-L5Sharp.L5X (FIX-5)
+    // =====================================================================================
+
+    @Test
+    @DisplayName("§5.6 base STRING keeps a parent String value AND exposes .LEN/.DATA[i] members "
+        + "(ADDRESSING.md §3.10, FIX-5)")
+    void baseStringExposesLenAndDataMembers() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_L5SHARP);
+
+        // SimpleString (STRING) -> parent "SimpleString" (String value) + .LEN (Int32) +
+        // .DATA[0] (SByte) - the spec's exact form, not a paraphrase (§5.6).
+        assertType(nodes, "SimpleString", OpcUaDataType.String);
+        assertType(nodes, "SimpleString.LEN", OpcUaDataType.Int32);
+        assertType(nodes, "SimpleString.DATA[0]", OpcUaDataType.SByte);
+
+        // .DATA expands to the STRING type's DATA dimension - 82 for base STRING (§5.6).
+        long dataMemberCount = nodes.keySet().stream()
+            .filter(id -> id.startsWith("SimpleString.DATA[")).count();
+        assertThat(dataMemberCount).as("base STRING .DATA must expand to 82 elements").isEqualTo(82);
+        assertType(nodes, "SimpleString.DATA[81]", OpcUaDataType.SByte);
+        assertThat(nodes).doesNotContainKey("SimpleString.DATA[82]");
+
+        // Regression guard: a custom STRING-family type (FakeString, DataType="FakeString" with
+        // an ordinary <DataType> declaring LEN/DATA[23]) must keep working exactly as before -
+        // Object-node members only, no dual scalar value (FIX-5 is scoped to base STRING only).
+        assertThat(nodes).containsKey("FakeStringTag");
+        assertType(nodes, "FakeStringTag.LEN", OpcUaDataType.Int32);
+        assertType(nodes, "FakeStringTag.DATA[0]", OpcUaDataType.SByte);
+        long fakeStringDataCount = nodes.keySet().stream()
+            .filter(id -> id.startsWith("FakeStringTag.DATA[")).count();
+        assertThat(fakeStringDataCount).as("FakeString .DATA must keep its own dimension (23)").isEqualTo(23);
+    }
+
+    // =====================================================================================
     // Helpers
     // =====================================================================================
 

@@ -245,10 +245,23 @@ public class AddressSpaceBuilder {
         }
 
         if (isUdt) {
+            if (isBaseStringType(dataType)) {
+                // ADDRESSING.md §3.10 (FIX-5): a STRING is exposed BOTH as a scalar String value
+                // at its own node AND with browsable .LEN/.DATA members - unlike an ordinary
+                // UDT/AOI instance, which is Object-node-only. RockwellBuiltInTypes registers a
+                // "STRING" entry so the parser expands udt_members (LEN, DATA) for it same as any
+                // other UDT; here that dispatches to a variable node (not an Object node) so the
+                // parent keeps its scalar value, with the members attached as components.
+                UaVariableNode stringVar = createLeafVariable(baseId, tagName, dataType, tag, context);
+                parentFolder.addOrganizes(stringVar);
+                addMembers(tag.getAsJsonArray("udt_members"), stringVar::addComponent, baseId, context);
+                logger.debug("Created STRING instance '{}' (NodeId={}) with LEN/DATA members", tagName, baseId);
+                return;
+            }
             UaObjectNode udtObject = context.createObjectNode(baseId, tagName);
             nodeAdder.accept(udtObject);
             parentFolder.addComponent(udtObject);
-            addMembers(tag.getAsJsonArray("udt_members"), udtObject, baseId, context);
+            addMembers(tag.getAsJsonArray("udt_members"), udtObject::addComponent, baseId, context);
             logger.debug("Created UDT instance '{}' (NodeId={})", tagName, baseId);
             return;
         }
@@ -287,7 +300,7 @@ public class AddressSpaceBuilder {
                 UaObjectNode elemObject = context.createObjectNode(elemId, elemName);
                 nodeAdder.accept(elemObject);
                 parentFolder.addComponent(elemObject);
-                addMembers(tag.getAsJsonArray("udt_members"), elemObject, elemId, context);
+                addMembers(tag.getAsJsonArray("udt_members"), elemObject::addComponent, elemId, context);
             } else {
                 UaVariableNode variable = createLeafVariable(elemId, elemName, dataType, tag, context);
                 parentFolder.addOrganizes(variable);
@@ -297,24 +310,28 @@ public class AddressSpaceBuilder {
     }
 
     /**
-     * Adds every member of a UDT/AOI/predefined instance beneath the given Object node.
+     * Adds every member of a UDT/AOI/predefined instance, attaching each created member node via
+     * {@code attacher} (the parent's {@code addComponent} - an Object node for an ordinary
+     * UDT/AOI instance, or a Variable node for the STRING hybrid case, FIX-5).
      */
-    private void addMembers(JsonArray members, UaObjectNode parentObject, String parentId, NodeContext context) {
+    private void addMembers(
+        JsonArray members, Consumer<UaNode> attacher, String parentId, NodeContext context) {
         if (members == null) {
             return;
         }
         for (JsonElement memberElement : members) {
-            addUdtMember(memberElement.getAsJsonObject(), parentObject, parentId, context);
+            addUdtMember(memberElement.getAsJsonObject(), attacher, parentId, context);
         }
     }
 
     /**
-     * Adds a single UDT member beneath a UDT Object node. Handles nested UDTs, member arrays
-     * (C2, including DWORD-packed BOOL member arrays — C3) and atomic members.
+     * Adds a single UDT member, attached to its parent via {@code attacher}. Handles nested UDTs
+     * (including the STRING hybrid case, FIX-5), member arrays (C2, including DWORD-packed BOOL
+     * member arrays — C3) and atomic members.
      */
     private void addUdtMember(
         JsonObject member,
-        UaObjectNode parentObject,
+        Consumer<UaNode> attacher,
         String parentId,
         NodeContext context) {
 
@@ -337,7 +354,7 @@ public class AddressSpaceBuilder {
             int[] dims = policy.parseDimensions(member.get("dimensions").getAsString());
             if (dims.length > 0) {
                 if (policy.isBoolType(memberType) && !memberIsUdt && dims.length == 1) {
-                    addBoolArray(memberBaseId, memberName, dims[0], context, parentObject::addComponent);
+                    addBoolArray(memberBaseId, memberName, dims[0], context, attacher::accept);
                     return;
                 }
                 for (int[] indices : policy.enumerateIndices(dims)) {
@@ -346,11 +363,11 @@ public class AddressSpaceBuilder {
                     if (memberIsUdt) {
                         UaObjectNode elemObject = context.createObjectNode(elemId, elemName);
                         nodeAdder.accept(elemObject);
-                        parentObject.addComponent(elemObject);
-                        addMembers(member.getAsJsonArray("udt_members"), elemObject, elemId, context);
+                        attacher.accept(elemObject);
+                        addMembers(member.getAsJsonArray("udt_members"), elemObject::addComponent, elemId, context);
                     } else {
                         UaVariableNode variable = createLeafVariable(elemId, elemName, memberType, member, context);
-                        parentObject.addComponent(variable);
+                        attacher.accept(variable);
                     }
                 }
                 return;
@@ -358,17 +375,38 @@ public class AddressSpaceBuilder {
         }
 
         if (memberIsUdt) {
+            if (isBaseStringType(memberType)) {
+                // ADDRESSING.md §3.10 (FIX-5): same STRING hybrid as the top-level case - a
+                // nested STRING member keeps its own scalar value alongside .LEN/.DATA.
+                UaVariableNode stringVar = createLeafVariable(memberBaseId, memberName, memberType, member, context);
+                attacher.accept(stringVar);
+                addMembers(member.getAsJsonArray("udt_members"), stringVar::addComponent, memberBaseId, context);
+                logger.debug("Created STRING member '{}' (NodeId={}) with LEN/DATA members", memberName, memberBaseId);
+                return;
+            }
             UaObjectNode nestedObject = context.createObjectNode(memberBaseId, memberName);
             nodeAdder.accept(nestedObject);
-            parentObject.addComponent(nestedObject);
-            addMembers(member.getAsJsonArray("udt_members"), nestedObject, memberBaseId, context);
+            attacher.accept(nestedObject);
+            addMembers(member.getAsJsonArray("udt_members"), nestedObject::addComponent, memberBaseId, context);
             logger.debug("Created nested UDT member '{}' (NodeId={})", memberName, memberBaseId);
             return;
         }
 
         UaVariableNode variable = createLeafVariable(memberBaseId, memberName, memberType, member, context);
-        parentObject.addComponent(variable);
+        attacher.accept(variable);
         logger.trace("Created UDT member '{}' (NodeId={}, Type={})", memberName, memberBaseId, memberType);
+    }
+
+    /**
+     * @return {@code true} if {@code dataType} is the base Rockwell {@code STRING} type
+     *     (ADDRESSING.md §3.10, FIX-5) - which, unlike an ordinary UDT/AOI instance, must keep a
+     *     scalar String value at its own node in addition to its {@code .LEN}/{@code .DATA}
+     *     members. Custom {@code STRING_n} types are NOT included here - the corpus shows them as
+     *     ordinary user-defined {@code <DataType>}s with no confirmed dual-value requirement of
+     *     their own, and this predicate stays scoped to what §3.10 DOC-CONFIRMS.
+     */
+    private static boolean isBaseStringType(String dataType) {
+        return "STRING".equalsIgnoreCase(dataType);
     }
 
     /**

@@ -62,6 +62,19 @@ public final class RockwellBuiltInTypes {
     }
 
     private static void addBasicTypes(Map<String, UDTDefinition> types) {
+        // STRING (base) — ADDRESSING.md §3.10, DOC-CONFIRMED (Kevin Herron, IA staff, verbatim):
+        // "with the v21 driver the LEN and DATA members are always browsable underneath the
+        // String tag itself." Corpus <DataType Name="STRING"> shows LEN (DINT) + DATA (SINT[82]).
+        // A plain "STRING" tag DataType previously had no entry here at all, so L5XParser.parseTag
+        // never routed it through expandUdtInstance and it fell through to a bare scalar with no
+        // .LEN/.DATA members (defect FIX-5). Custom STRING_n types already worked because the L5X
+        // declares them as an ordinary <DataType> with LEN/DATA members - this makes base STRING
+        // follow the identical path.
+        UDTDefinition string = new UDTDefinition("STRING");
+        string.addMember("LEN", "DINT");
+        string.addMember("DATA", "SINT", "82");
+        types.put("STRING", string);
+
         // TIMER structure — ADDRESSING.md §3.11 TIMER: 5 members, DOC-CONFIRMED (verbatim from
         // corpus L83E export + pycomm3). There is NO .ER member — the phantom .ER previously
         // here did not exist on the real type and has been removed.
