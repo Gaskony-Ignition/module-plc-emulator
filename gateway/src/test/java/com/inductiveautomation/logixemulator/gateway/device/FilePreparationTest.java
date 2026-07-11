@@ -3,6 +3,7 @@ package com.inductiveautomation.logixemulator.gateway.device;
 import com.google.gson.JsonObject;
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
+import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -114,23 +115,24 @@ class FilePreparationTest {
     }
 
     @Test
-    @DisplayName("findExistingFileForDevice() finds a device-prefixed L5K file")
+    @DisplayName("findExistingFileForDevice() finds a device-prefixed L5K file (current safe "
+        + "separator, DeviceFileManager.DEVICE_FILE_SEPARATOR)")
     void findsDevicePrefixedL5K() throws Exception {
-        Path file = tempDir.resolve("MyDevice_program.L5K");
+        Path file = tempDir.resolve("MyDevice.program.L5K");
         Files.writeString(file, "dummy");
 
         File found = prep.findExistingFileForDevice(tempDir.toFile());
 
         assertThat(found).isNotNull();
-        assertThat(found.getName()).isEqualTo("MyDevice_program.L5K");
+        assertThat(found.getName()).isEqualTo("MyDevice.program.L5K");
     }
 
     @Test
     @DisplayName("findExistingFileForDevice() ignores hidden, backup, and tilde files")
     void ignoresHiddenAndBackupFiles() throws Exception {
-        Files.writeString(tempDir.resolve(".MyDevice_program.l5x"), "x");
-        Files.writeString(tempDir.resolve("MyDevice_program.bak"), "x");
-        Files.writeString(tempDir.resolve("MyDevice_~program.l5x"), "x");
+        Files.writeString(tempDir.resolve(".MyDevice.program.l5x"), "x");
+        Files.writeString(tempDir.resolve("MyDevice.program.bak"), "x");
+        Files.writeString(tempDir.resolve("MyDevice.~program.l5x"), "x");
 
         assertThat(prep.findExistingFileForDevice(tempDir.toFile())).isNull();
     }
@@ -138,17 +140,103 @@ class FilePreparationTest {
     @Test
     @DisplayName("findExistingFileForDevice() ignores files belonging to other devices")
     void ignoresOtherDeviceFiles() throws Exception {
-        Files.writeString(tempDir.resolve("OtherDevice_program.l5k"), "x");
+        Files.writeString(tempDir.resolve("OtherDevice.program.l5k"), "x");
 
         assertThat(prep.findExistingFileForDevice(tempDir.toFile())).isNull();
     }
 
     @Test
-    @DisplayName("findExistingFileForDevice() requires the underscore separator after the device name")
-    void requiresUnderscoreSeparator() throws Exception {
-        Files.writeString(tempDir.resolve("MyDevice2_program.l5k"), "x");
+    @DisplayName("findExistingFileForDevice() requires the separator immediately after the "
+        + "device name — a longer device name sharing this one as a text prefix must not match")
+    void requiresSeparatorImmediatelyAfterDeviceName() throws Exception {
+        Files.writeString(tempDir.resolve("MyDevice2.program.l5k"), "x");
 
         assertThat(prep.findExistingFileForDevice(tempDir.toFile())).isNull();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-3 (data-safety): two devices whose names text-overlap with the legacy "
+        + "'_' separator ('plc' vs 'plc_test') do not pick up each other's CURRENT (safe-"
+        + "separator) uploads — this was the live-confirmed cross-device defect "
+        + "(plc-dod2/item5-write.txt lineage: 'plc' matched files of device 'plc_test')")
+    void prefixOverlappingDeviceNamesDoNotCrossMatch() throws Exception {
+        // Simulate real uploads: DeviceFileManager names files "<device>" + DEVICE_FILE_SEPARATOR
+        // + filename. "plc_test" is a valid, independent device name under the same regex that
+        // allows "plc" (both match ^[a-zA-Z0-9_-]+$).
+        File plcFile = tempDir.resolve("plc" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "config.l5x").toFile();
+        File plcTestFile = tempDir.resolve("plc_test" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "config.l5x").toFile();
+        Files.writeString(plcFile.toPath(), "plc content");
+        Files.writeString(plcTestFile.toPath(), "plc_test content");
+
+        when(context.getName()).thenReturn("plc");
+        FilePreparation plcPrep = new FilePreparation(context, config);
+
+        File found = plcPrep.findExistingFileForDevice(tempDir.toFile());
+
+        assertThat(found).as("device 'plc' must only ever find its own file").isEqualTo(plcFile);
+        assertThat(plcTestFile).as("device 'plc_test' file must survive untouched").exists();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-3 (data-safety): retention pruning for one device must never delete a "
+        + "prefix-overlapping sibling device's files, even when the sibling's files are older")
+    void prefixOverlappingDeviceNamesDoNotCrossPrune() throws Exception {
+        int maxRetained = FileVersionManager.getMaxVersions();
+
+        // "plc_test" has one old file that would, under the old ambiguous "_"-prefix matching,
+        // have been swept into "plc"'s candidate list and been a pruning target.
+        File plcTestFile = tempDir.resolve("plc_test" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "old.l5x").toFile();
+        Files.writeString(plcTestFile.toPath(), "sibling content");
+        Files.setLastModifiedTime(plcTestFile.toPath(),
+            FileTime.fromMillis(System.currentTimeMillis() - 1_000_000L));
+
+        // "plc" has more uploads than its retention limit, so pruning will actually run.
+        File[] plcFiles = new File[maxRetained + 1];
+        for (int i = 0; i < plcFiles.length; i++) {
+            plcFiles[i] = tempDir.resolve(
+                "plc" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "v" + i + ".l5x").toFile();
+            Files.writeString(plcFiles[i].toPath(), "v" + i);
+            Files.setLastModifiedTime(plcFiles[i].toPath(),
+                FileTime.fromMillis(System.currentTimeMillis() - (plcFiles.length - i) * 100_000L));
+        }
+
+        when(context.getName()).thenReturn("plc");
+        FilePreparation plcPrep = new FilePreparation(context, config);
+
+        plcPrep.findExistingFileForDevice(tempDir.toFile());
+
+        assertThat(plcTestFile)
+            .as("device 'plc_test's file must never be pruned by device 'plc's retention sweep")
+            .exists();
+        assertThat(plcFiles[0]).as("plc's own oldest file was still pruned").doesNotExist();
+    }
+
+    @Test
+    @DisplayName("findExistingFileForDevice() still picks up a legacy '_'-separated file left over "
+        + "from before FIX-3 (backward compatibility) but never prunes it")
+    void legacyUnderscoreFileStillPickedUpButNeverPruned() throws Exception {
+        int maxRetained = FileVersionManager.getMaxVersions();
+        File legacy = tempDir.resolve("MyDevice_legacy.l5x").toFile();
+        Files.writeString(legacy.toPath(), "legacy content");
+        Files.setLastModifiedTime(legacy.toPath(),
+            FileTime.fromMillis(System.currentTimeMillis() - 1_000_000L));
+
+        // Enough SAFE-separator files to trigger pruning on their own tier.
+        File[] safeFiles = new File[maxRetained + 1];
+        for (int i = 0; i < safeFiles.length; i++) {
+            safeFiles[i] = tempDir.resolve(
+                "MyDevice" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "v" + i + ".l5x").toFile();
+            Files.writeString(safeFiles[i].toPath(), "v" + i);
+            Files.setLastModifiedTime(safeFiles[i].toPath(),
+                FileTime.fromMillis(System.currentTimeMillis() - (safeFiles.length - i) * 100_000L));
+        }
+
+        File found = prep.findExistingFileForDevice(tempDir.toFile());
+
+        // The newest safe-tier file still wins overall (it's more recent than the legacy file).
+        assertThat(found).isEqualTo(safeFiles[safeFiles.length - 1]);
+        assertThat(legacy).as("legacy file is picked-up-eligible, so must survive pruning").exists();
+        assertThat(safeFiles[0]).as("the safe tier's own oldest file was still pruned").doesNotExist();
     }
 
     @Test
@@ -156,8 +244,8 @@ class FilePreparationTest {
         + "match (defect B5 — previously the first match from an unordered listFiles() won, so "
         + "a Gateway restart could load a stale or arbitrary file instead of the latest upload)")
     void findsMostRecentlyModifiedAmongMultipleMatches() throws Exception {
-        File older = tempDir.resolve("MyDevice_old.l5x").toFile();
-        File newer = tempDir.resolve("MyDevice_new.l5x").toFile();
+        File older = tempDir.resolve("MyDevice.old.l5x").toFile();
+        File newer = tempDir.resolve("MyDevice.new.l5x").toFile();
         Files.writeString(older.toPath(), "old");
         Files.writeString(newer.toPath(), "new");
         Files.setLastModifiedTime(older.toPath(), FileTime.fromMillis(System.currentTimeMillis() - 100_000));
@@ -176,7 +264,7 @@ class FilePreparationTest {
         int maxRetained = FileVersionManager.getMaxVersions();
         File[] files = new File[maxRetained + 1];
         for (int i = 0; i < files.length; i++) {
-            files[i] = tempDir.resolve("MyDevice_v" + i + ".l5x").toFile();
+            files[i] = tempDir.resolve("MyDevice" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "v" + i + ".l5x").toFile();
             Files.writeString(files[i].toPath(), "v" + i);
             // Spread mtimes so ordering is deterministic: v0 is oldest, last index is newest.
             Files.setLastModifiedTime(files[i].toPath(),
@@ -197,7 +285,7 @@ class FilePreparationTest {
             // Each iteration creates a single-file directory in a sub-folder.
             Path subdir = tempDir.resolve(ext.substring(1));
             Files.createDirectories(subdir);
-            Files.writeString(subdir.resolve("MyDevice_x" + ext), "x");
+            Files.writeString(subdir.resolve("MyDevice" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "x" + ext), "x");
 
             File found = prep.findExistingFileForDevice(subdir.toFile());
 
@@ -245,6 +333,60 @@ class FilePreparationTest {
         // Parser never reached → built-in falls back to demo.
         assertThat(result).isNotNull();
         assertThat(result.has("global_tags")).isTrue();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-1: parseFileBuiltIn() returns null (not a demo structure) for an "
+        + "existing but malformed/garbage L5X file, so callers can honestly report a build "
+        + "failure instead of HTTP 200 success:true on a corrupt upload "
+        + "(plc-dod2/item6-verify.txt)")
+    void parseGarbageL5xReturnsNullNotDemo() throws Exception {
+        Path garbage = tempDir.resolve("garbage.l5x");
+        // Well-formed-enough-to-not-crash-the-JVM but semantically not an RSLogix5000Content
+        // export — the real L5XParser reads it as valid XML with no recognisable tag data,
+        // so it currently returns null rather than throwing.
+        Files.writeString(garbage, "<NotRSLogix5000Content><garbage/></NotRSLogix5000Content>");
+
+        JsonObject result = prep.parseFileBuiltIn(
+            garbage.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("a genuinely unparseable existing file must propagate null, never demo tags")
+            .isNull();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-1: parseFileBuiltIn() returns null for an XXE-bearing L5X upload "
+        + "(the DOCTYPE rejection inside L5XParser must reach the caller as a real failure, "
+        + "not be masked by a demo-tag fallback)")
+    void parseXxeL5xReturnsNullNotDemo() throws Exception {
+        String xxeContent = Files.readString(
+            Path.of("src/test/resources/test-files/xxe-big.l5x"));
+        Path xxeFile = tempDir.resolve("xxe-big.l5x");
+        Files.writeString(xxeFile, xxeContent);
+
+        JsonObject result = prep.parseFileBuiltIn(
+            xxeFile.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("an XXE-rejected file must propagate null, never demo tags")
+            .isNull();
+    }
+
+    @Test
+    @DisplayName("DoD FIX-6: parseFileBuiltIn() returns null (not a demo structure) for a "
+        + "garbage .l5k upload with no recognisable TAG/PROGRAM sections, so the upload path "
+        + "reports an honest 4xx naming the L5K parser rather than HTTP 200 success:true")
+    void parseGarbageL5kReturnsNullNotDemo() throws Exception {
+        Path garbage = tempDir.resolve("garbage.l5k");
+        Files.writeString(garbage, "this is not an L5K export at all, just some prose\n");
+
+        JsonObject result = prep.parseFileBuiltIn(
+            garbage.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("a garbage .l5k file must not be silently replaced with an L5K_ParseError demo tag")
+            .isNull();
     }
 
     @Test

@@ -292,4 +292,58 @@ class TagSimulationFacadeTest {
 
         verifyNoInteractions(paths);
     }
+
+    // -------------------------------------------------------------------------
+    // Read-only skip on bulk-by-scope (FIX-2 part 2) — the 3-arg constructor
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("3-arg constructor rejects null readOnlyPredicate")
+    void constructorRejectsNullReadOnlyPredicate() {
+        assertThatThrownBy(() -> new TagSimulationFacade(() -> engine, tagPathsSupplier, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("2-arg constructor defaults to treating no tag as read-only (existing behaviour "
+        + "preserved for callers that don't supply a read-only predicate)")
+    void twoArgConstructorTreatsNoTagAsReadOnly() {
+        TagSimulationFacade f = new TagSimulationFacade(() -> engine, () -> Set.of("AnyTag"));
+
+        int skipped = f.enableSimulationByScope("");
+
+        assertThat(skipped).isZero();
+        verify(engine).enableTagSimulation("AnyTag");
+    }
+
+    @Test
+    @DisplayName("enableSimulationByScope() skips read-only tags rather than simulating them, and "
+        + "reports how many were skipped (FIX-2 part 2) — a read-only tag in the scope must not "
+        + "fail the whole bulk operation")
+    void enableScopeSkipsReadOnlyTagsAndReportsCount() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("RampInt", "SimpleArray[0]", "Motor_1.Speed"),
+            tagPath -> tagPath.equals("SimpleArray[0]")
+        );
+
+        int skipped = f.enableSimulationByScope("");
+
+        assertThat(skipped).isEqualTo(1);
+        verify(engine).enableTagSimulation("RampInt");
+        verify(engine).enableTagSimulation("Motor_1.Speed");
+        verify(engine, never()).enableTagSimulation("SimpleArray[0]");
+    }
+
+    @Test
+    @DisplayName("enableSimulationByScope() returns 0 skipped when no engine is available")
+    void enableScopeNoEngineReturnsZeroSkipped() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> null,
+            tagPathsSupplier,
+            tagPath -> true
+        );
+
+        assertThat(f.enableSimulationByScope("scope")).isZero();
+    }
 }

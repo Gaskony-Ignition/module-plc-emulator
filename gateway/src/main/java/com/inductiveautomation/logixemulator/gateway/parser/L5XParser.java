@@ -642,9 +642,9 @@ public class L5XParser implements PLCParser {
      * {@code <Structure>}) Data elements have no {@code <DataValue>} child at all, so this
      * correctly returns {@code null} for them - {@code AddressSpaceBuilder.getInitialValue()}
      * then takes its type-appropriate default path (defect B1's fix). Per-member/per-element
-     * initial values for those constructs are deliberately out of scope for C8 - ADDRESSING.md
-     * does not cover initial values, so this stays conservative: only the single scalar tag
-     * value is read.
+     * initial values for those constructs are deliberately out of scope for C8 (FIX-14,
+     * ADDRESSING.md §3.10a records this as a maintainer scope decision, post-v10) - this stays
+     * conservative: only the single scalar tag value is read.
      */
     private String extractValue(Element dataElement, String dataType) {
         try {

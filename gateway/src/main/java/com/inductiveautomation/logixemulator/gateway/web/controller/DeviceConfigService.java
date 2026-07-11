@@ -4,6 +4,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.regex.Pattern;
 
 /**
  * Centralised configuration / device-name validation for REST controllers.
@@ -64,5 +65,39 @@ public final class DeviceConfigService {
             return new JSONObject().put("success", false).put("error", "Invalid device name");
         }
         return null;
+    }
+
+    /**
+     * Matches an absolute Unix path ({@code /foo/bar/baz}) or an absolute Windows path
+     * ({@code C:\foo\bar}) of at least two path segments, so a bare leading slash in ordinary
+     * prose isn't mistaken for a path.
+     */
+    private static final Pattern ABSOLUTE_PATH_PATTERN = Pattern.compile(
+        "(?:[A-Za-z]:\\\\(?:[^\\s\\\\]+\\\\)+[^\\s\\\\]*)"
+            + "|(?:/(?:[^\\s/]+/)+[^\\s/]*)");
+
+    /**
+     * Sanitises a device status string before it is echoed in a REST response body (FIX-7,
+     * 11/07/2026). {@code LogixEmulatorDevice.onStartup} / {@code HotReloadCoordinator} set the
+     * device status directly from a caught exception's message (e.g.
+     * {@code "Error: " + e.getMessage()}), and exception messages from file I/O failures
+     * routinely embed the full absolute filesystem path of the file involved
+     * ({@code FileNotFoundException}'s message IS the path). {@link DeviceController} and
+     * {@link VersionController} both echo that status verbatim in their 422 bodies
+     * ({@code error} and {@code status} fields), which would otherwise leak server filesystem
+     * layout to any REST caller.
+     *
+     * <p>This is the single point both controllers call before including a device status in a
+     * response - callers should never format the raw status into a response body directly.</p>
+     *
+     * @param status a raw device status (may be {@code null})
+     * @return {@code status} with any absolute path replaced by {@code "<path>"}, or {@code null}
+     *     if {@code status} was {@code null}
+     */
+    public static String sanitizeStatusForResponse(String status) {
+        if (status == null) {
+            return null;
+        }
+        return ABSOLUTE_PATH_PATTERN.matcher(status).replaceAll("<path>");
     }
 }

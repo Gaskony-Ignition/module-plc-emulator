@@ -22,6 +22,31 @@ public class DeviceFileManager {
     private static final String STORAGE_DIR_NAME = "logix-emulator";
     private static final String OLD_STORAGE_DIR_NAME = "plc-simulator";
 
+    /**
+     * Separator between a device name and its uploaded filename in the on-disk name this class
+     * gives an uploaded file (defect FIX-3, 11/07/2026 — a data-safety fix, not cosmetic).
+     *
+     * <p>The previous separator was {@code "_"}, which device names are themselves allowed to
+     * contain ({@code DeviceConfigService}'s name regex is {@code ^[a-zA-Z0-9_-]+$}). That made
+     * {@code startsWith(deviceName + "_")} ambiguous: device {@code "plc"}'s file-search prefix
+     * {@code "plc_"} also matches device {@code "plc_test"}'s files (named
+     * {@code "plc_test_<filename>"}), so {@link FilePreparation#findExistingFileForDevice} could
+     * pick up — and, worse, its retention pruning could <b>delete</b> — a sibling device's files.
+     *
+     * <p>{@code "."} can never appear inside a valid device name (excluded by the same regex),
+     * so {@code deviceName + DEVICE_FILE_SEPARATOR} can never be a prefix of
+     * {@code otherDeviceName + DEVICE_FILE_SEPARATOR} for any other valid device name: the two
+     * names either differ in an actual character before either reaches the separator, or the
+     * shorter one hits its own separator while the longer one is still inside its name (which
+     * cannot contain a {@code "."} to match). This holds regardless of what other devices exist —
+     * no registry lookup is needed.
+     *
+     * <p>Files already on disk from before this change used {@code "_"}; {@link FilePreparation}
+     * still recognises them for pickup (so an upgrade doesn't orphan existing uploads) but never
+     * prunes/deletes through that legacy, ambiguous match — only through this safe one.
+     */
+    public static final String DEVICE_FILE_SEPARATOR = ".";
+
     private final GatewayContext context;
     private final DeviceRegistry registry;
 
@@ -96,7 +121,7 @@ public class DeviceFileManager {
             }
 
             String sanitizedFileName = PathSecurity.sanitizeFileName(filename);
-            String deviceSpecificName = device.getName() + "_" + sanitizedFileName;
+            String deviceSpecificName = device.getName() + DEVICE_FILE_SEPARATOR + sanitizedFileName;
             File targetFile = new File(storageDir, deviceSpecificName);
 
             Files.writeString(

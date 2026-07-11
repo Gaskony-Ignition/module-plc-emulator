@@ -159,10 +159,15 @@ public class DeviceController {
 
         if (isBuildFailureStatus(status)) {
             resp.setStatus(SC_UNPROCESSABLE_ENTITY);
+            // FIX-7 (11/07/2026): status can carry a raw exception message (e.g. onStartup /
+            // HotReloadCoordinator set "Error: " + e.getMessage() verbatim), and exception
+            // messages from file I/O failures routinely embed the server's absolute filesystem
+            // path - sanitise before it's echoed to a REST caller.
+            String safeStatus = DeviceConfigService.sanitizeStatusForResponse(status);
             return result.put("success", false).put("filename", filename)
                 .put("size", fileContent.length()).put("device", deviceName)
-                .put("error", "File saved but failed to apply to device: " + status)
-                .put("status", status);
+                .put("error", "File saved but failed to apply to device: " + safeStatus)
+                .put("status", safeStatus);
         }
 
         // Defect B5: version the file only now that it is confirmed to have actually parsed and

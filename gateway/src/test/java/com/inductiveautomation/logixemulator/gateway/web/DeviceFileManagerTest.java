@@ -83,7 +83,7 @@ class DeviceFileManagerTest {
         assertThat(storageDir).exists().isDirectory();
 
         verify(device).setCurrentFilePath(argThat(path ->
-            path != null && path.contains("TestDevice_program.l5k")
+            path != null && path.contains("TestDevice.program.l5k")
         ));
     }
 
@@ -100,7 +100,7 @@ class DeviceFileManagerTest {
 
         assertThat(result).isTrue();
         verify(device).setCurrentFilePath(argThat(path ->
-            path != null && path.endsWith("TestDevice_my-program.l5k")
+            path != null && path.endsWith("TestDevice.my-program.l5k")
         ));
     }
 
@@ -148,7 +148,7 @@ class DeviceFileManagerTest {
         assertThat(result).isTrue();
 
         File storageDir = manager.getStorageDirectory();
-        File writtenFile = new File(storageDir, "TestDevice_test.l5k");
+        File writtenFile = new File(storageDir, "TestDevice.test.l5k");
         assertThat(writtenFile).exists();
         assertThat(Files.readString(writtenFile.toPath())).isEqualTo(content);
     }

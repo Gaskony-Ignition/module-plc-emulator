@@ -206,23 +206,28 @@ class L5KParserTest {
     }
 
     @Test
-    @DisplayName("Should handle empty file gracefully")
+    @DisplayName("DoD FIX-6: an empty file yields no tags and must return null (an honest parse "
+        + "failure), not a demo tag structure that masks the upload as successful")
     void testEmptyFile() {
         JsonObject result = parser.parseContent("", "empty.l5k");
 
-        // Should return a demo structure rather than null
-        assertThat(result).isNotNull();
+        assertThat(result)
+            .as("zero recognisable tags is a parse failure, not a demo opportunity")
+            .isNull();
     }
 
     @Test
-    @DisplayName("Should handle malformed content gracefully")
+    @DisplayName("DoD FIX-6: malformed content with no recognisable TAG/PROGRAM sections must "
+        + "return null rather than the old 'L5K_ParseError' demo tag - previously this let a "
+        + "garbage .l5k upload report HTTP 200 success:true (plc-dod2/item6-verify.txt lineage)")
     void testMalformedContent() {
         String malformed = "This is not valid L5K content at all!";
 
         JsonObject result = parser.parseContent(malformed, "malformed.l5k");
 
-        // Should return demo structure, not crash
-        assertThat(result).isNotNull();
+        assertThat(result)
+            .as("garbage content must not be silently replaced with a demo tag")
+            .isNull();
     }
 
     @Test

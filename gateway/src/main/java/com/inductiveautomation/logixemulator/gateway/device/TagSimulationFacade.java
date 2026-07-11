@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -32,6 +33,7 @@ public final class TagSimulationFacade {
 
     private final Supplier<OpcUaSimulationEngine> engineSupplier;
     private final Supplier<Set<String>> allTagPathsSupplier;
+    private final Predicate<String> readOnlyPredicate;
 
     /**
      * Vendor addressing policy used for scope membership (v10 C1): under the canonical NodeId
@@ -52,14 +54,39 @@ public final class TagSimulationFacade {
         Supplier<OpcUaSimulationEngine> engineSupplier,
         Supplier<Set<String>> allTagPathsSupplier
     ) {
+        this(engineSupplier, allTagPathsSupplier, tagPath -> false);
+    }
+
+    /**
+     * @param engineSupplier returns the current simulation engine (may be
+     *     {@code null} if no engine is started)
+     * @param allTagPathsSupplier returns the set of all known tag paths in
+     *     the address space — used by enable-all and enable-by-scope. Should
+     *     never return {@code null}; an empty set is fine.
+     * @param readOnlyPredicate returns whether a given tag path is flagged
+     *     read-only in the OPC-UA address space (FIX-2 part 2). Consulted by
+     *     {@link #enableSimulationByScope} to skip read-only tags rather than
+     *     let the engine start writing simulated values into them on tick —
+     *     the engine itself never consults AccessLevel, so this is the only
+     *     choke point for the bulk-by-scope path.
+     */
+    public TagSimulationFacade(
+        Supplier<OpcUaSimulationEngine> engineSupplier,
+        Supplier<Set<String>> allTagPathsSupplier,
+        Predicate<String> readOnlyPredicate
+    ) {
         if (engineSupplier == null) {
             throw new IllegalArgumentException("engineSupplier must not be null");
         }
         if (allTagPathsSupplier == null) {
             throw new IllegalArgumentException("allTagPathsSupplier must not be null");
         }
+        if (readOnlyPredicate == null) {
+            throw new IllegalArgumentException("readOnlyPredicate must not be null");
+        }
         this.engineSupplier = engineSupplier;
         this.allTagPathsSupplier = allTagPathsSupplier;
+        this.readOnlyPredicate = readOnlyPredicate;
     }
 
     /** Enable simulation for a specific tag using the engine's default pattern. */
@@ -151,20 +178,34 @@ public final class TagSimulationFacade {
      * controller scope, {@code Program:} = all programs, {@code Program:<Prog>} = one program).
      * Membership is decided by {@link AddressPolicy#matchesScope} — see the {@code policy} field
      * note for why plain prefix matching is wrong under the v10 canonical NodeId scheme.
+     *
+     * <p>FIX-2 part 2: tags flagged read-only are SKIPPED rather than simulated, so one read-only
+     * tag in a scope doesn't fail the whole bulk operation. The skipped count is returned so the
+     * caller can surface it (e.g. as a {@code skippedReadOnly} response field) rather than the
+     * exclusion being silent.</p>
+     *
+     * @return the number of matched tags skipped because they are flagged read-only
      */
-    public void enableSimulationByScope(String scope) {
+    public int enableSimulationByScope(String scope) {
         OpcUaSimulationEngine engine = engineSupplier.get();
         if (engine == null) {
-            return;
+            return 0;
         }
         int count = 0;
+        int skippedReadOnly = 0;
         for (String tagPath : allTagPathsSupplier.get()) {
             if (policy.matchesScope(tagPath, scope)) {
+                if (readOnlyPredicate.test(tagPath)) {
+                    skippedReadOnly++;
+                    continue;
+                }
                 engine.enableTagSimulation(tagPath);
                 count++;
             }
         }
-        logger.info("Enabled simulation for {} tags in scope: {}", count, scope);
+        logger.info("Enabled simulation for {} tags in scope: {} ({} read-only tags skipped)",
+            count, scope, skippedReadOnly);
+        return skippedReadOnly;
     }
 
     /** Disable simulation for every currently-simulated tag within the given scope selector. */

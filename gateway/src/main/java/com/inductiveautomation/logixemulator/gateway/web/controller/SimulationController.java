@@ -4,6 +4,7 @@ import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
 import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
+import com.inductiveautomation.logixemulator.gateway.device.TagWriteDispatcher;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.GatewayAuthHelper;
 import com.inductiveautomation.logixemulator.gateway.web.RateLimiter;
@@ -174,17 +175,27 @@ public class SimulationController {
             Object typedValue = convertValue(valueStr, dataType);
 
             LogixEmulatorDevice device = deviceOpt.get();
-            boolean success = device.writeTagValue(opcuaPath, typedValue);
+            TagWriteDispatcher.WriteResult writeResult = device.writeTagValue(opcuaPath, typedValue);
 
-            if (success) {
-                return result.put("success", true)
-                    .put("message", "Tag value written successfully")
-                    .put("tagPath", tagPath)
-                    .put("value", valueStr);
-            } else {
-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                return result.put("success", false)
-                    .put("error", "Tag not found or write failed: " + tagPath);
+            switch (writeResult) {
+                case SUCCESS -> {
+                    return result.put("success", true)
+                        .put("message", "Tag value written successfully")
+                        .put("tagPath", tagPath)
+                        .put("value", valueStr);
+                }
+                case READ_ONLY -> {
+                    // FIX-2: distinguish "read-only" from "not found" so callers get an
+                    // actionable 403 rather than a confusing 404 for a tag that does exist.
+                    resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return result.put("success", false)
+                        .put("error", "Tag '" + tagPath + "' is read-only and cannot be written");
+                }
+                default -> {
+                    resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                    return result.put("success", false)
+                        .put("error", "Tag not found or write failed: " + tagPath);
+                }
             }
 
         } catch (Exception e) {
@@ -252,6 +263,21 @@ public class SimulationController {
 
             String pattern = requestJson.optString("pattern", null);
             boolean enabled;
+
+            // FIX-2 part 2: refuse to arm simulation on a read-only tag before the engine
+            // ever starts writing to it on tick — the engine writes directly to the node and,
+            // like the REST write path (handleWriteTag), never itself consults AccessLevel.
+            // "Would enable" covers both the explicit enabled:true form and the bare toggle
+            // form (which flips whatever the tag's current simulation state is).
+            boolean wouldEnable = requestJson.has("enabled")
+                ? requestJson.getBoolean("enabled")
+                : !device.isTagSimulated(opcuaPath);
+
+            if (wouldEnable && device.isTagReadOnly(opcuaPath)) {
+                resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return result.put("success", false)
+                    .put("error", "Tag '" + tagPath + "' is read-only and cannot be simulated");
+            }
 
             if (requestJson.has("enabled")) {
                 enabled = requestJson.getBoolean("enabled");
@@ -376,8 +402,12 @@ public class SimulationController {
             // TagSimulationFacade.
             String opcuaScope = convertToNodeIdPath(scope);
 
+            // FIX-2 part 2: read-only tags within the scope are skipped (not simulated) rather
+            // than failing the whole bulk operation — skippedReadOnly tells the caller some
+            // matched tags were silently excluded.
+            int skippedReadOnly = 0;
             if (enabled) {
-                device.enableSimulationByScope(opcuaScope);
+                skippedReadOnly = device.enableSimulationByScope(opcuaScope);
             } else {
                 device.disableSimulationByScope(opcuaScope);
             }
@@ -385,7 +415,8 @@ public class SimulationController {
             return result.put("success", true)
                 .put("scope", scope)
                 .put("enabled", enabled)
-                .put("simulatedTagCount", device.getSimulatedTagCount());
+                .put("simulatedTagCount", device.getSimulatedTagCount())
+                .put("skippedReadOnly", skippedReadOnly);
 
         } catch (Exception e) {
             logger.error("Error in bulk simulation by scope", e);
