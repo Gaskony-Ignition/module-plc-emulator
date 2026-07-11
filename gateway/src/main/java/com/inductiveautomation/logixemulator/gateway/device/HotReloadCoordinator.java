@@ -120,8 +120,12 @@ public final class HotReloadCoordinator {
 
             JsonObject newData = filePreparation.parseFile(currentFilePath);
             if (newData == null) {
-                statusSetter.accept("Error: Failed to parse file after reload");
-                logger.error("Failed to parse file during hot reload");
+                // Name the file, not just "a file", so the honest 4xx this status feeds into
+                // (DeviceController/VersionController's B4 gate) is specific enough for a caller
+                // to tell which upload/revert failed (FIX-1/FIX-6).
+                statusSetter.accept(
+                    "Error: Failed to parse file '" + new File(currentFilePath).getName() + "' after reload");
+                logger.error("Failed to parse file during hot reload: {}", currentFilePath);
                 return;
             }
 

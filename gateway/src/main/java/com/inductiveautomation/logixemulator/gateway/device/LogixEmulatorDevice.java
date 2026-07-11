@@ -201,7 +201,14 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
 
             if (parsedData == null) {
                 String parserType = config.parser().parserType().getDisplayName();
-                deviceStatus = String.format("Error: %s parser failed to parse file. Check gateway logs for details.", parserType);
+                // Naming the file (not just the parser family) in the status makes the honest
+                // 4xx this feeds into (DeviceController's B4 gate) specific enough for a caller
+                // to identify which upload failed and with which parser - including for L5K,
+                // whose format-specific failure mode (FIX-6) previously never reached here at all
+                // because L5KParser silently substituted a demo tag instead of returning null.
+                deviceStatus = String.format(
+                    "Error: %s parser failed to parse file '%s'. Check gateway logs for details.",
+                    parserType, new File(currentFilePath).getName());
                 logger.error("[{}] Failed to parse PLC file: {} - parser returned null",
                     config.parser().parserType().getKey().toUpperCase(),
                     currentFilePath);

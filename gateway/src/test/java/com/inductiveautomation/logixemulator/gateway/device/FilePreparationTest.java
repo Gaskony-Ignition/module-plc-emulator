@@ -286,6 +286,22 @@ class FilePreparationTest {
     }
 
     @Test
+    @DisplayName("DoD FIX-6: parseFileBuiltIn() returns null (not a demo structure) for a "
+        + "garbage .l5k upload with no recognisable TAG/PROGRAM sections, so the upload path "
+        + "reports an honest 4xx naming the L5K parser rather than HTTP 200 success:true")
+    void parseGarbageL5kReturnsNullNotDemo() throws Exception {
+        Path garbage = tempDir.resolve("garbage.l5k");
+        Files.writeString(garbage, "this is not an L5K export at all, just some prose\n");
+
+        JsonObject result = prep.parseFileBuiltIn(
+            garbage.toString(), LogixEmulatorConfig.ParserType.ROCKWELL);
+
+        assertThat(result)
+            .as("a garbage .l5k file must not be silently replaced with an L5K_ParseError demo tag")
+            .isNull();
+    }
+
+    @Test
     @DisplayName("getVersionManager() returns null until prepareFile() runs")
     void versionManagerInitialNull() {
         assertThat(prep.getVersionManager()).isNull();

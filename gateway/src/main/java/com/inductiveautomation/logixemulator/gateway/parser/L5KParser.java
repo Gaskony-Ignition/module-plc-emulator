@@ -122,22 +122,33 @@ public class L5KParser implements PLCParser {
                 parseResult.programTags.values().stream().mapToInt(JsonArray::size).sum();
             logger.info("L5K parsing complete: {} tags, {} UDT instances", totalTags, parseResult.udtInstanceCount);
 
-            return totalTags > 0 ? result : createDemoStructure();
+            // DoD FIX-6 (11/07/2026): a file with zero tag instances AND zero user-defined
+            // types/AOIs has nothing recognisable in it at all - not a valid L5K export. A
+            // type-definitions-only file (a legitimate DATATYPE block with no TAG section yet)
+            // must NOT be treated as garbage, so this only fires when both are empty. Previously
+            // any zero-tag result (including genuinely garbage content) silently substituted a
+            // single "L5K_ParseError" demo tag, which let a garbage .l5k upload reach HTTP 200
+            // success:true (same B4 dishonesty as FIX-1).
+            if (totalTags == 0 && !result.has("udts")) {
+                logger.error(
+                    "L5K parse failed for '{}': no recognisable TAG/PROGRAM sections or "
+                        + "user-defined types found across {} line(s) - not a valid L5K export",
+                    fileName, lines.length);
+                return null;
+            }
+
+            return result;
 
         } catch (Exception e) {
-            logger.error("[L5K Parser] Error parsing file '{}': {} - {}",
+            // Same honesty requirement: an exception mid-parse is a genuine failure, not a demo
+            // opportunity. The specific cause is logged in full; the caller (FilePreparation /
+            // LogixEmulatorDevice) surfaces an honest 4xx naming the file and parser.
+            logger.error("L5K parse failed for '{}': {} - {}",
                 fileName,
                 e.getClass().getSimpleName(),
                 e.getMessage(),
                 e);
-            // Return demo structure but log detailed error for debugging
-            JsonObject errorResult = createDemoStructure();
-            errorResult.addProperty("parse_error", String.format(
-                "L5K parsing failed for '%s': %s",
-                fileName,
-                e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()
-            ));
-            return errorResult;
+            return null;
         }
     }
 
@@ -384,22 +395,6 @@ public class L5KParser implements PLCParser {
             }
         }
         return "UnknownController";
-    }
-
-    private JsonObject createDemoStructure() {
-        JsonObject result = new JsonObject();
-        result.addProperty("controller", "DemoController");
-        result.addProperty("vendor", "rockwell");
-        result.addProperty("format", "L5K");
-        JsonArray tags = new JsonArray();
-        JsonObject errorTag = new JsonObject();
-        errorTag.addProperty("name", "L5K_ParseError");
-        errorTag.addProperty("data_type", "DINT");
-        errorTag.addProperty("value", 1);
-        errorTag.addProperty("description", "L5K file could not be parsed - check format");
-        tags.add(errorTag);
-        result.add("global_tags", tags);
-        return result;
     }
 
     @Override
