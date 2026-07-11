@@ -404,8 +404,10 @@ public class AddressSpaceBuilder {
      *     members. Custom {@code STRING_n} types are NOT included here - the corpus shows them as
      *     ordinary user-defined {@code <DataType>}s with no confirmed dual-value requirement of
      *     their own, and this predicate stays scoped to what §3.10 DOC-CONFIRMS.
+     *     Package-private so {@code IncrementalAddressSpaceUpdater} keys the hot-reload diff on
+     *     the same node shape (FIX-4).
      */
-    private static boolean isBaseStringType(String dataType) {
+    static boolean isBaseStringType(String dataType) {
         return "STRING".equalsIgnoreCase(dataType);
     }
 
@@ -485,8 +487,12 @@ public class AddressSpaceBuilder {
         return sb.append(']').toString();
     }
 
-    /** @return {@code true} if the JSON tag/member carries a non-empty {@code udt_members} array. */
-    private static boolean hasMembers(JsonObject node) {
+    /**
+     * @return {@code true} if the JSON tag/member carries a non-empty {@code udt_members} array.
+     *     Package-private so {@code IncrementalAddressSpaceUpdater} applies the identical
+     *     structure test when expanding the hot-reload diff (FIX-4).
+     */
+    static boolean hasMembers(JsonObject node) {
         return node.has("udt_members") && node.getAsJsonArray("udt_members").size() > 0;
     }
 

@@ -153,11 +153,17 @@ public class IncrementalAddressSpaceUpdater {
     /**
      * Apply incremental updates to existing nodes.
      * Only updates values of existing tags - doesn't add/remove nodes.
+     *
+     * @return {@code true} if every changed tag was applied to a real variable node; {@code false}
+     *     if any update failed. A {@code false} return means the address space no longer matches
+     *     the parsed data, so the caller MUST fall back to a full rebuild rather than report the
+     *     reload as successful (FIX-4 - previously failures were only counted and logged, and the
+     *     upload path claimed success regardless).
      */
-    public void applyIncrementalUpdate(CompareResult changes) {
+    public boolean applyIncrementalUpdate(CompareResult changes) {
         if (!changes.hasChanges()) {
             logger.debug("No changes to apply");
-            return;
+            return true;
         }
 
         int updated = 0;
@@ -165,9 +171,10 @@ public class IncrementalAddressSpaceUpdater {
 
         for (TagChange change : changes.changedTags.values()) {
             try {
-                // Tag paths from extractAllTags ARE the canonical NodeId identifiers (v10 C1):
-                // controller tags/members are bare ("TagName", "UDT.Member"); program tags carry
-                // the Program:<Prog> selector ("Program:MainProgram.TagName"). No further prefixing.
+                // Tag paths from extractAllTags ARE the canonical NodeId identifiers (v10
+                // C1/C2/C3): controller tags/members are bare ("TagName", "UDT.Member", "Arr[0]",
+                // "Bits[0].5"); program tags carry the Program:<Prog> selector
+                // ("Program:MainProgram.TagName"). No further prefixing.
                 String nodeIdPath = change.tagPath;
                 NodeId nodeId = nodeIdFactory.apply(nodeIdPath);
                 UaNode node = nodeLookup.apply(nodeId);
@@ -188,6 +195,7 @@ public class IncrementalAddressSpaceUpdater {
         }
 
         logger.info("Incremental update complete: {} updated, {} failed", updated, failed);
+        return failed == 0;
     }
 
     /**
@@ -207,35 +215,33 @@ public class IncrementalAddressSpaceUpdater {
         return true;
     }
 
+    /**
+     * Flattens the parsed PLC data into a map of canonical NodeId identifier to the JSON
+     * tag/member object that carries its value - the SAME expanded identifiers the address space
+     * actually contains post-C2/C3 (FIX-4). Expansion mirrors {@code AddressSpaceBuilder}'s
+     * node-creation dispatch exactly, driven through the shared {@link AddressPolicy}:
+     * <ul>
+     *   <li>arrays expand to {@code Tag[i]}/{@code Tag[i,j]} element identifiers - the bare array
+     *       base identifier has NO node and is never used as a key;</li>
+     *   <li>1-D BOOL arrays expand to DWORD-packed {@code Tag[word].bit} identifiers (C3);</li>
+     *   <li>UDT/AOI members recurse to arbitrary depth ({@code Tag.Inner.Val}) - previously only
+     *       one member level was visited, so a depth-2 change produced no diff at all;</li>
+     *   <li>UDT parent Object nodes carry no value and are not keyed; the base-STRING hybrid
+     *       parent (FIX-5) IS keyed because it is a value-carrying variable node.</li>
+     * </ul>
+     */
     private Map<String, JsonObject> extractAllTags(JsonObject plcData) {
         Map<String, JsonObject> tags = new HashMap<>();
 
-        // Extract global tags
+        // Controller-scoped (global) tags - bare canonical identifiers (v10 C1).
         if (plcData.has("global_tags")) {
             JsonArray globalTags = plcData.getAsJsonArray("global_tags");
             for (JsonElement elem : globalTags) {
-                JsonObject tag = elem.getAsJsonObject();
-                if (tag.has("name")) {
-                    // Controller-scoped canonical identifier is the bare tag name (v10 C1).
-                    String name = policy.join(policy.controllerScopePrefix(), tag.get("name").getAsString());
-                    tags.put(name, tag);
-
-                    // Also extract UDT members (canonical dotted member identifiers)
-                    if (tag.has("udt_members")) {
-                        JsonArray members = tag.getAsJsonArray("udt_members");
-                        for (JsonElement memberElem : members) {
-                            JsonObject member = memberElem.getAsJsonObject();
-                            if (member.has("name")) {
-                                String memberPath = policy.join(name, member.get("name").getAsString());
-                                tags.put(memberPath, member);
-                            }
-                        }
-                    }
-                }
+                collectTag(tags, policy.controllerScopePrefix(), elem.getAsJsonObject());
             }
         }
 
-        // Extract program tags
+        // Program-scoped tags - Program:<Prog>.TagName canonical identifiers (v10 C1).
         if (plcData.has("programs")) {
             JsonArray programs = plcData.getAsJsonArray("programs");
             for (JsonElement progElem : programs) {
@@ -243,21 +249,92 @@ public class IncrementalAddressSpaceUpdater {
                 String programName = program.has("name") ? program.get("name").getAsString() : "Unknown";
 
                 if (program.has("tags")) {
-                    JsonArray programTags = program.getAsJsonArray("tags");
                     String scopePrefix = policy.programScopePrefix(programName);
-                    for (JsonElement tagElem : programTags) {
-                        JsonObject tag = tagElem.getAsJsonObject();
-                        if (tag.has("name")) {
-                            // Program-scoped canonical identifier: Program:<Prog>.TagName (v10 C1).
-                            String tagPath = policy.join(scopePrefix, tag.get("name").getAsString());
-                            tags.put(tagPath, tag);
-                        }
+                    for (JsonElement tagElem : program.getAsJsonArray("tags")) {
+                        collectTag(tags, scopePrefix, tagElem.getAsJsonObject());
                     }
                 }
             }
         }
 
         return tags;
+    }
+
+    /**
+     * Collects a single top-level tag, mirroring {@code AddressSpaceBuilder.addTag}'s dispatch:
+     * a tag is an array only when it carries BOTH {@code isArray} and {@code dimensions} (a
+     * member needs only {@code dimensions}), and tags without a name or data type create no
+     * nodes so they contribute no keys.
+     */
+    private void collectTag(Map<String, JsonObject> out, String scopePrefix, JsonObject tag) {
+        if (tag.get("name") == null || tag.get("data_type") == null) {
+            return;
+        }
+        String baseId = policy.join(scopePrefix, tag.get("name").getAsString());
+        String dataType = tag.get("data_type").getAsString();
+
+        boolean isArray = tag.has("isArray") && tag.get("isArray").getAsBoolean() && tag.has("dimensions");
+        int[] dims = isArray
+            ? policy.parseDimensions(tag.get("dimensions").getAsString())
+            : new int[0];
+
+        collectExpanded(out, baseId, dataType, tag, dims);
+    }
+
+    /**
+     * Expands one tag/member into its canonical value-node identifiers, recursing through
+     * members at arbitrary depth. {@code dims} is empty for a scalar.
+     */
+    private void collectExpanded(
+            Map<String, JsonObject> out, String baseId, String dataType, JsonObject source, int[] dims) {
+        boolean isUdt = AddressSpaceBuilder.hasMembers(source);
+
+        if (dims.length > 0) {
+            if (policy.isBoolType(dataType) && !isUdt && dims.length == 1) {
+                // DWORD-packed BOOL array (C3): only Tag[word].bit nodes exist.
+                for (int n = 0; n < dims[0]; n++) {
+                    out.put(policy.boolArrayBit(baseId, n), source);
+                }
+                return;
+            }
+            for (int[] indices : policy.enumerateIndices(dims)) {
+                String elemId = policy.arrayElement(baseId, indices);
+                if (isUdt) {
+                    // Array-of-struct element: an Object node (no value) with member children.
+                    collectMembers(out, elemId, source);
+                } else {
+                    out.put(elemId, source);
+                }
+            }
+            return;
+        }
+
+        if (isUdt) {
+            if (AddressSpaceBuilder.isBaseStringType(dataType)) {
+                // FIX-5 hybrid: the STRING parent is a value-carrying variable node.
+                out.put(baseId, source);
+            }
+            collectMembers(out, baseId, source);
+            return;
+        }
+
+        out.put(baseId, source);
+    }
+
+    /** Recurses into a UDT/AOI instance's members (arbitrary depth - FIX-4). */
+    private void collectMembers(Map<String, JsonObject> out, String parentId, JsonObject udtNode) {
+        for (JsonElement memberElem : udtNode.getAsJsonArray("udt_members")) {
+            JsonObject member = memberElem.getAsJsonObject();
+            if (member.get("name") == null || member.get("data_type") == null) {
+                continue;
+            }
+            String memberId = policy.join(parentId, member.get("name").getAsString());
+            String memberType = member.get("data_type").getAsString();
+            int[] dims = member.has("dimensions")
+                ? policy.parseDimensions(member.get("dimensions").getAsString())
+                : new int[0];
+            collectExpanded(out, memberId, memberType, member, dims);
+        }
     }
 
     private TagChange compareTag(String tagPath, JsonObject oldTag, JsonObject newTag) {

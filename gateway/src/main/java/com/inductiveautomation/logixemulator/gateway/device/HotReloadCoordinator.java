@@ -144,14 +144,19 @@ public final class HotReloadCoordinator {
                         "Applying incremental update ({} value changes)",
                         changes.changedTags.size()
                     );
-                    updater.applyIncrementalUpdate(changes);
-                    parsedDataSetter.accept(newData);
-                    statusSetter.accept("Running");
-                    logger.info("Incremental update complete - no rebuild required");
-                    return;
+                    if (updater.applyIncrementalUpdate(changes)) {
+                        parsedDataSetter.accept(newData);
+                        statusSetter.accept("Running");
+                        logger.info("Incremental update complete - no rebuild required");
+                        return;
+                    }
+                    // FIX-4: some change did not reach a real node - the address space no
+                    // longer matches the parsed data, so rebuild instead of claiming success.
+                    logger.warn(
+                        "Incremental update could not apply all changes - falling back to full rebuild");
+                } else {
+                    logger.info("Structural changes detected - performing full rebuild");
                 }
-
-                logger.info("Structural changes detected - performing full rebuild");
             }
 
             fullRebuildHandler.accept(newData);
