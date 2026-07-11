@@ -2,6 +2,8 @@ package com.inductiveautomation.logixemulator.gateway.device;
 
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.OpcUaSimulationEngine;
+import com.inductiveautomation.logixemulator.gateway.device.TagWriteDispatcher.WriteResult;
+import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.server.UaNodeManager;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
@@ -63,6 +65,12 @@ class TagWriteDispatcherTest {
         lenient().when(context.nodeId(anyString())).thenAnswer(inv ->
             new NodeId(2, "test/" + inv.getArgument(0))
         );
+
+        // Default the shared @Mock variableNode to a normal read-write tag so
+        // existing write/read tests don't each have to stub AccessLevel
+        // themselves; read-only-specific tests override this.
+        lenient().when(variableNode.getAccessLevel())
+            .thenReturn(AccessLevel.toValue(AccessLevel.READ_WRITE));
     }
 
     @Test
@@ -139,36 +147,36 @@ class TagWriteDispatcherTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("writeTagValue() returns true and calls setValue on success")
+    @DisplayName("writeTagValue() returns SUCCESS and calls setValue on success")
     void writeSuccess() {
         when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
         when(simulationEngine.isTagSimulated(anyString())).thenReturn(false);
 
-        boolean ok = dispatcher.writeTagValue("MyTag", 99);
+        WriteResult result = dispatcher.writeTagValue("MyTag", 99);
 
-        assertThat(ok).isTrue();
+        assertThat(result).isEqualTo(WriteResult.SUCCESS);
         verify(variableNode).setValue(any(DataValue.class));
     }
 
     @Test
-    @DisplayName("writeTagValue() returns false when node manager returns null")
+    @DisplayName("writeTagValue() returns NOT_FOUND when node manager returns null")
     void writeNoNode() {
         when(nodeManager.get(any(NodeId.class))).thenReturn(null);
 
-        boolean ok = dispatcher.writeTagValue("Missing", 1);
+        WriteResult result = dispatcher.writeTagValue("Missing", 1);
 
-        assertThat(ok).isFalse();
+        assertThat(result).isEqualTo(WriteResult.NOT_FOUND);
         verify(simulationEngine, never()).recalibrate(anyString(), any());
     }
 
     @Test
-    @DisplayName("writeTagValue() returns false when node is not a UaVariableNode")
+    @DisplayName("writeTagValue() returns NOT_FOUND when node is not a UaVariableNode")
     void writeNonVariableNode() {
         when(nodeManager.get(any(NodeId.class))).thenReturn(nonVariableNode);
 
-        boolean ok = dispatcher.writeTagValue("Folder", 1);
+        WriteResult result = dispatcher.writeTagValue("Folder", 1);
 
-        assertThat(ok).isFalse();
+        assertThat(result).isEqualTo(WriteResult.NOT_FOUND);
         verify(simulationEngine, never()).recalibrate(anyString(), any());
     }
 
@@ -178,9 +186,9 @@ class TagWriteDispatcherTest {
         when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
         when(simulationEngine.isTagSimulated("Controller:Global/MyTag")).thenReturn(true);
 
-        boolean ok = dispatcher.writeTagValue("Controller:Global/MyTag", 42);
+        WriteResult result = dispatcher.writeTagValue("Controller:Global/MyTag", 42);
 
-        assertThat(ok).isTrue();
+        assertThat(result).isEqualTo(WriteResult.SUCCESS);
         verify(simulationEngine, times(1)).recalibrate("Controller:Global/MyTag", 42);
     }
 
@@ -190,9 +198,9 @@ class TagWriteDispatcherTest {
         when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
         when(simulationEngine.isTagSimulated(anyString())).thenReturn(false);
 
-        boolean ok = dispatcher.writeTagValue("Controller:Global/Plain", 7);
+        WriteResult result = dispatcher.writeTagValue("Controller:Global/Plain", 7);
 
-        assertThat(ok).isTrue();
+        assertThat(result).isEqualTo(WriteResult.SUCCESS);
         verify(simulationEngine, never()).recalibrate(anyString(), any());
     }
 
@@ -206,22 +214,87 @@ class TagWriteDispatcherTest {
         );
         when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
 
-        boolean ok = d.writeTagValue("MyTag", 1);
+        WriteResult result = d.writeTagValue("MyTag", 1);
 
-        assertThat(ok).isTrue();
+        assertThat(result).isEqualTo(WriteResult.SUCCESS);
         verify(variableNode).setValue(any(DataValue.class));
         // No engine — no recalibrate call possible. We assert the verify above
         // ran successfully (the dispatcher must have skipped the engine).
     }
 
     @Test
-    @DisplayName("writeTagValue() swallows exceptions and returns false")
+    @DisplayName("writeTagValue() swallows exceptions and returns NOT_FOUND")
     void writeSwallowsExceptions() {
         when(context.nodeId(anyString())).thenThrow(new RuntimeException("boom"));
 
-        boolean ok = dispatcher.writeTagValue("???", 1);
+        WriteResult result = dispatcher.writeTagValue("???", 1);
 
-        assertThat(ok).isFalse();
+        assertThat(result).isEqualTo(WriteResult.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("writeTagValue() rejects a write to a read-only tag (FIX-2) — does not call "
+        + "setValue and does not recalibrate")
+    void writeRejectsReadOnlyTag() {
+        when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
+        when(variableNode.getAccessLevel()).thenReturn(AccessLevel.toValue(AccessLevel.READ_ONLY));
+
+        WriteResult result = dispatcher.writeTagValue("SimpleArray[0]", 123);
+
+        assertThat(result).isEqualTo(WriteResult.READ_ONLY);
+        verify(variableNode, never()).setValue(any(DataValue.class));
+        verify(simulationEngine, never()).recalibrate(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("writeTagValue() still succeeds for a READ_WRITE tag (regression guard for the "
+        + "read-only check above)")
+    void writeStillSucceedsForReadWriteTag() {
+        when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
+        when(variableNode.getAccessLevel()).thenReturn(AccessLevel.toValue(AccessLevel.READ_WRITE));
+
+        WriteResult result = dispatcher.writeTagValue("WritableTag", 1);
+
+        assertThat(result).isEqualTo(WriteResult.SUCCESS);
+        verify(variableNode).setValue(any(DataValue.class));
+    }
+
+    // -------------------------------------------------------------------------
+    // isReadOnly
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("isReadOnly() returns true for a tag with AccessLevel.READ_ONLY")
+    void isReadOnlyTrueForReadOnlyNode() {
+        when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
+        when(variableNode.getAccessLevel()).thenReturn(AccessLevel.toValue(AccessLevel.READ_ONLY));
+
+        assertThat(dispatcher.isReadOnly("SimpleArray[0]")).isTrue();
+    }
+
+    @Test
+    @DisplayName("isReadOnly() returns false for a tag with AccessLevel.READ_WRITE")
+    void isReadOnlyFalseForReadWriteNode() {
+        when(nodeManager.get(any(NodeId.class))).thenReturn(variableNode);
+
+        assertThat(dispatcher.isReadOnly("WritableTag")).isFalse();
+    }
+
+    @Test
+    @DisplayName("isReadOnly() returns false when the tag cannot be resolved (not-found is a "
+        + "separate concern for the caller)")
+    void isReadOnlyFalseWhenNodeNotFound() {
+        when(nodeManager.get(any(NodeId.class))).thenReturn(null);
+
+        assertThat(dispatcher.isReadOnly("Missing")).isFalse();
+    }
+
+    @Test
+    @DisplayName("isReadOnly() swallows exceptions and returns false")
+    void isReadOnlySwallowsExceptions() {
+        when(context.nodeId(anyString())).thenThrow(new RuntimeException("boom"));
+
+        assertThat(dispatcher.isReadOnly("???")).isFalse();
     }
 
     // -------------------------------------------------------------------------

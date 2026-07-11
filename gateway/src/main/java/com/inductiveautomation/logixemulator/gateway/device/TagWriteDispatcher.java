@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.device;
 
 import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.OpcUaSimulationEngine;
+import org.eclipse.milo.opcua.sdk.core.AccessLevel;
 import org.eclipse.milo.opcua.sdk.server.UaNodeManager;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
@@ -11,6 +12,7 @@ import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -82,19 +84,47 @@ public final class TagWriteDispatcher {
     }
 
     /**
+     * Outcome of a {@link #writeTagValue(String, Object)} call. Distinguishes a
+     * rejected read-only write (FIX-2) from "tag not found", since the two
+     * warrant different HTTP responses from the callers up the stack.
+     */
+    public enum WriteResult {
+        /** The write succeeded. */
+        SUCCESS,
+        /** No such tag, or the node could not be resolved to a writable variable. */
+        NOT_FOUND,
+        /** The tag exists but is flagged read-only (ExternalAccess="Read Only" / Constant) and the write was refused. */
+        READ_ONLY
+    }
+
+    /**
      * Write a value to a tag in the OPC-UA address space and, if the tag is
      * currently being simulated, recalibrate the simulation baseline so the
      * next tick continues from the user's value (C12 behaviour).
      *
+     * <p>FIX-2: a direct {@code UaVariableNode.setValue()} call bypasses
+     * Milo's attribute-filter chain, so the node's own {@code AccessLevel}
+     * (which the OPC-UA layer itself honours on a real client write) is not
+     * enforced automatically here. The read-only check below re-uses that
+     * same AccessLevel — set by {@code AddressSpaceBuilder} from the L5X
+     * {@code ExternalAccess} attribute — as the single source of truth,
+     * rather than tracking read-only status separately.</p>
+     *
      * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
      * @param value The value to write
-     * @return true if successful, false otherwise
+     * @return {@link WriteResult#SUCCESS}, {@link WriteResult#NOT_FOUND}, or
+     *     {@link WriteResult#READ_ONLY}
      */
-    public boolean writeTagValue(String tagPath, Object value) {
+    public WriteResult writeTagValue(String tagPath, Object value) {
         try {
             NodeId nodeId = context.nodeId(tagPath);
             UaNode node = nodeManagerSupplier.get().get(nodeId);
             if (node instanceof UaVariableNode varNode) {
+                if (isReadOnly(varNode)) {
+                    logger.debug("Rejected write to read-only tag {}", tagPath);
+                    return WriteResult.READ_ONLY;
+                }
+
                 Variant variant = new Variant(value);
                 DataValue dataValue = new DataValue(variant);
                 varNode.setValue(dataValue);
@@ -108,12 +138,45 @@ public final class TagWriteDispatcher {
                 if (engine != null && engine.isTagSimulated(tagPath)) {
                     engine.recalibrate(tagPath, value);
                 }
-                return true;
+                return WriteResult.SUCCESS;
             }
         } catch (Exception e) {
             logger.error("Could not write tag value for path: {}", tagPath, e);
         }
+        return WriteResult.NOT_FOUND;
+    }
+
+    /**
+     * Report whether a tag is flagged read-only in the OPC-UA address space,
+     * without attempting to write to it. Used by {@link TagSimulationFacade}
+     * (via {@code LogixEmulatorDevice}) to refuse assigning a simulation
+     * pattern to a read-only tag before the simulation engine ever starts
+     * writing to it on tick (FIX-2 part 2) — the engine writes to nodes
+     * directly and, like the REST write path, does not itself consult
+     * AccessLevel.
+     *
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     * @return true if the tag exists and lacks {@code AccessLevel.CurrentWrite};
+     *     false if it is writable, or if it cannot be resolved at all (unknown
+     *     tags are not considered read-only by this method — that is a
+     *     separate "not found" concern for the caller).
+     */
+    public boolean isReadOnly(String tagPath) {
+        try {
+            NodeId nodeId = context.nodeId(tagPath);
+            UaNode node = nodeManagerSupplier.get().get(nodeId);
+            if (node instanceof UaVariableNode varNode) {
+                return isReadOnly(varNode);
+            }
+        } catch (Exception e) {
+            logger.debug("Could not determine read-only status for path: {}", tagPath, e);
+        }
         return false;
+    }
+
+    private static boolean isReadOnly(UaVariableNode varNode) {
+        EnumSet<AccessLevel> accessLevels = AccessLevel.fromValue(varNode.getAccessLevel());
+        return !accessLevels.contains(AccessLevel.CurrentWrite);
     }
 
     /**

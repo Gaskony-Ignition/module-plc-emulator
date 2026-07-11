@@ -74,7 +74,8 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
         );
         this.tagSimulationFacade = new TagSimulationFacade(
             () -> this.simulationEngine,
-            () -> this.tagWriteDispatcher.getAllTagValues().keySet()
+            () -> this.tagWriteDispatcher.getAllTagValues().keySet(),
+            this.tagWriteDispatcher::isReadOnly
         );
         this.filePreparation = new FilePreparation(context, config);
         this.addressSpaceLifecycle = new AddressSpaceLifecycle(
@@ -393,10 +394,23 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
      * Write a value to a tag in the OPC-UA address space.
      * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
      * @param value The value to write
-     * @return true if successful, false otherwise
+     * @return {@link TagWriteDispatcher.WriteResult#SUCCESS}, {@link
+     *     TagWriteDispatcher.WriteResult#NOT_FOUND}, or {@link
+     *     TagWriteDispatcher.WriteResult#READ_ONLY} (FIX-2)
      */
-    public boolean writeTagValue(String tagPath, Object value) {
+    public TagWriteDispatcher.WriteResult writeTagValue(String tagPath, Object value) {
         return tagWriteDispatcher.writeTagValue(tagPath, value);
+    }
+
+    /**
+     * Report whether a tag is flagged read-only in the OPC-UA address space
+     * (FIX-2 part 2) — used to refuse simulation-pattern assignment before
+     * the simulation engine ever starts writing to the tag on tick.
+     * @param tagPath The tag path (e.g., "Controller:Global/MyTag")
+     * @return true if the tag exists and is read-only
+     */
+    public boolean isTagReadOnly(String tagPath) {
+        return tagWriteDispatcher.isReadOnly(tagPath);
     }
 
     /**
@@ -458,8 +472,8 @@ public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implem
     }
 
     /** @see TagSimulationFacade#enableSimulationByScope(String) */
-    public void enableSimulationByScope(String scope) {
-        tagSimulationFacade.enableSimulationByScope(scope);
+    public int enableSimulationByScope(String scope) {
+        return tagSimulationFacade.enableSimulationByScope(scope);
     }
 
     /** @see TagSimulationFacade#disableSimulationByScope(String) */
