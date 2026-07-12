@@ -962,4 +962,238 @@ class L5XParserTest {
         JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
         assertThat(tag.get("initial_value").getAsString()).isEqualTo("16#0c");
     }
+
+    // =========================================================================================
+    // FIX-15 — array-element initial values read from the decorated <Array><Element> block
+    // (release blocker, plc-dod3/item4-hotreload.txt: RealArray[2] value 0.0 -> 42.5 was never
+    // seen by the parser at all, so every array element started at its type default and a
+    // value-only change to one could never be detected on hot-reload).
+    // =========================================================================================
+
+    @Test
+    @DisplayName("FIX-15: a 1-D REAL array's per-element Values become element_values keyed by "
+        + "the exact L5X Index string")
+    void testArrayElementValuesReadFromDecoratedArray() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="RealArray" DataType="REAL" Dimensions="5" Radix="Float" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="REAL" Dimensions="5" Radix="Float">
+                                    <Element Index="[0]" Value="0.0"/>
+                                    <Element Index="[1]" Value="0.0"/>
+                                    <Element Index="[2]" Value="42.5"/>
+                                    <Element Index="[3]" Value="0.0"/>
+                                    <Element Index="[4]" Value="0.0"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).as("array tag must carry per-element values").isTrue();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[2]").getAsString())
+            .as("RealArray[2]'s exported Value=42.5 must be captured, not lost to the type default")
+            .isEqualTo("42.5");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("0.0");
+    }
+
+    @Test
+    @DisplayName("FIX-15: a multi-dim array keeps the decorated comma-separated Index form "
+        + "verbatim as the element_values key")
+    void testMultiDimArrayElementValuesKeyedByCommaIndex() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="multiArray" DataType="INT" Dimensions="2 4" Radix="Decimal" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="INT" Dimensions="2,4" Radix="Decimal">
+                                    <Element Index="[0,0]" Value="5"/>
+                                    <Element Index="[0,1]" Value="10"/>
+                                    <Element Index="[0,2]" Value="20"/>
+                                    <Element Index="[0,3]" Value="99"/>
+                                    <Element Index="[1,0]" Value="12"/>
+                                    <Element Index="[1,1]" Value="26"/>
+                                    <Element Index="[1,2]" Value="74"/>
+                                    <Element Index="[1,3]" Value="194993"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[1,3]").getAsString()).isEqualTo("194993");
+        assertThat(elementValues.get("[0,0]").getAsString()).isEqualTo("5");
+    }
+
+    @Test
+    @DisplayName("FIX-15: a BOOL array's per-element 1/0 Values normalise to true/false, keyed by "
+        + "the plain element index - AddressSpaceBuilder maps these onto the packed bit nodes via "
+        + "AddressPolicy.boolArrayBit")
+    void testBoolArrayElementValuesNormalisedToTrueFalse() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="PackBits" DataType="BOOL" Dimensions="32" Radix="Decimal" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="BOOL" Dimensions="32" Radix="Decimal">
+                                    <Element Index="[0]" Value="0"/>
+                                    <Element Index="[5]" Value="1"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[5]").getAsString())
+            .as("BOOL Value=\"1\" must normalise to \"true\" exactly like the C8 scalar case")
+            .isEqualTo("true");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("FIX-15: an array element with an unrecognised Radix is skipped, not decoded "
+        + "wrongly - it is absent from element_values so the type default applies")
+    void testUnknownRadixArrayElementSkipped() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="HexArray" DataType="SINT" Dimensions="2" Radix="Hex" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="SINT" Dimensions="2" Radix="Hex">
+                                    <Element Index="[0]" Value="16#0c"/>
+                                    <Element Index="[1]" Value="16#0d"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        // No element could be safely decoded, so no element_values object is emitted at all.
+        assertThat(tag.has("element_values")).isFalse();
+    }
+
+    @Test
+    @DisplayName("FIX-15: an ASCII-radix array element reuses the FIX-8 decoder ('A' -> 65)")
+    void testAsciiRadixArrayElementDecoded() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiArray" DataType="SINT" Dimensions="2" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="SINT" Dimensions="2" Radix="ASCII">
+                                    <Element Index="[0]" Value="'A'"/>
+                                    <Element Index="[1]" Value="'$10'"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("65");
+        assertThat(elementValues.get("[1]").getAsString()).isEqualTo("16");
+    }
+
+    @Test
+    @DisplayName("FIX-15: an array-of-structure (<Structure Index=\"...\"> children, not <Element>) "
+        + "yields no element_values - per-element structure member values remain deferred "
+        + "(KNOWN_ISSUES.md #6)")
+    void testArrayOfStructureYieldsNoElementValues() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="TimerArray" DataType="TIMER" Dimensions="2" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="TIMER" Dimensions="2">
+                                    <Structure Index="[0]" DataType="TIMER">
+                                        <DataValueMember Name="PRE" DataType="DINT" Value="5000"/>
+                                    </Structure>
+                                    <Structure Index="[1]" DataType="TIMER">
+                                        <DataValueMember Name="PRE" DataType="DINT" Value="1000"/>
+                                    </Structure>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).isFalse();
+    }
+
+    @Test
+    @DisplayName("FIX-15: a scalar (non-array) tag never gets an element_values key")
+    void testScalarTagHasNoElementValues() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Counter" DataType="DINT" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="DINT" Radix="Decimal" Value="18"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).isFalse();
+    }
 }

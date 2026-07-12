@@ -115,29 +115,40 @@ on two open questions:
 
 ---
 
-#### 6. Structure/Array Member Initial Values Not Read From Export
+#### 6. Structure-Member Initial Values Not Read From Export (Array Element Values Now Supported)
 
-**Status**: Not Implemented (post-v10, ADDRESSING.md §3.10a — C8 scope decision)
-**Severity**: Low (affects only the STARTING value of structure/array members; the
-tag still exists, is browsable, and is writable as normal)
+**Status**: Partially resolved (v10.0.0, FIX-15) — structure-member values remain
+deferred (ADDRESSING.md §3.10a — C8 scope decision, narrowed by FIX-15)
+**Severity**: Low (affects only the STARTING value of structure members; the tag
+still exists, is browsable, and is writable as normal)
 
 C8 (v10.0.0) added reading of a scalar atomic tag's initial value from its L5X
-`<DataValue Value="...">` element. It deliberately does **not** read initial values
-nested inside a structure or array — a UDT/AOI/predefined instance's
-`<DataValueMember>` elements (e.g. a `TIMER` instance's `.PRE`) and an array's
-per-element `<Element>` values. Every such member/element starts at its
-type-appropriate default (`0`, `false`, `""`, etc.) regardless of what the export
-actually specifies — a real export with `TIMER.PRE=5000` starts the emulator's copy
-at `PRE=0`.
+`<DataValue Value="...">` element, but at first deliberately did not read initial
+values nested inside a structure or a top-level array. **FIX-15 closes the
+array-element half of that gap**: a top-level array tag's decorated
+`<Array><Element Index="..." Value="..."/></Array>` block is now parsed (including
+multi-dimensional indices and DWORD-packed BOOL arrays), so e.g. an exported
+`RealArray[2]=42.5` now appears on the emulator's `RealArray[2]` node instead of the
+REAL type default, and a value-only change to a single array element is now detected
+and applied on hot-reload.
 
-**Impact**: any binding or test that depends on a structure/array member's *initial*
-value matching the export (rather than being written afresh at runtime) will see the
-type default instead.
+**Still deferred**: a UDT/AOI/predefined instance's `<DataValueMember>` elements
+(e.g. a `TIMER` instance's `.PRE`) and any array *nested inside* a UDT/AOI instance
+(a member array's per-element `<Element>`/`<ArrayMember>` values, or an array-of-UDT
+element's `<Structure Index="...">` member values) are still NOT read — every such
+structure member starts at its type-appropriate default (`0`, `false`, `""`, etc.)
+regardless of what the export actually specifies. A real export with
+`TIMER.PRE=5000` still starts the emulator's copy at `PRE=0`.
+
+**Impact**: any binding or test that depends on a *structure member's* initial value
+matching the export (rather than being written afresh at runtime) will see the type
+default instead. Top-level array elements are no longer affected.
 
 **Workaround**: write the expected initial value via REST/OPC-UA immediately after
-the device comes up, or treat the export's per-member initial values as
+the device comes up, or treat the export's per-structure-member initial values as
 non-authoritative for the emulator. See `docs/plans/ADDRESSING.md` §3.10a for the
-scope decision and `L5XParser.extractValue()`'s Javadoc for the code-level detail.
+scope decision and `L5XParser.extractValue()`/`extractArrayElementValues()`'s
+Javadoc for the code-level detail.
 
 ---
 

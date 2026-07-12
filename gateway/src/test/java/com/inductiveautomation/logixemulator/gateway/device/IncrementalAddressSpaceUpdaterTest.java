@@ -303,6 +303,87 @@ class IncrementalAddressSpaceUpdaterTest {
     }
 
     // =====================================================================================
+    // FIX-15 — array-element-only value changes must be visible to the diff (release blocker,
+    // plc-dod3/item4-hotreload.txt: RealArray[2] value 0.0 -> 42.5 reported "0 changed" and the
+    // element silently kept reading 0.0 after hot-reload). Previously every element shared the
+    // same (valueless) array-tag object, so compare() could never see a per-element difference;
+    // now each element is keyed to its own decoded value from the tag's element_values map.
+    // =====================================================================================
+
+    @Nested
+    @DisplayName("FIX-15: array-element value-only change is diffed and applied")
+    class ArrayElementValueDiffing {
+
+        @Test
+        @DisplayName("only the changed element (RealArray[2]) is reported - unchanged sibling "
+            + "elements are not")
+        void onlyChangedElementIsReported() {
+            Map<String, String> oldValues = Map.of("[0]", "0.0", "[1]", "0.0", "[2]", "0.0");
+            Map<String, String> newValues = Map.of("[0]", "0.0", "[1]", "0.0", "[2]", "42.5");
+
+            JsonObject oldData = arrayTagDataWithElementValues("RealArray", "REAL", "3", oldValues);
+            JsonObject newData = arrayTagDataWithElementValues("RealArray", "REAL", "3", newValues);
+
+            IncrementalAddressSpaceUpdater.CompareResult result = updater.compare(oldData, newData);
+
+            assertThat(result.changedTags).containsOnlyKeys("RealArray[2]");
+            IncrementalAddressSpaceUpdater.TagChange change = result.changedTags.get("RealArray[2]");
+            assertThat(change.oldValue).isEqualTo("0.0");
+            assertThat(change.newValue).isEqualTo("42.5");
+            assertThat(updater.canApplyIncrementally(result)).isTrue();
+        }
+
+        @Test
+        @DisplayName("the changed element applies to its own canonical element node, as a Float "
+            + "not a String (the exact DoD reproduction: RealArray[2] 0.0 -> 42.5)")
+        void changedElementAppliesToElementNode() {
+            Map<NodeId, UaNode> nodes = new HashMap<>();
+            UaVariableNode elem2 = mock(UaVariableNode.class);
+            nodes.put(new NodeId(1, "RealArray[2]"), elem2);
+
+            IncrementalAddressSpaceUpdater liveUpdater = new IncrementalAddressSpaceUpdater(
+                nodes::get, id -> new NodeId(1, id), "TestDevice");
+
+            IncrementalAddressSpaceUpdater.CompareResult result = liveUpdater.compare(
+                arrayTagDataWithElementValues("RealArray", "REAL", "3", Map.of("[2]", "0.0")),
+                arrayTagDataWithElementValues("RealArray", "REAL", "3", Map.of("[2]", "42.5")));
+
+            boolean applied = liveUpdater.applyIncrementalUpdate(result);
+
+            assertThat(applied).as("the array-element change must apply cleanly").isTrue();
+            ArgumentCaptor<DataValue> captor = ArgumentCaptor.forClass(DataValue.class);
+            verify(elem2).setValue(captor.capture());
+            assertThat(captor.getValue().getValue().getValue())
+                .as("REAL value must arrive as a Float, not a String")
+                .isEqualTo(42.5f);
+        }
+
+        @Test
+        @DisplayName("an element with no export value in either snapshot stays on the type "
+            + "default and is not reported as changed")
+        void elementWithoutExportValueUnchanged() {
+            JsonObject oldData = arrayTagDataWithElementValues("Arr", "DINT", "3", Map.of());
+            JsonObject newData = arrayTagDataWithElementValues("Arr", "DINT", "3", Map.of());
+
+            IncrementalAddressSpaceUpdater.CompareResult result = updater.compare(oldData, newData);
+
+            assertThat(result.hasChanges()).isFalse();
+        }
+
+        @Test
+        @DisplayName("a BOOL array element-only change is keyed by its packed Tag[word].bit id, "
+            + "not the bare (driver-invalid) element index")
+        void boolArrayElementValueChangeKeyedByPackedBit() {
+            JsonObject oldData = arrayTagDataWithElementValues("Bits", "BOOL", "32", Map.of("[5]", "false"));
+            JsonObject newData = arrayTagDataWithElementValues("Bits", "BOOL", "32", Map.of("[5]", "true"));
+
+            IncrementalAddressSpaceUpdater.CompareResult result = updater.compare(oldData, newData);
+
+            assertThat(result.changedTags).containsOnlyKeys("Bits[0].5");
+        }
+    }
+
+    // =====================================================================================
     // FIX-11 — hot-reload value coercion must route through the same type mapping the builder
     // uses (AddressSpaceBuilder.getInitialValue's switch), not a 5-type local switch whose
     // default wrote a java.lang.String into LINT/LREAL/unsigned/time-typed nodes.
@@ -426,6 +507,35 @@ class IncrementalAddressSpaceUpdaterTest {
         } else {
             tag.addProperty("value", String.valueOf(value));
         }
+
+        tags.add(tag);
+        data.add("global_tags", tags);
+        return data;
+    }
+
+    /**
+     * Builds an array tag shaped exactly like {@code L5XParser}'s real FIX-15 output: an
+     * {@code isArray}/{@code dimensions} tag carrying an {@code element_values} object keyed by
+     * the plain L5X bracket-index string, with no tag-level {@code value}/{@code initial_value}
+     * at all (arrays never carry one, C8) - unlike the older {@link #arrayTagData} helper above,
+     * which predates FIX-15 and synthesises an unrealistic tag-level value shared by every element.
+     */
+    private JsonObject arrayTagDataWithElementValues(
+            String name, String type, String dims, Map<String, String> elementValues) {
+        JsonObject data = new JsonObject();
+        JsonArray tags = new JsonArray();
+
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", name);
+        tag.addProperty("data_type", type);
+        tag.addProperty("isArray", true);
+        tag.addProperty("dimensions", dims);
+
+        JsonObject values = new JsonObject();
+        for (Map.Entry<String, String> entry : elementValues.entrySet()) {
+            values.addProperty(entry.getKey(), entry.getValue());
+        }
+        tag.add("element_values", values);
 
         tags.add(tag);
         data.add("global_tags", tags);

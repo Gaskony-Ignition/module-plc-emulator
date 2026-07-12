@@ -9,8 +9,24 @@
 <RSLogix5000Content SchemaRevision="1.0">
     <Controller Name="BoolPackSynthetic" ProcessorType="1756-L83E">
         <Tags>
-            <Tag Name="PackBits" DataType="BOOL" Dimensions="32" Radix="Decimal" ExternalAccess="Read/Write"/>
-            <Tag Name="PackBits2" DataType="BOOL" Dimensions="64" Radix="Decimal" ExternalAccess="Read/Write"/>
+            <Tag Name="PackBits" DataType="BOOL" Dimensions="32" Radix="Decimal" ExternalAccess="Read/Write">
+                <!-- FIX-15: exercises per-element BOOL values mapping onto the packed bit nodes
+                     via AddressPolicy.boolArrayBit - only element 5 is set, the rest default. -->
+                <Data Format="Decorated">
+                    <Array DataType="BOOL" Dimensions="32" Radix="Decimal">
+                        <Element Index="[0]" Value="0"/>
+                        <Element Index="[5]" Value="1"/>
+                    </Array>
+                </Data>
+            </Tag>
+            <Tag Name="PackBits2" DataType="BOOL" Dimensions="64" Radix="Decimal" ExternalAccess="Read/Write">
+                <!-- Element 40 -> word 1 ([40/32]), bit 8 ([40%32]) -> PackBits2[1].8. -->
+                <Data Format="Decorated">
+                    <Array DataType="BOOL" Dimensions="64" Radix="Decimal">
+                        <Element Index="[40]" Value="1"/>
+                    </Array>
+                </Data>
+            </Tag>
             <Tag Name="PlainBool" DataType="BOOL" Radix="Decimal" ExternalAccess="Read/Write"/>
         </Tags>
     </Controller>

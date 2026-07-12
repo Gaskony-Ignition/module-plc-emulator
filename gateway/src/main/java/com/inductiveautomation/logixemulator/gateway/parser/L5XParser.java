@@ -267,6 +267,17 @@ public class L5XParser implements PLCParser {
                 if (value != null) {
                     tag.addProperty("initial_value", value);
                 }
+
+                // FIX-15: a top-level array tag's per-element initial values, from the decorated
+                // <Array><Element Index="..." Value="..."/></Array> block (ADDRESSING.md §3.10a
+                // scope revision - this closes the array-element half of that gap; structure
+                // member values remain deferred, see KNOWN_ISSUES.md #6).
+                if (tag.has("isArray")) {
+                    JsonObject elementValues = extractArrayElementValues(decoratedData, dataType);
+                    if (elementValues != null) {
+                        tag.add("element_values", elementValues);
+                    }
+                }
             }
 
             return tag;
@@ -710,6 +721,107 @@ public class L5XParser implements PLCParser {
             }
         }
         return rawValue;
+    }
+
+    /**
+     * Extracts per-element initial values from a top-level array tag's decorated
+     * {@code <Array><Element Index="..." Value="..."/>...</Array>} block (FIX-15). Returns a JSON
+     * object keyed by the exact L5X {@code Index} attribute string (e.g. {@code "[2]"},
+     * {@code "[1,3]"} - the decorated form is already comma-separated for multi-dim indices,
+     * ADDRESSING.md §3.5, and matches {@code AddressSpaceBuilder}/{@code RockwellLogixPolicy}'s
+     * element-identifier bracket form verbatim, so no re-formatting is needed), whose values are
+     * the decoded element values.
+     *
+     * <p>Only direct {@code <Element>} children are read - an array of UDT/predefined instances
+     * renders each element as a {@code <Structure Index="...">} instead (nested member values),
+     * which is out of scope here and left for the {@code <Structure>}/{@code <DataValueMember>}
+     * per-member initial-value work already deferred post-v10 (ADDRESSING.md §3.10a,
+     * KNOWN_ISSUES.md #6) - such an array yields no {@code element_values} at all, so every
+     * element keeps falling back to its type default exactly as before.
+     *
+     * @return the element-values object, or {@code null} if the Data block has no top-level
+     *     {@code <Array>} of {@code <Element>}s (including an array-of-structure) or none of its
+     *     elements could be decoded
+     */
+    private JsonObject extractArrayElementValues(Element dataElement, String dataType) {
+        try {
+            Element arrayElement = firstChildElement(dataElement, "Array");
+            if (arrayElement == null) {
+                return null;
+            }
+            String arrayRadix = arrayElement.getAttribute("Radix");
+
+            JsonObject elementValues = new JsonObject();
+            NodeList children = arrayElement.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                Node child = children.item(i);
+                if (!(child instanceof Element) || !"Element".equals(child.getNodeName())) {
+                    // Not an atomic <Element> (e.g. a <Structure Index="..."> for an array of
+                    // UDT/predefined instances) - per-element structure values are deliberately
+                    // out of scope here (see the method Javadoc).
+                    continue;
+                }
+                Element elementEl = (Element) child;
+                String index = elementEl.getAttribute("Index");
+                String rawValue = elementEl.getAttribute("Value");
+                if (index.isEmpty() || rawValue.isEmpty()) {
+                    continue;
+                }
+                String decoded = decodeArrayElementValue(rawValue, arrayRadix, dataType);
+                if (decoded != null) {
+                    elementValues.addProperty(index, decoded);
+                }
+            }
+            return elementValues.size() > 0 ? elementValues : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Decodes one array element's raw {@code Value} literal for its declared data type and the
+     * array's {@code Radix} attribute (FIX-15), reusing the same conservative rules C8/FIX-8
+     * established for scalars: {@code Decimal}/{@code Float} (and an absent radix) round-trip via
+     * the ordinary BOOL-normalisation path, {@code ASCII} reuses {@link #decodeAsciiRadixScalar},
+     * and {@code Binary} is accepted only for a BOOL element (where it is simply the literal
+     * {@code "0"}/{@code "1"}, not an encoded binary literal). Any other radix - including
+     * {@code Binary} on a non-BOOL type - is conservatively skipped (returns {@code null}, so the
+     * element is left out of {@code element_values} and falls back to its type default) rather
+     * than risking a wrong decode of an encoded literal this method does not understand.
+     */
+    private static String decodeArrayElementValue(String rawValue, String radix, String dataType) {
+        boolean isBool = isBoolDataType(dataType);
+        if (radix == null || radix.isEmpty()
+                || "Decimal".equalsIgnoreCase(radix) || "Float".equalsIgnoreCase(radix)
+                || (isBool && "Binary".equalsIgnoreCase(radix))) {
+            return normalizeValueForType(rawValue, dataType);
+        }
+        if ("ASCII".equalsIgnoreCase(radix)) {
+            return normalizeValueForType(decodeAsciiRadixScalar(rawValue, radix), dataType);
+        }
+        return null;
+    }
+
+    private static boolean isBoolDataType(String dataType) {
+        String upperType = dataType == null ? "" : dataType.toUpperCase();
+        return "BOOL".equals(upperType) || "BOOLEAN".equals(upperType);
+    }
+
+    /**
+     * @return the first direct child {@code Element} of {@code parent} named {@code tagName}, or
+     *     {@code null} if none - unlike {@code Element.getElementsByTagName}, this does NOT search
+     *     further descendants (needed so a UDT/predefined member's nested {@code <ArrayMember>} is
+     *     never mistaken for the tag's own top-level {@code <Array>}).
+     */
+    private static Element firstChildElement(Element parent, String tagName) {
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child instanceof Element && tagName.equals(child.getNodeName())) {
+                return (Element) child;
+            }
+        }
+        return null;
     }
 
     /**

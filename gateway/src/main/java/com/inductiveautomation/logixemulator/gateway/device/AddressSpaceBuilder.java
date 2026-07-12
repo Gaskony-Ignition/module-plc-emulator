@@ -295,14 +295,19 @@ public class AddressSpaceBuilder {
         List<int[]> indexTuples = policy.enumerateIndices(dims);
         for (int[] indices : indexTuples) {
             String elemId = policy.arrayElement(baseId, indices);
-            String elemName = tagName + bracket(indices);
+            String bracketIndex = bracket(indices);
+            String elemName = tagName + bracketIndex;
             if (isUdt) {
                 UaObjectNode elemObject = context.createObjectNode(elemId, elemName);
                 nodeAdder.accept(elemObject);
                 parentFolder.addComponent(elemObject);
                 addMembers(tag.getAsJsonArray("udt_members"), elemObject::addComponent, elemId, context);
             } else {
-                UaVariableNode variable = createLeafVariable(elemId, elemName, dataType, tag, context);
+                // FIX-15: use this element's own decoded value (tag.element_values, keyed by the
+                // exact L5X Index string) when the export provided one; otherwise fall back to the
+                // array tag's own initial_value/type default exactly as before.
+                JsonObject valueSource = arrayElementSource(tag, dataType, bracketIndex);
+                UaVariableNode variable = createLeafVariable(elemId, elemName, dataType, valueSource, context);
                 parentFolder.addOrganizes(variable);
             }
         }
@@ -422,7 +427,12 @@ public class AddressSpaceBuilder {
      * exactly like {@link #createLeafVariable}: a read-only source yields
      * {@code AccessLevel.READ_ONLY} bit nodes with no write filter.
      *
-     * @param valueSource the parsed tag/member JSON, consulted for {@code read_only}
+     * <p>Each bit's initial value is read from {@code valueSource}'s {@code element_values}
+     * (FIX-15, keyed by the plain {@code "[n]"} L5X element index) when the export provided one
+     * for element {@code n}; otherwise it defaults to {@code false} exactly as before.
+     *
+     * @param valueSource the parsed tag/member JSON, consulted for {@code read_only} and
+     *     {@code element_values}
      * @param attacher attaches a created bit node to its browse parent (folder or object)
      */
     private void addBoolArray(
@@ -438,10 +448,11 @@ public class AddressSpaceBuilder {
             String bitId = policy.boolArrayBit(baseId, n);
             // Browse name mirrors the identifier's packed suffix (cosmetic).
             String bitName = displayBase + bitId.substring(baseId.length());
+            boolean initialBit = booleanElementValue(valueSource, "[" + n + "]");
 
             UaVariableNode bitNode = context.createVariableNode(
                 bitId, bitName, OpcUaDataType.Boolean.getNodeId(), readOnly);
-            bitNode.setValue(new DataValue(new Variant(false)));
+            bitNode.setValue(new DataValue(new Variant(initialBit)));
             if (!readOnly) {
                 enableWrites(bitNode);
             }
@@ -484,8 +495,15 @@ public class AddressSpaceBuilder {
         return valueSource.has("read_only") && valueSource.get("read_only").getAsBoolean();
     }
 
-    /** Browse-name subscript for an array element, e.g. {@code [0]} or {@code [1,3]}. */
-    private static String bracket(int[] indices) {
+    /**
+     * Browse-name subscript for an array element, e.g. {@code [0]} or {@code [1,3]} - this is also
+     * the exact bracket form {@code L5XParser} uses as the {@code element_values} key (the L5X
+     * decorated {@code Index} attribute is already comma-separated with no spaces), so it doubles
+     * as the lookup key for {@link #arrayElementValue}. Package-private so
+     * {@code IncrementalAddressSpaceUpdater} builds the identical key for its hot-reload diff
+     * (FIX-4/FIX-15).
+     */
+    static String bracket(int[] indices) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < indices.length; i++) {
             if (i > 0) {
@@ -494,6 +512,66 @@ public class AddressSpaceBuilder {
             sb.append(indices[i]);
         }
         return sb.append(']').toString();
+    }
+
+    /**
+     * Looks up a single array element's decoded initial value (FIX-15) in {@code arrayTag}'s
+     * {@code element_values} object (populated by {@code L5XParser.extractArrayElementValues},
+     * keyed by the exact L5X {@code Index} bracket string - see {@link #bracket}).
+     *
+     * @param arrayTag the parsed array tag/member JSON
+     * @param bracketIndex the element's bracket-index key, e.g. {@code "[2]"} or {@code "[1,3]"}
+     * @return the element's raw decoded value string, or {@code null} if the export carried no
+     *     value for that element (the caller then falls back to the array's own
+     *     {@code initial_value}/type default, exactly as before FIX-15)
+     */
+    static String arrayElementValue(JsonObject arrayTag, String bracketIndex) {
+        if (!arrayTag.has("element_values")) {
+            return null;
+        }
+        JsonObject elementValues = arrayTag.getAsJsonObject("element_values");
+        return elementValues.has(bracketIndex) ? elementValues.get(bracketIndex).getAsString() : null;
+    }
+
+    /**
+     * Synthesises the value-source JSON for one non-BOOL array element's leaf variable node
+     * (FIX-15): when the export provided a per-element value, a fresh object carrying that value
+     * as {@code initial_value} (plus the array's {@code data_type}/{@code read_only}, so
+     * {@code IncrementalAddressSpaceUpdater}'s diff sees a fully-formed element node); otherwise
+     * {@code arrayTag} itself, unchanged - preserving the pre-FIX-15 fallback to the array's own
+     * {@code initial_value}/type default. Package-private so the updater builds the identical
+     * per-element source for its hot-reload diff (FIX-4/FIX-15) - this is what makes an
+     * array-element-only value change visible to {@code compare()} at all; previously every
+     * element shared the same (valueless) array-tag object and so never differed.
+     *
+     * <p>Deliberately does NOT extend to array-of-UDT elements or member arrays nested inside a
+     * UDT/AOI instance - the decorated per-element/-member values for those constructs are not
+     * parsed at all (structure member values remain deferred, ADDRESSING.md §3.10a,
+     * KNOWN_ISSUES.md #6), so {@code element_values} is never present there and this always falls
+     * back to {@code arrayTag} unchanged.
+     */
+    static JsonObject arrayElementSource(JsonObject arrayTag, String dataType, String bracketIndex) {
+        String elementValue = arrayElementValue(arrayTag, bracketIndex);
+        if (elementValue == null) {
+            return arrayTag;
+        }
+        JsonObject source = new JsonObject();
+        source.addProperty("data_type", dataType);
+        if (arrayTag.has("read_only")) {
+            source.add("read_only", arrayTag.get("read_only"));
+        }
+        source.addProperty("initial_value", elementValue);
+        return source;
+    }
+
+    /**
+     * Resolves a single BOOL-array element's initial bit value (FIX-15) from
+     * {@code valueSource}'s {@code element_values}, defaulting to {@code false} when the export
+     * gave no value for that element - the pre-FIX-15 behaviour.
+     */
+    private static boolean booleanElementValue(JsonObject valueSource, String bracketIndex) {
+        String value = arrayElementValue(valueSource, bracketIndex);
+        return value != null && Boolean.parseBoolean(value);
     }
 
     /**

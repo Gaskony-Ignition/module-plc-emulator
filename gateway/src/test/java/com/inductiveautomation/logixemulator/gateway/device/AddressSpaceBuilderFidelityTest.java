@@ -325,6 +325,67 @@ class AddressSpaceBuilderFidelityTest {
         assertThat(packBits2Count).isEqualTo(64);
     }
 
+    @Test
+    @DisplayName("§5.7/FIX-15 a BOOL array's decorated per-element Value=\"1\" reaches the packed "
+        + "bit node's initial value (via AddressPolicy.boolArrayBit) - siblings default to false")
+    void boolArrayElementValuePropagatesToPackedBit() throws IOException {
+        Map<String, UaNode> nodes = build(SYNTHETIC_BOOLPACK);
+
+        // PackBits[5] (element 5, Value="1") -> word 0, bit 5.
+        UaVariableNode bit5 = (UaVariableNode) nodes.get("PackBits[0].5");
+        assertThat(bit5.getValue().getValue().getValue())
+            .as("PackBits element 5's exported Value=1 must reach PackBits[0].5, not default false")
+            .isEqualTo(true);
+
+        // An element with no <Element> entry in the export still defaults to false.
+        UaVariableNode bit6 = (UaVariableNode) nodes.get("PackBits[0].6");
+        assertThat(bit6.getValue().getValue().getValue()).isEqualTo(false);
+
+        // PackBits2 element 40 -> word 1, bit 8.
+        UaVariableNode packBits2Bit8 = (UaVariableNode) nodes.get("PackBits2[1].8");
+        assertThat(packBits2Bit8.getValue().getValue().getValue())
+            .as("PackBits2 element 40's exported Value=1 must reach PackBits2[1].8")
+            .isEqualTo(true);
+    }
+
+    // =====================================================================================
+    // FIX-15 — array-element initial values from a real Studio 5000 export (release blocker,
+    // plc-dod3/item4-hotreload.txt) — CompactLogix5370-1769L33ER-fw30-stellentus.L5X
+    // =====================================================================================
+
+    @Test
+    @DisplayName("FIX-15: a real export's 1-D array element Values reach the canonical element "
+        + "nodes, not the type default (INFO_ABOUT, controller-scoped INT[2])")
+    void arrayElementValuesFromRealExport() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_STELLENTUS);
+
+        UaVariableNode elem0 = (UaVariableNode) nodes.get("INFO_ABOUT[0]");
+        UaVariableNode elem1 = (UaVariableNode) nodes.get("INFO_ABOUT[1]");
+        assertThat(elem0.getValue().getValue().getValue())
+            .as("INFO_ABOUT[0]'s real export value (-2925) must appear, not the INT default (0)")
+            .isEqualTo((short) -2925);
+        assertThat(elem1.getValue().getValue().getValue()).isEqualTo((short) 1952);
+    }
+
+    @Test
+    @DisplayName("FIX-15: a real export's 2-D array element Values reach the canonical "
+        + "comma-indexed element nodes (multiArray, program-scoped INT Dimensions=\"2 4\")")
+    void multiDimArrayElementValuesFromRealExport() throws IOException {
+        Map<String, UaNode> nodes = build(CORPUS_STELLENTUS);
+
+        UaVariableNode first = (UaVariableNode) nodes.get("Program:dancer.multiArray[0,0]");
+        UaVariableNode last = (UaVariableNode) nodes.get("Program:dancer.multiArray[1,3]");
+        assertThat(first.getValue().getValue().getValue())
+            .as("multiArray[0,0]'s real export value (5) must appear, not the INT default (0)")
+            .isEqualTo((short) 5);
+        assertThat(last.getValue().getValue().getValue())
+            .as("multiArray[1,3]'s real export value (194993, narrowed to Int16 by "
+                + "(short) truncation exactly like any other INT-typed value/AddressSpaceBuilder "
+                + "narrowing - the value in the export itself overflows a real Logix INT) must "
+                + "appear as its truncated form (-1615), not the type default (0)")
+            .isEqualTo((short) -1615);
+    }
+
     // =====================================================================================
     // §5.9 Predefined member correctness — synthetic fixtures + corpus (C4)
     // =====================================================================================

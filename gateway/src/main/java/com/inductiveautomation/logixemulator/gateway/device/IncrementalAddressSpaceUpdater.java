@@ -292,9 +292,13 @@ public class IncrementalAddressSpaceUpdater {
 
         if (dims.length > 0) {
             if (policy.isBoolType(dataType) && !isUdt && dims.length == 1) {
-                // DWORD-packed BOOL array (C3): only Tag[word].bit nodes exist.
+                // DWORD-packed BOOL array (C3): only Tag[word].bit nodes exist. Each bit is keyed
+                // to its own element-value source (FIX-15) so a single changed bit produces a
+                // diff, rather than every bit sharing the same (valueless) array-tag object.
                 for (int n = 0; n < dims[0]; n++) {
-                    out.put(policy.boolArrayBit(baseId, n), source);
+                    JsonObject elementSource =
+                        AddressSpaceBuilder.arrayElementSource(source, dataType, "[" + n + "]");
+                    out.put(policy.boolArrayBit(baseId, n), elementSource);
                 }
                 return;
             }
@@ -304,7 +308,15 @@ public class IncrementalAddressSpaceUpdater {
                     // Array-of-struct element: an Object node (no value) with member children.
                     collectMembers(out, elemId, source);
                 } else {
-                    out.put(elemId, source);
+                    // FIX-15: key each element to its own decoded value (source.element_values,
+                    // populated by L5XParser for a top-level array) when present, so a
+                    // value-only change to a SINGLE element produces a diff - previously every
+                    // element shared the same array-tag object (which never carried a per-element
+                    // value at all), so compare() could never see an array-element change.
+                    String bracketIndex = AddressSpaceBuilder.bracket(indices);
+                    JsonObject elementSource =
+                        AddressSpaceBuilder.arrayElementSource(source, dataType, bracketIndex);
+                    out.put(elemId, elementSource);
                 }
             }
             return;

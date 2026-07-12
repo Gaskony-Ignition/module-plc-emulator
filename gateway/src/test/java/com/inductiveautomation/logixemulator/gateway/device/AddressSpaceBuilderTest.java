@@ -591,6 +591,98 @@ class AddressSpaceBuilderTest {
     }
 
     // =========================================================================
+    // FIX-15 — arrayElementValue() / arrayElementSource() (array-element initial values)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("arrayElementValue() / arrayElementSource()")
+    class ArrayElementValueTests {
+
+        @Test
+        @DisplayName("returns null when the tag has no element_values at all (pre-FIX-15 shape)")
+        void testNoElementValues() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[2]")).isNull();
+        }
+
+        @Test
+        @DisplayName("returns the element's decoded value when present, by exact bracket key")
+        void testElementValuePresent() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[2]", "42.5");
+            arrayTag.add("element_values", elementValues);
+
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[2]")).isEqualTo("42.5");
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[0]"))
+                .as("an index the export didn't cover must return null, not a stale/default value")
+                .isNull();
+        }
+
+        @Test
+        @DisplayName("multi-dim bracket keys ([1,3]) round-trip verbatim")
+        void testMultiDimElementValue() {
+            JsonObject arrayTag = makeTag("multiArray", "INT");
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[1,3]", "194993");
+            arrayTag.add("element_values", elementValues);
+
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[1,3]")).isEqualTo("194993");
+        }
+
+        @Test
+        @DisplayName("arrayElementSource() falls back to the array tag itself when no element "
+            + "value is present - preserving the pre-FIX-15 initial_value/type-default behaviour")
+        void testSourceFallsBackToArrayTag() {
+            JsonObject arrayTag = makeTag("Arr", "DINT");
+            JsonObject source = AddressSpaceBuilder.arrayElementSource(arrayTag, "DINT", "[0]");
+            assertThat(source).isSameAs(arrayTag);
+        }
+
+        @Test
+        @DisplayName("arrayElementSource() synthesises a fresh node carrying the element's own "
+            + "value, data_type and the array's read_only flag")
+        void testSourceSynthesisesElementNode() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            arrayTag.addProperty("read_only", true);
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[2]", "42.5");
+            arrayTag.add("element_values", elementValues);
+
+            JsonObject source = AddressSpaceBuilder.arrayElementSource(arrayTag, "REAL", "[2]");
+
+            assertThat(source).isNotSameAs(arrayTag);
+            assertThat(source.get("data_type").getAsString()).isEqualTo("REAL");
+            assertThat(source.get("initial_value").getAsString()).isEqualTo("42.5");
+            assertThat(source.get("read_only").getAsBoolean()).isTrue();
+            assertThat(builder.getInitialValue(source, "REAL")).isEqualTo(42.5f);
+        }
+    }
+
+    // =========================================================================
+    // FIX-15 — bracket() (shared array-element key format)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("bracket()")
+    class BracketTests {
+
+        @Test
+        @DisplayName("1-D index formats as [n]")
+        void testOneDim() {
+            assertThat(AddressSpaceBuilder.bracket(new int[]{2})).isEqualTo("[2]");
+        }
+
+        @Test
+        @DisplayName("multi-dim indices format comma-separated with no spaces, matching the L5X "
+            + "decorated Index attribute verbatim")
+        void testMultiDim() {
+            assertThat(AddressSpaceBuilder.bracket(new int[]{1, 3})).isEqualTo("[1,3]");
+            assertThat(AddressSpaceBuilder.bracket(new int[]{0, 0, 1})).isEqualTo("[0,0,1]");
+        }
+    }
+
+    // =========================================================================
     // Helpers
     // =========================================================================
 

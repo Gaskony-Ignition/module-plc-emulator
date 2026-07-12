@@ -355,6 +355,18 @@ recorded here so it lives where the rest of the addressing decisions do.
 - **This is an explicit maintainer decision, not an oversight:** per-member/per-element
   initial-value derivation is deferred **post-v10**. See `KNOWN_ISSUES.md` for the
   user-facing statement of this gap.
+- **Revision (FIX-15, release-blocker fix, 12/07/2026):** the "per-element" half of this
+  deferral is REVOKED for **top-level array tags**. `L5XParser.extractArrayElementValues()`
+  now reads a top-level array's decorated `<Array><Element Index="..." Value="..."/></Array>`
+  block into an `element_values` map (keyed by the exact L5X `Index` bracket string), and
+  `AddressSpaceBuilder`/`IncrementalAddressSpaceUpdater` use it in place of the type default
+  when building/diffing each element node - including DWORD-packed BOOL array elements via
+  `AddressPolicy.boolArrayBit`. This was a formal DoD release blocker: a value-only change to
+  a single array element previously reported "0 changed" on hot-reload because the parser
+  never surfaced any per-element value at all. **Still deferred:** per-member values of a
+  UDT/AOI/predefined `<Structure>` instance, and any array *nested inside* a UDT/AOI instance
+  (member arrays, array-of-UDT element structures) - see `KNOWN_ISSUES.md` #6 for the current
+  scope line.
 
 ### 3.11 Predefined structured-type member sets — **DOC-CONFIRMED (per type)**
 
