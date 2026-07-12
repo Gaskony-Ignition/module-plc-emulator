@@ -362,14 +362,15 @@ class L5XParserTest {
         assertThat(aoi.get("name").getAsString()).isEqualTo("MyAOI");
         assertThat(aoi.get("type").getAsString()).isEqualTo("AOI");
 
-        // Check that EnableIn/EnableOut are skipped
+        // EnableIn/EnableOut are exposed like any other parameter (FIX-13, ADDRESSING.md §5.3 -
+        // the real driver browses them on every AOI backing tag; a previous version of this test
+        // asserted their ABSENCE, enforcing the very expansion gap the fidelity suite caught).
         JsonArray members = aoi.getAsJsonArray("members");
+        java.util.List<String> memberNames = new java.util.ArrayList<>();
         for (var elem : members) {
-            JsonObject member = elem.getAsJsonObject();
-            String memberName = member.get("name").getAsString();
-            assertThat(memberName).isNotEqualTo("EnableIn");
-            assertThat(memberName).isNotEqualTo("EnableOut");
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
         }
+        assertThat(memberNames).contains("EnableIn", "EnableOut", "Input1", "Output1");
 
         // Check that AOI instance tag is expanded
         JsonArray tags = result.getAsJsonArray("global_tags");

@@ -502,10 +502,11 @@ public class L5XParser implements PLCParser {
                 String dataType = paramElement.getAttribute("DataType");
                 String usage = paramElement.getAttribute("Usage");
 
-                // Skip EnableIn and EnableOut (standard AOI parameters)
-                if ("EnableIn".equals(paramName) || "EnableOut".equals(paramName)) {
-                    continue;
-                }
+                // The standard EnableIn/EnableOut parameters are NOT skipped (FIX-13): the real
+                // driver exposes them on every AOI backing tag (ADDRESSING.md §5.3, DOC-CONFIRMED)
+                // and real exports declare them with ExternalAccess="Read Only", so the ordinary
+                // markExternalAccess handling below yields read-only members - or omits them
+                // entirely if an export ever marks them "None" (§3.12).
 
                 JsonObject member = new JsonObject();
                 member.addProperty("name", paramName);

@@ -172,6 +172,12 @@ class AddressSpaceBuilderFidelityTest {
         // Visible Input/Output parameters are exposed off the canonical instance id (§3.3).
         assertType(nodes, "Program:MainProgram.Motor1_AOI.Start", OpcUaDataType.Boolean);
         assertType(nodes, "Program:MainProgram.Motor1_AOI.Running", OpcUaDataType.Boolean);
+        // The spec row explicitly lists the standard EnableIn/EnableOut parameters as exposed
+        // (ADDRESSING.md §5.3; the corpus declares them ExternalAccess="Read Only", not "None",
+        // so §3.12 keeps them). FIX-13: these were previously unasserted - and unexposed, because
+        // L5XParser.parseAOI hard-skipped both names (the AOI expansion gap this closes).
+        assertType(nodes, "Program:MainProgram.Motor1_AOI.EnableIn", OpcUaDataType.Boolean);
+        assertType(nodes, "Program:MainProgram.Motor1_AOI.EnableOut", OpcUaDataType.Boolean);
     }
 
     @Test
