@@ -167,6 +167,15 @@ class FilePreparationTest {
         File plcTestFile = tempDir.resolve("plc_test" + DeviceFileManager.DEVICE_FILE_SEPARATOR + "config.l5x").toFile();
         Files.writeString(plcFile.toPath(), "plc content");
         Files.writeString(plcTestFile.toPath(), "plc_test content");
+        // Force distinct mtimes: on some filesystems/CI runs both writeString() calls above can
+        // land in the same timestamp tick, and the "most recently uploaded" pick in
+        // findExistingFileForDevice() (Comparator.comparingLong(File::lastModified)) is otherwise
+        // ambiguous between the two ticks. The cross-device filtering this test asserts is
+        // independent of mtime, but a deterministic tie-break keeps the test itself flake-free.
+        Files.setLastModifiedTime(plcFile.toPath(),
+            FileTime.fromMillis(System.currentTimeMillis()));
+        Files.setLastModifiedTime(plcTestFile.toPath(),
+            FileTime.fromMillis(System.currentTimeMillis() - 5_000L));
 
         when(context.getName()).thenReturn("plc");
         FilePreparation plcPrep = new FilePreparation(context, config);
