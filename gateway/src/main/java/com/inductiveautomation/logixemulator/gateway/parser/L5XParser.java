@@ -679,15 +679,18 @@ public class L5XParser implements PLCParser {
     }
 
     /**
-     * Decodes an ASCII-radix scalar {@code Value} literal to its character code (FIX-8):
-     * {@code Radix="ASCII"} with {@code Value="'A'"} becomes {@code "65"}, which previously fell
-     * through the numeric parse and left the node at its type default.
+     * Decodes an ASCII-radix scalar {@code Value} literal to its character code (FIX-8, extended
+     * for the {@code $xx} hex-escape form): {@code Radix="ASCII"} with {@code Value="'A'"} becomes
+     * {@code "65"}, and {@code Value="'$10'"} (a two-hex-digit {@code $}-escape, corpus-verified on
+     * the real {@code AsciiTag} export - $10 = hex 0x10 = decimal 16) becomes {@code "16"}. Both
+     * previously fell through the numeric parse and left the node at its type default.
      *
-     * <p>Deliberately conservative: ONLY a plain quoted single character is decoded. The
-     * {@code $}-escaped forms real exports also use ({@code '$10'}, {@code '$00$00$00$00'},
-     * {@code '$r'}, {@code '$$'}) and any other shape are returned unchanged, keeping them on the
-     * existing type-default path (B1 safety net) rather than risking a wrong decode. Any radix
-     * other than {@code ASCII} - including absent/unknown radixes - is likewise untouched.
+     * <p>Deliberately conservative: ONLY a plain quoted single character or a quoted two-hex-digit
+     * {@code $xx} escape is decoded. Studio 5000's other single-character escapes ({@code $$},
+     * {@code $r}, {@code $l}, {@code $t}, {@code $p}) and multi-character escaped strings (e.g.
+     * {@code '$00$00$00$00'}) are returned unchanged, keeping them on the existing type-default
+     * path (B1 safety net) rather than risking a wrong decode. Any radix other than {@code ASCII}
+     * - including absent/unknown radixes - is likewise untouched.
      */
     private static String decodeAsciiRadixScalar(String rawValue, String radix) {
         if (!"ASCII".equalsIgnoreCase(radix)) {
@@ -697,6 +700,14 @@ public class L5XParser implements PLCParser {
         if (trimmed.length() == 3 && trimmed.charAt(0) == '\'' && trimmed.charAt(2) == '\''
                 && trimmed.charAt(1) != '$') {
             return String.valueOf((int) trimmed.charAt(1));
+        }
+        if (trimmed.length() == 5 && trimmed.charAt(0) == '\'' && trimmed.charAt(1) == '$'
+                && trimmed.charAt(4) == '\'') {
+            int hi = Character.digit(trimmed.charAt(2), 16);
+            int lo = Character.digit(trimmed.charAt(3), 16);
+            if (hi >= 0 && lo >= 0) {
+                return String.valueOf((hi << 4) | lo);
+            }
         }
         return rawValue;
     }

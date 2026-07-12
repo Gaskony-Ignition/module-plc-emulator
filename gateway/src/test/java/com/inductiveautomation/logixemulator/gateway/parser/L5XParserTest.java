@@ -857,15 +857,15 @@ class L5XParserTest {
     }
 
     @Test
-    @DisplayName("FIX-8: an ASCII-radix value that is not a plain quoted single character (the "
-        + "corpus's escaped '$10' form) is left alone - it stays on the type-default path")
-    void testAsciiRadixEscapedValueStaysOnDefaultPath() {
+    @DisplayName("FIX-8 (extended, item-4 residual): an ASCII-radix '$xx' hex-escape ('$10', the "
+        + "real corpus AsciiTag literal) decodes to its byte value (16)")
+    void testAsciiRadixDollarHexEscapeDecodedToByteValue() {
         String content = """
             <?xml version="1.0"?>
             <RSLogix5000Content>
                 <Controller Name="Test" ProcessorType="Test">
                     <Tags>
-                        <Tag Name="AsciiEscaped" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                        <Tag Name="AsciiTag" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
                             <Data Format="Decorated">
                                 <DataValue DataType="SINT" Radix="ASCII" Value="'$10'"/>
                             </Data>
@@ -879,9 +879,63 @@ class L5XParserTest {
 
         assertThat(result).isNotNull();
         JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString())
+            .as("$10 is a hex escape for byte 0x10 = 16 decimal; this previously read as 0 (DoD LOW residual)")
+            .isEqualTo("16");
+    }
+
+    @Test
+    @DisplayName("FIX-8: an ASCII-radix escape that is NOT the two-hex-digit $xx form (a "
+        + "multi-character escaped string) is left alone - it stays on the type-default path")
+    void testAsciiRadixMultiCharEscapeStaysOnDefaultPath() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiEscaped" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$00$00$00$00'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
         // The raw literal is preserved; it does not parse as a SINT so the builder's B1 safety
         // net gives the node its type default (0) - conservative, never a wrong decode.
-        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$10'");
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$00$00$00$00'");
+    }
+
+    @Test
+    @DisplayName("FIX-8: a single-character $ escape other than a hex pair (e.g. '$r') is left alone")
+    void testAsciiRadixSingleCharEscapeStaysOnDefaultPath() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiCr" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$r'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$r'");
     }
 
     @Test
