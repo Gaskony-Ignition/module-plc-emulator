@@ -58,7 +58,7 @@ construct that fails to parse, or a deliberately chosen candidate feature
 | ---- | ------- |
 | Executing PLC logic (ladder/ST/FBD semantics) | This emulates tag structures, not a controller runtime |
 | EtherNet/IP / CIP wire-protocol emulation | Ignition binds via OPC-UA; protocol emulation is a different product |
-| Other PLC families (Siemens, Codesys, …) | Logix-shaped scope; a new family is a new module |
+| Other PLC families as shipped features (Siemens, Codesys, …) | Designed-for but not built: the parser/addressing boundary (`AddressPolicy` seam, v10) must stay vendor-pluggable, but no new family is implemented until a real export file and a real device are available to verify against (amended 12/07/2026; previously an unconditional won't-do) |
 | Physics/process simulation models | Pattern generators are the boundary; process sims belong outside |
 
 ---
