@@ -39,8 +39,11 @@ On a clean Ignition 8.3 gateway with a signed `.modl`:
 6. Upload/read/write endpoints validated + rate-limited; XML parsing XXE-proof
 7. File version manager retains the last 5 uploads and can revert
 
-**DoD verified:** [pending final clean-gateway run 12/07/2026 — see
-`docs/plans/V10_FIDELITY_PLAN.md`]
+**DoD verified:** 12/07/2026 — v10.0.0 release candidate, 7/7 PASS on a clean
+Ignition 8.3.6 gateway with the signed `.modl` and a genuine 513KB Studio 5000
+export (evidence: `~/Downloads/plc-v10-artifacts/plc-dod3/` + `plc-dod4/`;
+process: `docs/plans/V10_FIDELITY_PLAN.md`). First formal pass of this
+checklist; v9.2.14 failed items 2, 3 and 7 on 09/07/2026.
 
 ## 3. Maintenance Policy
 
