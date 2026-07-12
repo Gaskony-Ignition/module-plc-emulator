@@ -198,6 +198,107 @@ class AddressSpaceBuilderIntegrationTest {
         }
     }
 
+    // =====================================================================================
+    // FIX-12 — packed BOOL-array bit nodes must respect the tag's read_only flag
+    // (ADDRESSING.md §3.12), exactly like createLeafVariable does for every other node kind.
+    // =====================================================================================
+
+    @Test
+    @DisplayName("FIX-12: a read-only BOOL array's packed bit nodes are AccessLevel.READ_ONLY "
+        + "with no write filter")
+    void testReadOnlyBoolArrayBitNodes() {
+        JsonObject plcData = boolArrayData("RoBits", 33, true);
+
+        builder.buildAddressSpace(plcData, rootNode, context);
+
+        List<org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode> bits = boolBitNodes("RoBits");
+        assertThat(bits).hasSize(33);
+        for (var bit : bits) {
+            assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(bit.getAccessLevel()))
+                .as("bit node %s must be read-only", bit.getNodeId().getIdentifier())
+                .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+            assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(bit.getUserAccessLevel()))
+                .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+            assertThat(bit.getFilterChain().getFilters())
+                .as("a read-only bit node must carry no write filter")
+                .isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("FIX-12: a writable BOOL array's packed bit nodes stay READ_WRITE with a write filter")
+    void testWritableBoolArrayBitNodes() {
+        JsonObject plcData = boolArrayData("RwBits", 32, false);
+
+        builder.buildAddressSpace(plcData, rootNode, context);
+
+        List<org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode> bits = boolBitNodes("RwBits");
+        assertThat(bits).hasSize(32);
+        for (var bit : bits) {
+            assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(bit.getAccessLevel()))
+                .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_WRITE);
+            assertThat(bit.getFilterChain().getFilters())
+                .as("a writable bit node must carry the pass-through write filter")
+                .hasSize(1);
+        }
+    }
+
+    @Test
+    @DisplayName("FIX-12: a read-only BOOL member array inside a UDT gets read-only bit nodes too")
+    void testReadOnlyBoolMemberArrayBitNodes() {
+        JsonObject member = new JsonObject();
+        member.addProperty("name", "Flags");
+        member.addProperty("data_type", "BOOL");
+        member.addProperty("dimensions", "32");
+        member.addProperty("read_only", true);
+        JsonArray members = new JsonArray();
+        members.add(member);
+
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", "MyUdt");
+        tag.addProperty("data_type", "SomeUdt");
+        tag.add("udt_members", members);
+        JsonArray globalTags = new JsonArray();
+        globalTags.add(tag);
+        JsonObject plcData = new JsonObject();
+        plcData.add("global_tags", globalTags);
+
+        builder.buildAddressSpace(plcData, rootNode, context);
+
+        List<org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode> bits = boolBitNodes("MyUdt.Flags");
+        assertThat(bits).hasSize(32);
+        for (var bit : bits) {
+            assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(bit.getAccessLevel()))
+                .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+            assertThat(bit.getFilterChain().getFilters()).isEmpty();
+        }
+    }
+
+    /** Builds parsed data with a single 1-D BOOL array controller tag. */
+    private static JsonObject boolArrayData(String name, int elements, boolean readOnly) {
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", name);
+        tag.addProperty("data_type", "BOOL");
+        tag.addProperty("isArray", true);
+        tag.addProperty("dimensions", String.valueOf(elements));
+        if (readOnly) {
+            tag.addProperty("read_only", true);
+        }
+        JsonArray globalTags = new JsonArray();
+        globalTags.add(tag);
+        JsonObject plcData = new JsonObject();
+        plcData.add("global_tags", globalTags);
+        return plcData;
+    }
+
+    /** All created variable nodes whose identifier starts with {@code base}'s packed-bit prefix. */
+    private List<org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode> boolBitNodes(String base) {
+        return addedNodes.stream()
+            .filter(n -> n.getNodeId().getIdentifier().toString().startsWith(base + "["))
+            .map(n -> (org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode) n)
+            .toList();
+    }
+
     private JsonObject parseResource(String resourcePath) throws IOException {
         String fileName = resourcePath.substring(resourcePath.lastIndexOf('/') + 1);
 

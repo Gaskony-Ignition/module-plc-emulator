@@ -287,7 +287,7 @@ public class AddressSpaceBuilder {
         NodeContext context) {
 
         if (policy.isBoolType(dataType) && !isUdt && dims.length == 1) {
-            addBoolArray(baseId, tagName, dims[0], context, parentFolder::addOrganizes);
+            addBoolArray(baseId, tagName, dims[0], tag, context, parentFolder::addOrganizes);
             logger.debug("Created DWORD-packed BOOL array '{}' ({} bits)", tagName, dims[0]);
             return;
         }
@@ -354,7 +354,7 @@ public class AddressSpaceBuilder {
             int[] dims = policy.parseDimensions(member.get("dimensions").getAsString());
             if (dims.length > 0) {
                 if (policy.isBoolType(memberType) && !memberIsUdt && dims.length == 1) {
-                    addBoolArray(memberBaseId, memberName, dims[0], context, attacher::accept);
+                    addBoolArray(memberBaseId, memberName, dims[0], member, context, attacher::accept);
                     return;
                 }
                 for (int[] indices : policy.enumerateIndices(dims)) {
@@ -418,24 +418,33 @@ public class AddressSpaceBuilder {
      * not exist, matching the real driver (a read of it fails "node does not exist"). Bits above
      * the declared element count are not emitted even though they physically occupy the final word.
      *
+     * <p>Bit nodes honour the tag/member's {@code read_only} flag (ADDRESSING.md §3.12, FIX-12)
+     * exactly like {@link #createLeafVariable}: a read-only source yields
+     * {@code AccessLevel.READ_ONLY} bit nodes with no write filter.
+     *
+     * @param valueSource the parsed tag/member JSON, consulted for {@code read_only}
      * @param attacher attaches a created bit node to its browse parent (folder or object)
      */
     private void addBoolArray(
         String baseId,
         String displayBase,
         int elementCount,
+        JsonObject valueSource,
         NodeContext context,
         Consumer<UaVariableNode> attacher) {
 
+        boolean readOnly = isReadOnly(valueSource);
         for (int n = 0; n < elementCount; n++) {
             String bitId = policy.boolArrayBit(baseId, n);
             // Browse name mirrors the identifier's packed suffix (cosmetic).
             String bitName = displayBase + bitId.substring(baseId.length());
 
             UaVariableNode bitNode = context.createVariableNode(
-                bitId, bitName, OpcUaDataType.Boolean.getNodeId());
+                bitId, bitName, OpcUaDataType.Boolean.getNodeId(), readOnly);
             bitNode.setValue(new DataValue(new Variant(false)));
-            enableWrites(bitNode);
+            if (!readOnly) {
+                enableWrites(bitNode);
+            }
             nodeAdder.accept(bitNode);
             attacher.accept(bitNode);
         }
