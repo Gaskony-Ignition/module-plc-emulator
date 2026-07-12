@@ -821,4 +821,90 @@ class L5XParserTest {
         JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
         assertThat(tag.get("initial_value").getAsString()).isEqualTo("true");
     }
+
+    // =========================================================================================
+    // FIX-8 — ASCII-radix scalar initial values ('A' -> 65)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("FIX-8: an ASCII-radix SINT DataValue with a quoted single character ('A') is "
+        + "decoded to its character code (65)")
+    void testAsciiRadixSingleCharDecodedToCharacterCode() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiChar" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'A'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString())
+            .as("'A' must decode to its character code so the SINT node starts at 65, not 0")
+            .isEqualTo("65");
+    }
+
+    @Test
+    @DisplayName("FIX-8: an ASCII-radix value that is not a plain quoted single character (the "
+        + "corpus's escaped '$10' form) is left alone - it stays on the type-default path")
+    void testAsciiRadixEscapedValueStaysOnDefaultPath() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiEscaped" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$10'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        // The raw literal is preserved; it does not parse as a SINT so the builder's B1 safety
+        // net gives the node its type default (0) - conservative, never a wrong decode.
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$10'");
+    }
+
+    @Test
+    @DisplayName("FIX-8: an unknown radix keeps the existing pass-through behaviour")
+    void testUnknownRadixValueUnchanged() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="HexByte" DataType="SINT" Radix="Hex" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="Hex" Value="16#0c"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("16#0c");
+    }
 }

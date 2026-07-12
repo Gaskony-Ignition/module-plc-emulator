@@ -666,11 +666,38 @@ public class L5XParser implements PLCParser {
                 return null;
             }
 
-            return normalizeValueForType(rawValue, dataType);
+            // ASCII-radix scalars render the value as a quoted character literal ('A'), not a
+            // number - decode the plain single-character form to its character code (FIX-8).
+            String decoded = decodeAsciiRadixScalar(rawValue, valueElement.getAttribute("Radix"));
+
+            return normalizeValueForType(decoded, dataType);
 
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Decodes an ASCII-radix scalar {@code Value} literal to its character code (FIX-8):
+     * {@code Radix="ASCII"} with {@code Value="'A'"} becomes {@code "65"}, which previously fell
+     * through the numeric parse and left the node at its type default.
+     *
+     * <p>Deliberately conservative: ONLY a plain quoted single character is decoded. The
+     * {@code $}-escaped forms real exports also use ({@code '$10'}, {@code '$00$00$00$00'},
+     * {@code '$r'}, {@code '$$'}) and any other shape are returned unchanged, keeping them on the
+     * existing type-default path (B1 safety net) rather than risking a wrong decode. Any radix
+     * other than {@code ASCII} - including absent/unknown radixes - is likewise untouched.
+     */
+    private static String decodeAsciiRadixScalar(String rawValue, String radix) {
+        if (!"ASCII".equalsIgnoreCase(radix)) {
+            return rawValue;
+        }
+        String trimmed = rawValue.trim();
+        if (trimmed.length() == 3 && trimmed.charAt(0) == '\'' && trimmed.charAt(2) == '\''
+                && trimmed.charAt(1) != '$') {
+            return String.valueOf((int) trimmed.charAt(1));
+        }
+        return rawValue;
     }
 
     /**
