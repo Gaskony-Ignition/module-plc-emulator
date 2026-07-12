@@ -177,20 +177,70 @@ class TagSimulationFacadeTest {
         assertThat(facade.getSimulatedTagCount()).isEqualTo(7);
     }
 
-    @Test
-    @DisplayName("enableSimulationByScope() passes the supplier-provided tag paths")
-    void enableScopePassesPaths() {
-        facade.enableSimulationByScope("Controller:Global");
+    // -------------------------------------------------------------------------
+    // Scope matching (v10 C1): scope semantics live here, via AddressPolicy.
+    // Canonical identifiers: controller tags are bare; program tags carry the
+    // Program:<Prog>. selector. The empty selector = controller scope only.
+    // -------------------------------------------------------------------------
 
-        verify(engine).enableSimulationByScope(eq("Controller:Global"), eq(tagPathsSupplier.get()));
+    @Test
+    @DisplayName("enableSimulationByScope(\"\") enables controller tags only — program tags are "
+        + "excluded even though every string startsWith(\"\") (v10 C1 canonical scheme)")
+    void enableControllerScopeExcludesProgramTags() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("RampInt", "Motor_1.Speed", "Program:MainProgram.Counter")
+        );
+
+        f.enableSimulationByScope("");
+
+        verify(engine).enableTagSimulation("RampInt");
+        verify(engine).enableTagSimulation("Motor_1.Speed");
+        verify(engine, never()).enableTagSimulation("Program:MainProgram.Counter");
     }
 
     @Test
-    @DisplayName("disableSimulationByScope() delegates to engine")
-    void disableScopeDelegates() {
-        facade.disableSimulationByScope("Controller:Global");
+    @DisplayName("enableSimulationByScope(\"Program:\") enables every program-scoped tag and no "
+        + "controller tags")
+    void enableAllProgramsScope() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("RampInt", "Program:MainProgram.Counter", "Program:MotorProgram.VFD_SpeedRef")
+        );
 
-        verify(engine).disableSimulationByScope("Controller:Global");
+        f.enableSimulationByScope("Program:");
+
+        verify(engine).enableTagSimulation("Program:MainProgram.Counter");
+        verify(engine).enableTagSimulation("Program:MotorProgram.VFD_SpeedRef");
+        verify(engine, never()).enableTagSimulation("RampInt");
+    }
+
+    @Test
+    @DisplayName("enableSimulationByScope(\"Program:Main\") does not match the longer sibling "
+        + "program name Program:MainProgram (boundary-safe prefix matching)")
+    void enableSingleProgramScopeIsBoundarySafe() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("Program:Main.Counter", "Program:MainProgram.Counter")
+        );
+
+        f.enableSimulationByScope("Program:Main");
+
+        verify(engine).enableTagSimulation("Program:Main.Counter");
+        verify(engine, never()).enableTagSimulation("Program:MainProgram.Counter");
+    }
+
+    @Test
+    @DisplayName("disableSimulationByScope() disables only the currently-simulated tags within "
+        + "the scope")
+    void disableScopeDisablesMatchingSimulatedTags() {
+        when(engine.getSimulatedTags()).thenReturn(
+            Set.of("RampInt", "Program:MainProgram.Counter"));
+
+        facade.disableSimulationByScope("Program:MainProgram");
+
+        verify(engine).disableTagSimulation("Program:MainProgram.Counter");
+        verify(engine, never()).disableTagSimulation("RampInt");
     }
 
     @Test
@@ -241,5 +291,59 @@ class TagSimulationFacadeTest {
         f.isTagSimulated("X");
 
         verifyNoInteractions(paths);
+    }
+
+    // -------------------------------------------------------------------------
+    // Read-only skip on bulk-by-scope (FIX-2 part 2) — the 3-arg constructor
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("3-arg constructor rejects null readOnlyPredicate")
+    void constructorRejectsNullReadOnlyPredicate() {
+        assertThatThrownBy(() -> new TagSimulationFacade(() -> engine, tagPathsSupplier, null))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("2-arg constructor defaults to treating no tag as read-only (existing behaviour "
+        + "preserved for callers that don't supply a read-only predicate)")
+    void twoArgConstructorTreatsNoTagAsReadOnly() {
+        TagSimulationFacade f = new TagSimulationFacade(() -> engine, () -> Set.of("AnyTag"));
+
+        int skipped = f.enableSimulationByScope("");
+
+        assertThat(skipped).isZero();
+        verify(engine).enableTagSimulation("AnyTag");
+    }
+
+    @Test
+    @DisplayName("enableSimulationByScope() skips read-only tags rather than simulating them, and "
+        + "reports how many were skipped (FIX-2 part 2) — a read-only tag in the scope must not "
+        + "fail the whole bulk operation")
+    void enableScopeSkipsReadOnlyTagsAndReportsCount() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("RampInt", "SimpleArray[0]", "Motor_1.Speed"),
+            tagPath -> tagPath.equals("SimpleArray[0]")
+        );
+
+        int skipped = f.enableSimulationByScope("");
+
+        assertThat(skipped).isEqualTo(1);
+        verify(engine).enableTagSimulation("RampInt");
+        verify(engine).enableTagSimulation("Motor_1.Speed");
+        verify(engine, never()).enableTagSimulation("SimpleArray[0]");
+    }
+
+    @Test
+    @DisplayName("enableSimulationByScope() returns 0 skipped when no engine is available")
+    void enableScopeNoEngineReturnsZeroSkipped() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> null,
+            tagPathsSupplier,
+            tagPath -> true
+        );
+
+        assertThat(f.enableSimulationByScope("scope")).isZero();
     }
 }

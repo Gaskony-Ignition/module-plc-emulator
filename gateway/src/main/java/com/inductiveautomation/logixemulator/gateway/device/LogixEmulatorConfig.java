@@ -152,7 +152,7 @@ public record LogixEmulatorConfig(General general, ParserSettings parser, Simula
         @FormCategory("SIMULATION")
         @Label("Enable Simulation")
         @FormField(FormFieldType.CHECKBOX)
-        @Description("[EXPERIMENTAL]: Enable dynamic value simulation for tags. This feature is still in development and not fully tested. Disable this to allow manual tag value changes.")
+        @Description("Enable dynamic value simulation for tags. When enabled, patterns assigned via the Connection Browser update tag values each tick. Leave disabled if tag values should only change via writes.")
         @DefaultValue("false")
         boolean enabled,
 

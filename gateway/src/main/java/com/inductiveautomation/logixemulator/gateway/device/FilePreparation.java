@@ -6,12 +6,16 @@ import com.inductiveautomation.ignition.gateway.opcua.server.api.DeviceContext;
 import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.parser.PLCParser;
 import com.inductiveautomation.logixemulator.gateway.parser.ParserFactory;
+import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.PathSecurity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 /**
  * Owns file-system preparation and parser dispatch for a Logix Emulator
@@ -21,9 +25,11 @@ import java.nio.file.Files;
  * Sprint 3 P6 refactor. Responsibilities:</p>
  * <ul>
  *   <li>Sanitise user-supplied filenames via {@link PathSecurity}.</li>
- *   <li>Locate an existing PLC file on disk for the device (the heuristic
- *       the review flagged as questionable; preserved as-is — drop is a
- *       behavioural decision out of scope).</li>
+ *   <li>Locate the most recently uploaded PLC file on disk for the device,
+ *       deterministically by last-modified time, pruning stale ones beyond
+ *       the version-manager retention limit (defect B5, fixed 10/07/2026 —
+ *       previously an unordered {@code listFiles()} scan could pick an
+ *       arbitrary/stale file on Gateway restart).</li>
  *   <li>Save uploaded file content to the data dir and version older copies.</li>
  *   <li>Pick the right parser (L5K vs L5X for {@code rockwell} type, falling
  *       back to extension detection).</li>
@@ -86,12 +92,48 @@ public final class FilePreparation {
     }
 
     /**
-     * Find an existing PLC file in the storage directory previously uploaded
-     * for THIS device. Only returns files with the device-specific prefix
-     * to prevent cross-device file sharing.
+     * Legacy device/filename separator (pre-FIX-3, 11/07/2026). Device names may themselves
+     * contain {@code "_"} (see {@code DeviceConfigService}'s {@code ^[a-zA-Z0-9_-]+$} name
+     * regex), so {@code startsWith(deviceName + "_")} is ambiguous: device {@code "plc"} also
+     * matches device {@code "plc_test"}'s files. Kept only as a non-authoritative fallback so
+     * files uploaded before this fix aren't orphaned on Gateway restart — see the safety note on
+     * {@link #findExistingFileForDevice}.
+     */
+    private static final String LEGACY_DEVICE_FILE_SEPARATOR = "_";
+
+    /**
+     * Find the most recently uploaded PLC file in the storage directory for
+     * THIS device. Only considers files with the device-specific prefix to
+     * prevent cross-device file sharing.
+     *
+     * <p>Defect B5 (10/07/2026): this previously returned the first match
+     * from {@link File#listFiles()}, whose iteration order is unspecified —
+     * on Gateway restart the device could silently load a stale or arbitrary
+     * file instead of the one most recently uploaded via REST
+     * ({@code plc-dod/item7-versioning-FAIL.txt}). Candidates are now sorted
+     * by last-modified time (newest first) and any beyond the version
+     * manager's retention limit ({@link FileVersionManager#getMaxVersions()})
+     * are pruned, so a device that has been re-uploaded to under many
+     * different filenames does not accumulate files here unboundedly.</p>
+     *
+     * <p><b>Defect FIX-3 (11/07/2026, data-safety):</b> matching is now split into two tiers
+     * mirroring {@link com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager}'s
+     * naming scheme precisely:
+     * <ul>
+     *   <li><b>Safe</b> — {@code deviceName + DeviceFileManager.DEVICE_FILE_SEPARATOR} ({@code
+     *       "."}, illegal in any device name, so this prefix can never match a different device's
+     *       file no matter what other devices are registered). This is the only tier that
+     *       participates in retention pruning/deletion.</li>
+     *   <li><b>Legacy</b> — {@code deviceName + "_"}, kept only so files uploaded before this fix
+     *       still get picked up on Gateway restart. Because {@code "_"} IS a legal device-name
+     *       character this tier remains ambiguous between prefix-overlapping device names (e.g.
+     *       {@code "plc"} vs {@code "plc_test"}) — so legacy matches are used for pickup only and
+     *       are <b>never deleted</b> by the pruning below, eliminating the irreversible half of
+     *       the original defect ({@code plc-dod2/item5-write.txt} lineage) even for old files.</li>
+     * </ul>
      *
      * @param storageDir directory to search
-     * @return the matched file, or {@code null} if none
+     * @return the most recently modified matching file, or {@code null} if none
      */
     public File findExistingFileForDevice(File storageDir) {
         if (storageDir == null || !storageDir.exists()) {
@@ -104,21 +146,76 @@ public final class FilePreparation {
         }
 
         String deviceName = context.getName();
+        String safePrefix = deviceName + DeviceFileManager.DEVICE_FILE_SEPARATOR;
+        String legacyPrefix = deviceName + LEGACY_DEVICE_FILE_SEPARATOR;
+
+        List<File> safeCandidates = new ArrayList<>();
+        List<File> legacyCandidates = new ArrayList<>();
         for (File file : files) {
             String name = file.getName();
             if (name.startsWith(".") || name.endsWith(".bak") || name.contains("~")) {
                 continue;
             }
-            if (name.startsWith(deviceName + "_")) {
-                for (String ext : PLC_EXTENSIONS) {
-                    if (name.endsWith(ext)) {
-                        logger.info("Found device-specific file: {}", file.getName());
-                        return file;
-                    }
+            if (!matchesExtension(name)) {
+                continue;
+            }
+            if (name.startsWith(safePrefix)) {
+                safeCandidates.add(file);
+            } else if (name.startsWith(legacyPrefix)) {
+                legacyCandidates.add(file);
+            }
+        }
+
+        // Retention pruning only ever touches the unambiguous (safe-separator) tier - a legacy
+        // match can never be deleted here, even if it turns out to belong to a different device.
+        pruneStaleCandidates(safeCandidates);
+
+        List<File> allCandidates = new ArrayList<>(safeCandidates);
+        allCandidates.addAll(legacyCandidates);
+        if (allCandidates.isEmpty()) {
+            return null;
+        }
+
+        allCandidates.sort(Comparator.comparingLong(File::lastModified).reversed());
+
+        File mostRecent = allCandidates.get(0);
+        logger.info("Found most recently uploaded device-specific file: {}", mostRecent.getName());
+        return mostRecent;
+    }
+
+    /** @return {@code true} if {@code name} ends with one of {@link #PLC_EXTENSIONS}. */
+    private static boolean matchesExtension(String name) {
+        for (String ext : PLC_EXTENSIONS) {
+            if (name.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Prunes (deletes) candidates beyond the version manager's retention limit, newest first.
+     * Mutates {@code candidates} by sorting it in place (newest-first) so the caller's later
+     * "most recent" selection sees a consistent order; callers must pass only file lists that are
+     * safe to delete from (see the FIX-3 safety note on {@link #findExistingFileForDevice}).
+     */
+    private void pruneStaleCandidates(List<File> candidates) {
+        if (candidates.isEmpty()) {
+            return;
+        }
+
+        candidates.sort(Comparator.comparingLong(File::lastModified).reversed());
+
+        int maxRetained = FileVersionManager.getMaxVersions();
+        if (candidates.size() > maxRetained) {
+            for (File stale : candidates.subList(maxRetained, candidates.size())) {
+                if (stale.delete()) {
+                    logger.info("Pruned stale uploaded file beyond retention ({}): {}", maxRetained, stale.getName());
+                } else {
+                    logger.warn("Failed to prune stale uploaded file: {}", stale.getAbsolutePath());
                 }
             }
         }
-        return null;
     }
 
     /**
@@ -254,13 +351,23 @@ public final class FilePreparation {
                 logger.info("Successfully parsed file using {} parser", parser.getParserType());
                 return result;
             } else {
-                logger.error("Parser returned null - file may be invalid or corrupted");
-                return createDemoStructure();
+                // DoD FIX-1 (11/07/2026): a genuine parse failure (garbage/malformed content, an
+                // XXE rejection, etc.) on a file that DOES exist must propagate as null so the
+                // caller (LogixEmulatorDevice.onStartup / HotReloadCoordinator.handleFileChange)
+                // sets an Error-prefixed status and the REST upload gate (DeviceController's B4
+                // check) reports 422 success:false. Previously this substituted a demo tag
+                // structure, so the device silently reached "Running" on a corrupt upload and the
+                // endpoint reported HTTP 200 success:true (plc-dod2/item6-verify.txt).
+                logger.error("Parser returned null for existing file {} - file may be invalid or "
+                    + "corrupted, rejecting rather than substituting demo tags", filePath);
+                return null;
             }
 
         } catch (Exception e) {
-            logger.error("Error in built-in parser", e);
-            return createDemoStructure();
+            // Same honesty requirement as the null-result branch above: an exception while
+            // parsing an existing file is a genuine failure, not a "no file yet" state.
+            logger.error("Error in built-in parser for file {}", filePath, e);
+            return null;
         }
     }
 

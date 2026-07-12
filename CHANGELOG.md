@@ -5,6 +5,179 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [10.0.0] - 2026-07-12 - **Fidelity Release: Swap-Compatible NodeIds**
+
+Follows the 09/07/2026 Definition-of-Done verification of v9.2.14, which failed
+three of the charter's seven checklist items (simulation, hot-reload writes,
+version revert) and surfaced a deeper problem: the emulator's OPC NodeId
+scheme did not match Ignition's real Allen-Bradley Logix driver, so tag
+bindings developed against the emulator silently broke on swap to a real PLC.
+Charter §2.2 was amended to require swap-compatibility (see
+`docs/PROJECT_CHARTER.md`); this release delivers it, distilled into the
+normative `docs/plans/ADDRESSING.md` spec and its `@Tag("fidelity")` test
+suite, alongside the outright defects the DoD run found.
+
+### BREAKING CHANGES
+
+- **NodeId scheme now matches Ignition's native Allen-Bradley Logix driver.**
+  Every construct's OPC-UA NodeId identifier was redesigned against
+  `docs/plans/ADDRESSING.md` so that a tag binding developed against the
+  emulator survives a swap to the real PLC. Concretely:
+  - **Controller-scoped tags** are now the bare tag name (`<tag>`, no
+    prefix). **Program-scoped tags** are now `Program:<Prog>.<tag>`
+    (previously the invalid `Programs.<Prog>.<tag>`).
+  - The pre-v10 duplicate-node scheme — a "long" node under
+    `Controller:Global.<tag>` plus a synchronised "short" alias at the device
+    root (`enableSynchronizedWrites` / `WriteSyncHelpers`) — has been
+    **removed entirely**. Each tag now has exactly one canonical node; there
+    is no alias concept in v10.
+  - **BOOL arrays are now DWORD-packed** (`Tag[word].bit`, e.g.
+    `boolTag[0].0` … `boolTag[0].31`, `boolTag[1].0` …) instead of one node
+    per element (`Tag[i]`) — the bare per-element form the real driver
+    rejects no longer exists.
+  - **Arrays fully expand**: array-of-UDT/predefined instances
+    (`Tag[i].Member`), multi-dimensional arrays (`Tag[i,j]`, `Tag[i,j,k]`,
+    comma-indexed within one bracket pair), and array members inside a UDT
+    (`Tag.Member[i]`) all now emit every element instead of collapsing to a
+    single un-indexed node.
+  - **`ExternalAccess="None"` tags/members are no longer created at all**
+    (previously visible and writable) — they are omitted from browse and I/O
+    entirely, matching the real CIP driver. `Read Only` and `Constant="true"`
+    tags are now created read-only.
+  - **Predefined structured-type member tables corrected** against Rockwell
+    reference manuals and real Studio 5000 exports: `TIMER`'s phantom `.ER`
+    member is removed (it never existed on real hardware); `CONTROL` gains
+    the previously-missing `.UL`/`.IN`/`.FD`; `MESSAGE`, `PID`, `PIDE`
+    (`PID_ENHANCED`), `ALARM_ANALOG` and `ALARM_DIGITAL` member sets are
+    corrected/expanded. Bindings to the old fabricated members break.
+
+  **Migration guidance** (from `docs/plans/ADDRESSING.md` §4, reused
+  verbatim): v10.0.0 changes the emulator's OPC NodeId scheme to be
+  swap-compatible with Ignition's native Allen-Bradley Logix driver.
+  Program-scoped tags now use the driver's `Program:<ProgramName>.<Tag>` form
+  (previously `Programs.<ProgramName>.<Tag>`), arrays now expand to
+  individual elements, and BOOL arrays use the driver's DWORD-packed
+  `Tag[word].bit` form. **Bindings created against a pre-v10 emulator device
+  must be re-pointed to the new paths** — the payoff is that a binding
+  developed against the v10 emulator now works unchanged when you swap in
+  the real PLC. Re-import/redeploy the device's file after upgrading, then
+  use the OPC browser to confirm the new paths before updating tag bindings.
+  Controller tags addressed via the bare form pre-v10 are unaffected (the
+  bare form already existed as the short alias).
+
+### Fixed
+
+- **L5X uploads crashed the entire address-space build** on any tag whose
+  parsed `initial_value` was non-numeric (e.g. a `"{structure}"` sentinel or
+  empty string) — `AddressSpaceBuilder.getInitialValue()`'s strict
+  `getAsInt()` had no per-tag guard, so one bad tag aborted the whole build.
+  Parsing is now lenient with type-appropriate defaults, and per-tag node
+  creation is isolated so one bad tag logs a warning instead of aborting.
+- **Simulation engine never updated tag values** — the engine and the
+  OPC-UA address space were not correctly wired together, so assigned
+  RAMP/SINE/RANDOM/TOGGLE patterns never moved a browsed value. The engine
+  now writes registered nodes directly and simulation tag paths are
+  correctly converted for the registry.
+- **File version manager was inert** — `saveVersion` was never called on the
+  REST upload path, `getVersions`/`restoreVersion` were dead code with no
+  route or UI, and a Gateway restart could reload a stale or arbitrary file
+  because file selection used an unordered directory listing. Upload now
+  saves a version on every successful upload, restart deterministically
+  picks the most-recently-modified file, and uploads beyond the retention
+  limit (5) are pruned.
+- **JSON parser produced zero OPC tags** despite parsing without error — the
+  parser's output shape did not match what `buildAddressSpace` expected
+  (`global_tags`/`programs` keys). Output is now normalised so flat JSON tag
+  lists are correctly consumed.
+- **Upload endpoint reported success on a failed parse** — a corrupt or
+  unparseable file returned HTTP 200 `{"success":true}` regardless. The
+  upload endpoint (and hot-reload) now propagate a genuine parse/build
+  failure as a 4xx/5xx error body instead of masking it.
+- **L5K parser silently substituted a demo tag** on any input that failed
+  its synthetic grammar, rather than reporting the failure. Per the
+  maintainer's one-primary-format-per-vendor decision (L5X is primary,
+  L5K is best-effort), the L5K parser now fails loudly instead of masking
+  the failure with a fabricated `L5K_ParseError` tag.
+- **Cross-device file scoping was ambiguous** — devices whose names
+  text-overlapped under the legacy `_`-separator matching (e.g. `plc` vs
+  `plc_test`) could pick up, and even prune, each other's uploaded files on
+  Gateway restart. File matching now uses an unambiguous `.`-separated
+  naming tier for pickup and retention pruning; the legacy `_`-separated
+  form is still recognised for pre-existing files but is pickup-only and
+  never deleted.
+- **Hot-reload did not correctly update array and nested-member values** —
+  the incremental updater diffed on the old (now-removed) node-id scheme and
+  could leave a partially-applied address space after a structural change.
+  Hot-reload now diffs on the expanded canonical node ids and rebuilds
+  cleanly on a partial apply.
+- **Read-only enforcement did not cover every write path** — REST tag
+  writes and the simulation engine could both write to an
+  `ExternalAccess="Read Only"` or `Constant="true"` tag, and packed
+  BOOL-array bit nodes did not respect the read-only flag at all. All write
+  paths (OPC-UA, REST, simulation) now honour `ExternalAccess`.
+- Genuine L5X parse failures are propagated instead of being masked with
+  demo tags; ASCII-radix single-character scalar initial values now decode
+  correctly; NUL/control-byte-only file content is now distinguished from
+  genuinely empty content (previously misreported as "File content is
+  empty"); absolute filesystem paths are no longer echoed into device
+  status on 4xx error bodies; the XXE regression test now uses a
+  realistically-sized (≥10KB) fixture that actually reaches the XML parser.
+
+### Added
+
+- **File version list/revert** — REST routes (`GET /device/:name/versions`,
+  `POST /device/:name/versions/revert`) plus a minimal web-UI surface to
+  list and roll back to a previously-uploaded file version.
+- **Module I/O tags** — the L5X `<Modules>` section is now parsed into
+  controller-scope I/O tag nodes (`<ModuleName>:I.Data`, `:O.Data`, `:C.…`;
+  local-chassis modules also addressable as `Local:<slot>:I.Data`) per
+  `docs/plans/ADDRESSING.md` §3.13.
+- **v32+ unsigned and time atomic types** — `USINT`/`UINT`/`UDINT`/`ULINT`
+  and `DT`/`LDT`/`LTIME`/`TIME` now map to proper OPC-UA types instead of
+  degrading to `String`.
+- **Initial values read from real exports** — `L5XParser.extractValue()` now
+  reads the `Value` attribute of a self-closing `<DataValue Value="…"/>`
+  element (Studio 5000's actual export form), falling back to text content;
+  previously every scalar tag silently started at its type default
+  regardless of the export.
+- **Base `STRING` tags gain `.LEN`/`.DATA` members** (`Tag.LEN` DINT,
+  `Tag.DATA[i]` SINT array) alongside the existing scalar `String` value,
+  matching the real driver's browsable structure.
+- **AOI `EnableIn`/`EnableOut` parameters** are now exposed on AOI backing
+  tags alongside visible Input/Output parameters (InOut parameters remain
+  excluded — they are references, not backing-tag storage).
+- **Real-world export corpus + fidelity test suite** — eight licence-clean
+  genuine Studio 5000 L5X exports vendored under
+  `gateway/src/test/resources/corpus/` (with `ATTRIBUTION.md`), plus a new
+  `@Tag("fidelity")` suite (17 tests, run via the `fidelityTest` Gradle task,
+  excluded from the default `test` task) asserting the driver-matching
+  NodeId behaviour in `docs/plans/ADDRESSING.md` §5.
+- **`AddressPolicy` vendor seam** — Rockwell addressing rules
+  (`RockwellLogixPolicy`) are now behind a pluggable `AddressPolicy`
+  interface; `AddressSpaceBuilder` contains no vendor-specific logic. Lays
+  the groundwork for a future non-Rockwell parser without touching
+  node-creation machinery (no non-Rockwell parser ships in v10).
+
+### Known limitations
+
+See `docs/KNOWN_ISSUES.md` for full detail. Carried into v10.0.0, all by
+deliberate maintainer decision rather than oversight:
+
+- **Motion/coordinate predefined member sets are INCOMPLETE** —
+  `AXIS_CIP_DRIVE`/`AXIS_VIRTUAL`/`AXIS_SERVO_DRIVE`/`MOTION_GROUP`/
+  `COORDINATE_SYSTEM` expose only the ~10-15 most-referenced members; no
+  public Studio 5000 export containing these types was found to corpus-test
+  full fidelity.
+- **Bit-of-integer addressing (`Tag.b` on a plain atomic integer) is not
+  implemented** — deferred post-v10 pending bench confirmation of bit-width
+  bounds and a pre-create-vs-on-demand design decision.
+- **Structure/array member initial values are not read from the export** —
+  only a scalar atomic tag's initial value is read (C8); a UDT/AOI/array
+  member's nested `<DataValueMember>`/`<Element>` initial value is not, and
+  starts at its type default instead. Deferred post-v10.
+
+---
+
 ## [9.2.1] - 2026-03-07
 
 ### Cross-module standardisation (Round 4)

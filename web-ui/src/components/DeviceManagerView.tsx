@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import PageHeader from './PageHeader'
 import Modal from './Modal'
+import VersionsPanel from './VersionsPanel'
 import { API } from '../constants/api'
 import { apiGet, apiFetch } from '../utils/apiClient'
 import { DeviceInfo, DeviceStatus } from '../types/device'
@@ -39,6 +40,7 @@ function DeviceManagerView() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [versionsRefreshKey, setVersionsRefreshKey] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const simEnabledCount = devices.filter((d) => d.simulationEnabled).length
@@ -162,6 +164,7 @@ function DeviceManagerView() {
       setUploadSuccess(true)
       await loadDeviceStatus(selectedDevice)
       await loadDevices()
+      setVersionsRefreshKey((k) => k + 1)
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed')
     } finally {
@@ -417,6 +420,15 @@ function DeviceManagerView() {
           </div>
         )}
       </div>
+
+      {/* File version history + revert (defect B5) */}
+      {selectedDevice && (
+        <VersionsPanel
+          deviceName={selectedDevice}
+          refreshSignal={versionsRefreshKey}
+          onReverted={handleRefresh}
+        />
+      )}
 
       {/* Delete confirmation modal (a11y primitive) */}
       <Modal

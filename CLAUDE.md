@@ -88,7 +88,9 @@ ignition-module-plc-emulator/
 
 - **Controller pattern**: DeviceController, TagController, SimulationController, SystemController
 - **FileUploadRoutes** is a thin router delegating to controllers
-- **Three rate limiters**: file upload (60/hr), reads (300/hr), writes (60/hr)
+- **Three rate limiters** (per-user/hour; see `RateLimiter` + `FileUploadRoutes`): file upload
+  (100/hr), reads (300/hr), writes (60/hr) — upload is 100/hr, not 60/hr; 60/hr is the write
+  limiter (corrected 10/07/2026, defect B7 — see `plc-dod/item6-validation.txt`)
 - **Hot-reload**: Incremental tag updates without device restart
 
 ## Module Dependencies

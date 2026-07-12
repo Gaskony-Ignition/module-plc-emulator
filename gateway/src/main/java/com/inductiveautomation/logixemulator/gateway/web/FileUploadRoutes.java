@@ -10,6 +10,7 @@ import com.inductiveautomation.logixemulator.gateway.web.controller.DeviceContro
 import com.inductiveautomation.logixemulator.gateway.web.controller.SimulationController;
 import com.inductiveautomation.logixemulator.gateway.web.controller.SystemController;
 import com.inductiveautomation.logixemulator.gateway.web.controller.TagController;
+import com.inductiveautomation.logixemulator.gateway.web.controller.VersionController;
 import org.json.JSONException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,7 @@ import org.slf4j.LoggerFactory;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Thin router: mounts all 18 API routes and delegates each to the appropriate controller.
+ * Thin router: mounts all 20 API routes and delegates each to the appropriate controller.
  *
  * Extracted controllers handle the actual request logic:
  * <ul>
@@ -25,6 +26,7 @@ import jakarta.servlet.http.HttpServletResponse;
  *   <li>{@link TagController}       — tags, children, live values</li>
  *   <li>{@link SimulationController}— write, toggle, bulk simulation</li>
  *   <li>{@link SystemController}    — health, stats, logs, auth</li>
+ *   <li>{@link VersionController}   — file version list, revert</li>
  * </ul>
  */
 public class FileUploadRoutes {
@@ -36,6 +38,7 @@ public class FileUploadRoutes {
     private final TagController tagController;
     private final SimulationController simulationController;
     private final SystemController systemController;
+    private final VersionController versionController;
 
     public FileUploadRoutes(GatewayContext context, RouteGroup routes, DeviceRegistry registry) {
         this.routes = routes;
@@ -50,6 +53,7 @@ public class FileUploadRoutes {
         this.tagController        = new TagController(deviceManager, readRateLimiter);
         this.simulationController = new SimulationController(deviceManager, writeRateLimiter);
         this.systemController     = new SystemController(context, registry, readRateLimiter);
+        this.versionController    = new VersionController(deviceManager, readRateLimiter, writeRateLimiter);
     }
 
     public void mountRoutes() {
@@ -58,6 +62,10 @@ public class FileUploadRoutes {
         mountRoute(Routes.DEVICES,                 deviceController::handleListDevices,           null);
         mountRoute(Routes.DEVICE_STATUS,           deviceController::handleDeviceStatus,          null);
         mountRoute(Routes.DEVICE_DELETE,           deviceController::handleDeleteFile,            HttpMethod.DELETE);
+
+        // File version routes (defect B5)
+        mountRoute(Routes.DEVICE_VERSIONS,         versionController::handleListVersions,         null);
+        mountRoute(Routes.DEVICE_VERSIONS_REVERT,  versionController::handleRevertVersion,        HttpMethod.POST);
 
         // Tag routes
         mountRoute(Routes.DEVICE_TAGS,             tagController::handleGetTags,               null);

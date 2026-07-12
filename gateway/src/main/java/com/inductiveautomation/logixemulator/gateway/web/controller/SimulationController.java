@@ -1,7 +1,10 @@
 package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
+import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
+import com.inductiveautomation.logixemulator.gateway.device.TagWriteDispatcher;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.GatewayAuthHelper;
 import com.inductiveautomation.logixemulator.gateway.web.RateLimiter;
@@ -24,6 +27,9 @@ public class SimulationController {
     private final DeviceFileManager deviceManager;
     private final RateLimiter writeRateLimiter;
 
+    /** Vendor addressing policy — maps the browse-tree (slash) path clients send to canonical NodeIds. */
+    private final AddressPolicy policy = new RockwellLogixPolicy();
+
     public SimulationController(DeviceFileManager deviceManager, RateLimiter writeRateLimiter) {
         this.deviceManager = deviceManager;
         this.writeRateLimiter = writeRateLimiter;
@@ -34,18 +40,53 @@ public class SimulationController {
     // -------------------------------------------------------------------------
 
     /**
-     * Convert slash notation tag path to OPC-UA NodeId dot notation.
-     * Controller:Global/Motor1/Speed -> Controller:Global.Motor1.Speed
+     * Convert a browse-tree (slash-notation) tag path from the web UI into the canonical OPC-UA
+     * NodeId identifier the address space assigns (v10 C1 — ADDRESSING.md §2.2). The cosmetic
+     * browse folders are dropped: a {@code Controller:Global/} path resolves to the bare identifier
+     * and a {@code Programs/<Prog>/} path resolves to the {@code Program:<Prog>.} selector form.
+     *
+     * <ul>
+     *   <li>{@code Controller:Global/Motor1/Speed} -&gt; {@code Motor1.Speed}</li>
+     *   <li>{@code Programs/MainProgram/Counter} -&gt; {@code Program:MainProgram.Counter}</li>
+     *   <li>{@code Controller:Global} (bulk scope) -&gt; {@code ""} — the controller-scope
+     *       selector; scope membership is decided by {@code AddressPolicy.matchesScope}, which
+     *       treats the empty selector as "every non-program tag"</li>
+     *   <li>{@code Programs} (bulk scope) -&gt; {@code Program:} (every program-scoped tag)</li>
+     *   <li>{@code Programs/MainProgram} (bulk scope) -&gt; {@code Program:MainProgram}</li>
+     * </ul>
      */
     String convertToNodeIdPath(String tagPath) {
         if (tagPath == null) return null;
 
-        if (tagPath.startsWith("Controller:Global/")) {
-            return "Controller:Global." + tagPath.substring("Controller:Global/".length()).replace("/", ".");
+        String controllerFolder = policy.controllerBrowseFolder();
+        String programsFolder = policy.programsBrowseFolder();
+
+        if (tagPath.equals(controllerFolder)) {
+            // Bulk "all controller tags" scope. Controller identifiers are bare, so the scope
+            // selector is empty; matchesScope() gives it "not program-scoped" semantics.
+            return policy.controllerScopePrefix();
         }
-        if (tagPath.startsWith("Programs/")) {
-            return tagPath.replace("/", ".");
+        if (tagPath.startsWith(controllerFolder + "/")) {
+            String rest = tagPath.substring((controllerFolder + "/").length());
+            return rest.replace("/", ".");
         }
+
+        if (tagPath.equals(programsFolder)) {
+            // Bulk "all programs" scope -> the generic Program: selector.
+            return policy.allProgramsScopeSelector();
+        }
+        if (tagPath.startsWith(programsFolder + "/")) {
+            String rest = tagPath.substring((programsFolder + "/").length());
+            int slash = rest.indexOf('/');
+            if (slash < 0) {
+                // "Programs/<Prog>" bulk scope -> "Program:<Prog>".
+                return policy.programScopePrefix(rest);
+            }
+            String programName = rest.substring(0, slash);
+            String remainder = rest.substring(slash + 1).replace("/", ".");
+            return policy.join(policy.programScopePrefix(programName), remainder);
+        }
+
         return tagPath.replace("/", ".");
     }
 
@@ -134,17 +175,27 @@ public class SimulationController {
             Object typedValue = convertValue(valueStr, dataType);
 
             LogixEmulatorDevice device = deviceOpt.get();
-            boolean success = device.writeTagValue(opcuaPath, typedValue);
+            TagWriteDispatcher.WriteResult writeResult = device.writeTagValue(opcuaPath, typedValue);
 
-            if (success) {
-                return result.put("success", true)
-                    .put("message", "Tag value written successfully")
-                    .put("tagPath", tagPath)
-                    .put("value", valueStr);
-            } else {
-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                return result.put("success", false)
-                    .put("error", "Tag not found or write failed: " + tagPath);
+            switch (writeResult) {
+                case SUCCESS -> {
+                    return result.put("success", true)
+                        .put("message", "Tag value written successfully")
+                        .put("tagPath", tagPath)
+                        .put("value", valueStr);
+                }
+                case READ_ONLY -> {
+                    // FIX-2: distinguish "read-only" from "not found" so callers get an
+                    // actionable 403 rather than a confusing 404 for a tag that does exist.
+                    resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    return result.put("success", false)
+                        .put("error", "Tag '" + tagPath + "' is read-only and cannot be written");
+                }
+                default -> {
+                    resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                    return result.put("success", false)
+                        .put("error", "Tag not found or write failed: " + tagPath);
+                }
             }
 
         } catch (Exception e) {
@@ -185,9 +236,10 @@ public class SimulationController {
         LogixEmulatorDevice device = deviceOpt.get();
 
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {
@@ -200,33 +252,57 @@ public class SimulationController {
                 return result.put("success", false).put("error", "tagPath required");
             }
 
+            // The simulation engine keys its per-tag registry off the *live* OPC-UA
+            // NodeId identifier, which AddressSpaceBuilder always constructs in DOT
+            // notation (e.g. "Controller:Global.RampInt") — never the slash notation
+            // ("Controller:Global/RampInt") this endpoint receives from clients. Without
+            // this conversion the registry and the engine's per-tick node lookup use
+            // different keys and never match, so a tag can be "registered" (API reports
+            // success) while its OPC-UA node value never updates (defect B3).
+            String opcuaPath = convertToNodeIdPath(tagPath);
+
             String pattern = requestJson.optString("pattern", null);
             boolean enabled;
+
+            // FIX-2 part 2: refuse to arm simulation on a read-only tag before the engine
+            // ever starts writing to it on tick — the engine writes directly to the node and,
+            // like the REST write path (handleWriteTag), never itself consults AccessLevel.
+            // "Would enable" covers both the explicit enabled:true form and the bare toggle
+            // form (which flips whatever the tag's current simulation state is).
+            boolean wouldEnable = requestJson.has("enabled")
+                ? requestJson.getBoolean("enabled")
+                : !device.isTagSimulated(opcuaPath);
+
+            if (wouldEnable && device.isTagReadOnly(opcuaPath)) {
+                resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                return result.put("success", false)
+                    .put("error", "Tag '" + tagPath + "' is read-only and cannot be simulated");
+            }
 
             if (requestJson.has("enabled")) {
                 enabled = requestJson.getBoolean("enabled");
                 if (enabled) {
                     if (pattern != null && !pattern.isEmpty()) {
-                        device.enableTagSimulation(tagPath, pattern);
+                        device.enableTagSimulation(opcuaPath, pattern);
                     } else {
-                        device.enableTagSimulation(tagPath);
+                        device.enableTagSimulation(opcuaPath);
                     }
                 } else {
-                    device.disableTagSimulation(tagPath);
+                    device.disableTagSimulation(opcuaPath);
                 }
             } else {
-                Boolean newState = device.toggleTagSimulation(tagPath);
+                Boolean newState = device.toggleTagSimulation(opcuaPath);
                 enabled = newState != null && newState;
 
                 if (enabled && pattern != null && !pattern.isEmpty()) {
-                    device.enableTagSimulation(tagPath, pattern);
+                    device.enableTagSimulation(opcuaPath, pattern);
                 }
             }
 
             return result.put("success", true)
                 .put("tagPath", tagPath)
                 .put("simulationEnabled", enabled)
-                .put("pattern", device.getTagSimulationPattern(tagPath))
+                .put("pattern", device.getTagSimulationPattern(opcuaPath))
                 .put("simulatedTagCount", device.getSimulatedTagCount());
 
         } catch (Exception e) {
@@ -302,9 +378,10 @@ public class SimulationController {
 
         LogixEmulatorDevice device = deviceOpt.get();
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {
@@ -318,16 +395,28 @@ public class SimulationController {
                 return result.put("success", false).put("error", "scope required");
             }
 
+            // Convert the browse-tree scope to a canonical scope selector before handing it to
+            // the device (defect B3 lineage): "Controller:Global" -> "" (controller scope),
+            // "Programs" -> "Program:", "Programs/MainProgram" -> "Program:MainProgram". Scope
+            // membership against canonical NodeIds is decided by AddressPolicy.matchesScope in
+            // TagSimulationFacade.
+            String opcuaScope = convertToNodeIdPath(scope);
+
+            // FIX-2 part 2: read-only tags within the scope are skipped (not simulated) rather
+            // than failing the whole bulk operation — skippedReadOnly tells the caller some
+            // matched tags were silently excluded.
+            int skippedReadOnly = 0;
             if (enabled) {
-                device.enableSimulationByScope(scope);
+                skippedReadOnly = device.enableSimulationByScope(opcuaScope);
             } else {
-                device.disableSimulationByScope(scope);
+                device.disableSimulationByScope(opcuaScope);
             }
 
             return result.put("success", true)
                 .put("scope", scope)
                 .put("enabled", enabled)
-                .put("simulatedTagCount", device.getSimulatedTagCount());
+                .put("simulatedTagCount", device.getSimulatedTagCount())
+                .put("skippedReadOnly", skippedReadOnly);
 
         } catch (Exception e) {
             logger.error("Error in bulk simulation by scope", e);
@@ -366,9 +455,10 @@ public class SimulationController {
 
         LogixEmulatorDevice device = deviceOpt.get();
         if (!device.isSimulationEngineAvailable()) {
-            resp.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            resp.setStatus(HttpServletResponse.SC_CONFLICT);
             return result.put("success", false)
-                .put("error", "Simulation engine not available. Enable simulation in device settings first.");
+                .put("error", "Simulation is disabled for this device. Enable the "
+                    + "\"Enable Simulation\" setting in the device configuration first.");
         }
 
         try {

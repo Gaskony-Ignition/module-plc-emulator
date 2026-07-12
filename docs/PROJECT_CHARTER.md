@@ -29,12 +29,21 @@ On a clean Ignition 8.3 gateway with a signed `.modl`:
 
 1. Install → `Logix PLC Emulator` device type available, zero manual config
 2. Upload a real-world L5K or L5X export via the web UI → full tag tree
-   (UDTs/AOIs expanded) browsable in OPC-UA within seconds; JSON/CSV also accepted
+   (UDTs/AOIs expanded) browsable in OPC-UA within seconds; JSON/CSV also
+   accepted. Every emitted NodeId path matches Ignition's native Logix driver
+   addressing for the same tag, so a project developed against the emulator
+   binds unchanged when the device is swapped for the real PLC
 3. Assign simulation patterns to tags → values change accordingly in tag browser
 4. Re-upload a modified export → hot-reload updates tags without device restart
 5. Tag writes from Ignition round-trip correctly
 6. Upload/read/write endpoints validated + rate-limited; XML parsing XXE-proof
 7. File version manager retains the last 5 uploads and can revert
+
+**DoD verified:** 12/07/2026 — v10.0.0 release candidate, 7/7 PASS on a clean
+Ignition 8.3.6 gateway with the signed `.modl` and a genuine 513KB Studio 5000
+export (evidence: `~/Downloads/plc-v10-artifacts/plc-dod3/` + `plc-dod4/`;
+process: `docs/plans/V10_FIDELITY_PLAN.md`). First formal pass of this
+checklist; v9.2.14 failed items 2, 3 and 7 on 09/07/2026.
 
 ## 3. Maintenance Policy
 
@@ -49,9 +58,16 @@ construct that fails to parse, or a deliberately chosen candidate feature
 | ---- | ------- |
 | Executing PLC logic (ladder/ST/FBD semantics) | This emulates tag structures, not a controller runtime |
 | EtherNet/IP / CIP wire-protocol emulation | Ignition binds via OPC-UA; protocol emulation is a different product |
-| Other PLC families (Siemens, Codesys, …) | Logix-shaped scope; a new family is a new module |
+| Other PLC families as shipped features (Siemens, Codesys, …) | Designed-for but not built: the parser/addressing boundary (`AddressPolicy` seam, v10) must stay vendor-pluggable, but no new family is implemented until a real export file and a real device are available to verify against (amended 12/07/2026; previously an unconditional won't-do) |
 | Physics/process simulation models | Pattern generators are the boundary; process sims belong outside |
 
 ---
 
 *Change to this charter requires the maintainer's explicit decision, recorded here with a date.*
+
+**Amendment 09/07/2026** (maintainer decision): §2.2 now requires
+swap-compatibility — every NodeId path the emulator emits must match Ignition's
+native Logix driver addressing for the same tag, so bindings survive replacing
+the emulated device with the real PLC. Adopted after the 09/07/2026
+Definition-of-Done verification of v9.2.14 (items 2, 3 and 7 failed; see
+`docs/plans/V10_FIDELITY_PLAN.md`).

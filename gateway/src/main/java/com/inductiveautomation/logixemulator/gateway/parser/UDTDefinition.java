@@ -18,7 +18,20 @@ public class UDTDefinition {
     }
 
     public void addMember(String memberName, String memberType) {
-        members.add(new UDTMember(memberName, memberType));
+        members.add(new UDTMember(memberName, memberType, null));
+    }
+
+    /**
+     * Adds an array member (e.g. the STRING built-in's {@code DATA} member, a {@code SINT}
+     * array of dimension 82 - ADDRESSING.md §3.10).
+     *
+     * @param memberName the member name
+     * @param memberType the member's data type
+     * @param dimensions the raw dimension string (e.g. {@code "82"}); {@code null}/empty for a
+     *     scalar member
+     */
+    public void addMember(String memberName, String memberType, String dimensions) {
+        members.add(new UDTMember(memberName, memberType, dimensions));
     }
 
     public String getName() {
@@ -35,10 +48,12 @@ public class UDTDefinition {
     public static class UDTMember {
         private final String name;
         private final String dataType;
+        private final String dimensions;
 
-        public UDTMember(String name, String dataType) {
+        public UDTMember(String name, String dataType, String dimensions) {
             this.name = name;
             this.dataType = dataType;
+            this.dimensions = dimensions;
         }
 
         public String getName() {
@@ -47,6 +62,11 @@ public class UDTDefinition {
 
         public String getDataType() {
             return dataType;
+        }
+
+        /** @return the raw dimension string, or {@code null} for a scalar member. */
+        public String getDimensions() {
+            return dimensions;
         }
     }
 }

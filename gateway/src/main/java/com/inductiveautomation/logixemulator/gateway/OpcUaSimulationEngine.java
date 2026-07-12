@@ -1,21 +1,20 @@
 package com.inductiveautomation.logixemulator.gateway;
 
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
-import org.eclipse.milo.opcua.sdk.server.items.DataItem;
-import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode;
-import org.eclipse.milo.opcua.stack.core.Identifiers;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DataValue;
 import org.eclipse.milo.opcua.stack.core.types.builtin.DateTime;
-import org.eclipse.milo.opcua.stack.core.types.builtin.NodeId;
 import org.eclipse.milo.opcua.stack.core.types.builtin.StatusCode;
 import org.eclipse.milo.opcua.stack.core.types.builtin.Variant;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UByte;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UInteger;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.ULong;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.UShort;
+import org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -26,13 +25,35 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
- * Simulation engine adapted for OPC-UA address space.
- * Updates DataItem values according to configured simulation patterns.
+ * Simulation engine for the emulator's OPC-UA address space. Drives the value
+ * attribute of the canonical {@link UaVariableNode} behind each simulated tag
+ * according to its configured pattern (RAMP/SINE/RANDOM/TOGGLE/STATIC).
  *
- * By default, NO tags are simulated. Tags must be explicitly enabled for simulation.
+ * <p>By default, NO tags are simulated. Tags must be explicitly enabled for
+ * simulation via {@link #enableTagSimulation(String)} / the per-tag control API.</p>
+ *
+ * <h2>Why this engine ticks from its OWN registry, not the SubscriptionModel (defect B3-v10)</h2>
+ *
+ * <p>Until v10 the tick iterated the device's {@code SubscriptionModel.getDataItems()}
+ * list and derived its per-tag key from each {@code DataItem}'s live {@code NodeId}.
+ * On the JUnit bench (and in every stubbed integration test) that list was hand-populated,
+ * so the tests passed. On a <b>real Milo server it stays EMPTY</b>: the emulator builds
+ * value-backed {@code UaVariableNode}s and the OPC-UA server satisfies client subscriptions
+ * straight from each node's own value attribute — it never registers device-side
+ * {@code DataItem}s. So {@code getDataItems()} returned nothing, the tick loop had nothing
+ * to iterate, {@code updateCount} was always 0, and <b>no tag value ever changed on a real
+ * gateway</b> even though the registry, the API and genuine subscriptions were all healthy
+ * (evidence: {@code ~/Downloads/plc-v10-artifacts/plc-dod2/item3-simulation-FAIL.txt}).</p>
+ *
+ * <p>The fix: the engine ticks over its own {@link #simulatedTags} registry and resolves
+ * each tag key to the actual {@link UaVariableNode} via {@link #nodeResolver}, then calls
+ * {@code varNode.setValue(...)} — the exact same node-object write path
+ * {@code TagWriteDispatcher} uses, which the DoD proved propagates to live subscribers.
+ * There is deliberately no {@code DataItem}/{@code SubscriptionModel} dependency left in
+ * this class; do not reintroduce one — a stub can populate that layer while a real server
+ * cannot, which is precisely how the incident hid behind green tests.</p>
  */
 public class OpcUaSimulationEngine {
 
@@ -40,17 +61,25 @@ public class OpcUaSimulationEngine {
     private final Random random = new Random();
     private final LogixEmulatorConfig.SimulationPattern defaultPattern;
     private final int updateIntervalMs;
-    private final Function<NodeId, UaNode> nodeLookup;
+
+    /**
+     * Resolves a simulated-tag registry key (the canonical NodeId identifier string, e.g.
+     * {@code "RampInt"} or {@code "Program:Main.Counter"}) to the live {@link UaVariableNode}
+     * that backs it, or {@code null} if no variable node currently exists for that key. The
+     * wiring builds this from {@code DeviceContext.nodeId(key)} + the node manager — the same
+     * resolution the write path uses — so the engine and the write path always agree on which
+     * node a key names (ADDRESSING.md §2.2: one canonical node per tag).
+     */
+    private final Function<String, UaVariableNode> nodeResolver;
 
     private ScheduledExecutorService executor;
     private ScheduledFuture<?> simulationTask;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile long startTime;
-    // Supplier of the live data-item set. Invoked on every tick so newly-created
-    // items are picked up and removed items are dropped without restarting the engine.
-    private volatile Supplier<List<DataItem>> dataItemsSupplier;
 
-    // Per-tag simulation state - tags NOT in this set will NOT be simulated
+    // Per-tag simulation state - tags NOT in this set will NOT be simulated.
+    // This set IS the source of truth the tick iterates; enabling/disabling a
+    // tag mid-run is observed on the very next tick without restarting the engine.
     private final Set<String> simulatedTags = ConcurrentHashMap.newKeySet();
     // Per-tag simulation pattern override (optional)
     private final Map<String, LogixEmulatorConfig.SimulationPattern> tagPatterns = new ConcurrentHashMap<>();
@@ -58,34 +87,32 @@ public class OpcUaSimulationEngine {
     // around which the active simulation pattern is computed.
     private final Map<String, BaselineState> tagBaselines = new ConcurrentHashMap<>();
 
+    /**
+     * @param defaultPattern pattern used for tags without a per-tag override
+     * @param updateIntervalMs tick interval in milliseconds (floored at 100ms)
+     * @param nodeResolver maps a simulated-tag key to its live {@link UaVariableNode}
+     *     (or {@code null} if none exists); must not be null
+     */
     public OpcUaSimulationEngine(
         LogixEmulatorConfig.SimulationPattern defaultPattern,
         int updateIntervalMs,
-        Function<NodeId, UaNode> nodeLookup) {
+        Function<String, UaVariableNode> nodeResolver) {
         this.defaultPattern = defaultPattern;
         this.updateIntervalMs = Math.max(100, updateIntervalMs); // Minimum 100ms
-        this.nodeLookup = nodeLookup;
+        this.nodeResolver = nodeResolver;
     }
 
     /**
-     * Start the simulation engine using a {@link Supplier} that returns the
-     * <em>current</em> set of {@link DataItem}s on every tick. This avoids the
-     * stale-snapshot bug where items added (or removed) at runtime were never
-     * picked up by the simulation loop. The supplier is invoked once per tick
-     * and its result is wrapped in an immutable snapshot before iteration.
-     *
-     * @param dataItemsSupplier supplier of the live data-item list; must not be null
+     * Start the simulation engine. From this point the engine ticks every
+     * {@code updateIntervalMs} over its own {@link #simulatedTags} registry —
+     * there is no external data-item list to supply (see class Javadoc, B3-v10).
      */
-    public void start(Supplier<List<DataItem>> dataItemsSupplier) {
-        if (dataItemsSupplier == null) {
-            throw new IllegalArgumentException("dataItemsSupplier must not be null");
-        }
+    public void start() {
         if (!running.compareAndSet(false, true)) {
             logger.warn("Simulation engine already running");
             return;
         }
 
-        this.dataItemsSupplier = dataItemsSupplier;
         startTime = System.currentTimeMillis();
         executor = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "OPC-UA-Simulation-Engine");
@@ -105,39 +132,16 @@ public class OpcUaSimulationEngine {
     }
 
     /**
-     * Convenience overload retained for backwards compatibility (notably tests).
-     * The list is wrapped in a static supplier — callers that need runtime
-     * mutation should use {@link #start(Supplier)} instead.
-     *
-     * @param dataItems initial data-item list (treated as static)
-     */
-    public void start(List<DataItem> dataItems) {
-        List<DataItem> snapshot = dataItems == null
-            ? Collections.emptyList()
-            : List.copyOf(dataItems);
-        start(() -> snapshot);
-    }
-
-    /**
-     * Per-tick entry point. Pulls a fresh snapshot from the supplier so any
-     * data items created/deleted since the last tick are reflected immediately.
+     * Per-tick entry point. Guards against any exception escaping into the
+     * {@link ScheduledExecutorService} (which would silently cancel the task).
      */
     private void tick() {
-        Supplier<List<DataItem>> supplier = this.dataItemsSupplier;
-        if (supplier == null) {
-            return;
-        }
-        List<DataItem> live;
         try {
-            live = supplier.get();
+            updateSimulatedValues();
         } catch (Exception e) {
-            logger.warn("Failed to obtain data-item snapshot for simulation tick", e);
-            return;
+            // Never let a tick failure cancel the scheduled task.
+            logger.warn("Simulation tick failed", e);
         }
-        // Defensive immutable snapshot — engine never mutates and never trusts
-        // the supplier to return a thread-safe list.
-        List<DataItem> snapshot = (live == null) ? Collections.emptyList() : List.copyOf(live);
-        updateSimulatedValues(snapshot);
     }
 
     /**
@@ -164,25 +168,23 @@ public class OpcUaSimulationEngine {
             }
         }
 
-        // Drop reference so the engine can be safely garbage collected and
-        // a future start() does not race with a stale supplier.
-        dataItemsSupplier = null;
-
         logger.info("OPC-UA Simulation engine stopped");
     }
 
     /**
-     * Update simulated values for tags that have simulation enabled.
-     * Only tags in the simulatedTags set are updated.
-     * Retrieves nodes from the address space, calculates new values based on simulation patterns,
-     * and updates node values to trigger OPC-UA subscription notifications.
+     * Update simulated values for every tag that has simulation enabled.
+     *
+     * <p>Iterates the engine's own {@link #simulatedTags} registry (NOT a device
+     * {@code DataItem} list — see class Javadoc), resolves each tag key to its live
+     * {@link UaVariableNode}, computes the next value from the tag's pattern, and writes
+     * it back with {@code setValue} — which is what notifies OPC-UA subscribers.</p>
      */
-    private void updateSimulatedValues(List<DataItem> dataItems) {
-        if (!running.get() || dataItems == null || nodeLookup == null) {
+    private void updateSimulatedValues() {
+        if (!running.get() || nodeResolver == null) {
             return;
         }
 
-        // If no tags are enabled for simulation, skip entirely
+        // If no tags are enabled for simulation, skip entirely.
         if (simulatedTags.isEmpty()) {
             return;
         }
@@ -191,58 +193,47 @@ public class OpcUaSimulationEngine {
         int updateCount = 0;
         int errorCount = 0;
 
-        for (DataItem item : dataItems) {
+        // ConcurrentHashMap keySet iteration is weakly consistent — safe to iterate
+        // while enable/disable mutate it concurrently; the next tick sees the change.
+        for (String tagKey : simulatedTags) {
             try {
-                // Get the NodeId for this data item
-                NodeId nodeId = item.getReadValueId().getNodeId();
-
-                // Get tag path from NodeId identifier
-                String tagPath = nodeId.getIdentifier().toString();
-
-                // Skip tags that don't have simulation enabled
-                if (!isTagSimulated(tagPath)) {
+                // Resolve the ONE canonical variable node this key names. On a real
+                // server this returns the same node the write path targets; if the
+                // node does not (yet) exist we simply skip it this tick.
+                UaVariableNode variableNode = nodeResolver.apply(tagKey);
+                if (variableNode == null) {
+                    logger.trace("No variable node resolved for simulated tag: {}", tagKey);
                     continue;
                 }
 
-                // Look up the actual node in the address space
-                UaNode node = nodeLookup.apply(nodeId);
+                // Get current value
+                DataValue currentDataValue = variableNode.getValue();
+                Object currentValue = currentDataValue.getValue().getValue();
 
-                if (node instanceof UaVariableNode variableNode) {
-                    // Get current value
-                    DataValue currentDataValue = variableNode.getValue();
-                    Object currentValue = currentDataValue.getValue().getValue();
+                // Calculate new simulated value using tag-specific or default pattern.
+                // If a baseline has been recorded for this tag (via recalibrate())
+                // we feed the simulation a per-tag elapsed clock plus the user-written
+                // baseline, so the pattern continues *from* the user's value rather
+                // than overwriting it on the next tick.
+                LogixEmulatorConfig.SimulationPattern pattern = tagPatterns.getOrDefault(tagKey, defaultPattern);
+                BaselineState baseline = tagBaselines.get(tagKey);
+                Object newValue = (baseline == null)
+                    ? calculateValue(currentValue, elapsedSeconds, pattern)
+                    : calculateRecalibratedValue(currentValue, elapsedSeconds, pattern, baseline);
 
-                    // Calculate new simulated value using tag-specific or default pattern.
-                    // If a baseline has been recorded for this tag (via recalibrate())
-                    // we feed the simulation a per-tag elapsed clock plus the user-written
-                    // baseline, so the pattern continues *from* the user's value rather
-                    // than overwriting it on the next tick.
-                    LogixEmulatorConfig.SimulationPattern pattern = tagPatterns.getOrDefault(tagPath, defaultPattern);
-                    BaselineState baseline = tagBaselines.get(tagPath);
-                    Object newValue = (baseline == null)
-                        ? calculateValue(currentValue, elapsedSeconds, pattern)
-                        : calculateRecalibratedValue(currentValue, elapsedSeconds, pattern, baseline);
+                // Update the node value (this automatically notifies subscribers).
+                variableNode.setValue(new DataValue(
+                    new Variant(newValue),
+                    StatusCode.GOOD,
+                    DateTime.now()
+                ));
 
-                    // Create new DataValue with current timestamp
-                    DataValue newDataValue = new DataValue(
-                        new Variant(newValue),
-                        StatusCode.GOOD,
-                        DateTime.now()
-                    );
-
-                    // Update the node value (this automatically notifies subscribers)
-                    variableNode.setValue(newDataValue);
-
-                    updateCount++;
-
-                } else {
-                    logger.trace("Node is not a variable node: {}", nodeId);
-                }
+                updateCount++;
 
             } catch (Exception e) {
                 errorCount++;
-                if (errorCount < 5) { // Only log first few errors to avoid spam
-                    logger.warn("Error updating simulated value for node: {}", item.getReadValueId().getNodeId(), e);
+                if (errorCount <= 5) { // Only log first few errors to avoid spam
+                    logger.warn("Error updating simulated value for tag: {}", tagKey, e);
                 }
             }
         }
@@ -261,7 +252,11 @@ public class OpcUaSimulationEngine {
      * Calculate new simulated value based on pattern and type.
      */
     private Object calculateValue(Object currentValue, double elapsedSeconds, LogixEmulatorConfig.SimulationPattern pattern) {
-        // Determine data type
+        // Determine data type. Unsigned types (C6: USINT/UINT/UDINT/ULINT and the
+        // WORD/DWORD/LWORD aliases) arrive as Milo's UByte/UShort/UInteger/ULong
+        // wrappers, none of which are a signed Short/Integer/Long — they must be
+        // matched explicitly or the tag falls through to the return-unchanged path
+        // and never simulates (the bug the independent review flagged).
         if (currentValue instanceof Boolean) {
             return calculateBooleanValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Short) {
@@ -274,6 +269,20 @@ public class OpcUaSimulationEngine {
             return calculateFloatValue(elapsedSeconds, pattern);
         } else if (currentValue instanceof Double) {
             return calculateDoubleValue(elapsedSeconds, pattern);
+        } else if (currentValue instanceof UByte) {
+            // 8-bit unsigned: [0, 255]
+            return Unsigned.ubyte((int) calculateNumericValue(elapsedSeconds, 0, 255, pattern));
+        } else if (currentValue instanceof UShort) {
+            // 16-bit unsigned: [0, 65535]
+            return Unsigned.ushort((int) calculateNumericValue(elapsedSeconds, 0, 65_535, pattern));
+        } else if (currentValue instanceof UInteger) {
+            // 32-bit unsigned: [0, 4294967295]
+            return Unsigned.uint((long) calculateNumericValue(elapsedSeconds, 0, 4_294_967_295L, pattern));
+        } else if (currentValue instanceof ULong) {
+            // 64-bit unsigned. Cap the simulated range at Long.MAX_VALUE: that stays
+            // well within the ULong domain, avoids double->long overflow, and still
+            // gives a visibly varying value across the whole positive long range.
+            return Unsigned.ulong((long) calculateNumericValue(elapsedSeconds, 0, Long.MAX_VALUE, pattern));
         } else {
             // For unsupported types, return current value unchanged
             return currentValue;
@@ -477,40 +486,12 @@ public class OpcUaSimulationEngine {
         logger.info("Disabled simulation for all tags");
     }
 
-    /**
-     * Enable simulation for all tags matching a scope prefix.
-     * @param prefix The scope prefix (e.g., "Controller:Global", "Programs/MainProgram")
-     * @param allTagPaths All available tag paths to filter
-     */
-    public void enableSimulationByScope(String prefix, Set<String> allTagPaths) {
-        int count = 0;
-        for (String tagPath : allTagPaths) {
-            if (tagPath.startsWith(prefix)) {
-                simulatedTags.add(tagPath);
-                count++;
-            }
-        }
-        logger.info("Enabled simulation for {} tags matching scope: {}", count, prefix);
-    }
-
-    /**
-     * Disable simulation for all tags matching a scope prefix.
-     * @param prefix The scope prefix
-     */
-    public void disableSimulationByScope(String prefix) {
-        int count = 0;
-        var iterator = simulatedTags.iterator();
-        while (iterator.hasNext()) {
-            if (iterator.next().startsWith(prefix)) {
-                iterator.remove();
-                count++;
-            }
-        }
-        // Also clean up patterns and baselines for disabled tags
-        tagPatterns.keySet().removeIf(k -> k.startsWith(prefix));
-        tagBaselines.keySet().removeIf(k -> k.startsWith(prefix));
-        logger.info("Disabled simulation for {} tags matching scope: {}", count, prefix);
-    }
+    // NOTE (v10 C1): the former enableSimulationByScope/disableSimulationByScope prefix matchers
+    // were removed. Under the canonical NodeId scheme the controller scope has an EMPTY identifier
+    // prefix, so raw startsWith() matching is wrong (it would match every tag, program-scoped
+    // included). Scope membership is now decided by AddressPolicy.matchesScope() in
+    // TagSimulationFacade, which drives the per-tag enable/disable API here — keeping scope
+    // semantics in exactly one place.
 
     /**
      * Enable simulation for all provided tag paths.
@@ -647,7 +628,7 @@ public class OpcUaSimulationEngine {
 
     /**
      * Coerce a double-valued simulation result back into the original tag's
-     * Java type (Boolean/Short/Integer/Long/Float/Double/String).
+     * Java type (Boolean/Short/Integer/Long/Float/Double/unsigned wrappers/String).
      */
     private Object coerceToType(double value, Object currentValue, Object baselineValue) {
         Object reference = currentValue != null ? currentValue : baselineValue;
@@ -663,8 +644,23 @@ public class OpcUaSimulationEngine {
             return (float) value;
         } else if (reference instanceof Double) {
             return value;
+        } else if (reference instanceof UByte) {
+            return Unsigned.ubyte((int) clampUnsigned(value, 255));
+        } else if (reference instanceof UShort) {
+            return Unsigned.ushort((int) clampUnsigned(value, 65_535));
+        } else if (reference instanceof UInteger) {
+            return Unsigned.uint((long) clampUnsigned(value, 4_294_967_295L));
+        } else if (reference instanceof ULong) {
+            return Unsigned.ulong((long) clampUnsigned(value, Long.MAX_VALUE));
         }
         return value;
+    }
+
+    /**
+     * Clamp a simulated double into the valid non-negative unsigned domain [0, max].
+     */
+    private double clampUnsigned(double value, double max) {
+        return Math.max(0.0, Math.min(max, value));
     }
 
     /**

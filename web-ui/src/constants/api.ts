@@ -13,6 +13,8 @@ export const API = {
   DEVICE_SIMULATION_ALL: (name: string) => `${BASE}/device/${encodeURIComponent(name)}/simulation/all`,
   DEVICE_SIMULATION_SCOPE: (name: string) => `${BASE}/device/${encodeURIComponent(name)}/simulation/scope`,
   DEVICE_DELETE: (name: string) => `${BASE}/device/${encodeURIComponent(name)}/delete`,
+  DEVICE_VERSIONS: (name: string) => `${BASE}/device/${encodeURIComponent(name)}/versions`,
+  DEVICE_VERSIONS_REVERT: (name: string) => `${BASE}/device/${encodeURIComponent(name)}/versions/revert`,
   UPLOAD: `${BASE}/upload`,
   SYSTEM_STATS: `${BASE}/system/stats`,
   SYSTEM_LOGS: (limit = 100) => `${BASE}/system/logs?limit=${limit}`,

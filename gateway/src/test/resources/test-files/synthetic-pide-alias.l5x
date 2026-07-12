@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture (not a real Studio 5000 export) for the C4 PID_ENHANCED -> PIDE type-name
+  alias fidelity test (ADDRESSING.md §3.11, §5.9). The real corpus tag confirming this alias
+  (RMPS_PIDE, DataType="PID_ENHANCED") lives only in the unlicensed 1768 export
+  (local-testing-only, never vendored/committed — see
+  gateway/src/test/resources/corpus/ATTRIBUTION.md). This fixture uses the genuine L5X
+  DataType string "PID_ENHANCED" (not "PIDE") to prove the parser resolves the alias end to end.
+-->
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="PideAliasSynthetic" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="TestPide" TagType="Base" DataType="PID_ENHANCED" Radix="NullType" Constant="false" ExternalAccess="Read/Write"/>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>

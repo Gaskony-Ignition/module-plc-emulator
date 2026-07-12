@@ -3,7 +3,6 @@ package com.inductiveautomation.logixemulator.gateway;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
 import org.junit.jupiter.api.*;
 
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.*;
@@ -12,7 +11,7 @@ import static org.awaitility.Awaitility.await;
 /**
  * Lifecycle tests for OpcUaSimulationEngine.
  * Exercises start()/stop() behaviour — no OPC-UA runtime required because the
- * engine is started with an empty DataItem list and a no-op nodeLookup.
+ * engine is started with a no-op node resolver and no tags enabled.
  */
 class OpcUaSimulationEngineLifecycleTest {
 
@@ -23,7 +22,7 @@ class OpcUaSimulationEngineLifecycleTest {
         engine = new OpcUaSimulationEngine(
             LogixEmulatorConfig.SimulationPattern.STATIC,
             100,        // 100 ms interval — fast enough for tests
-            nodeId -> null  // no-op node lookup
+            tagKey -> null  // no-op node resolver
         );
     }
 
@@ -41,7 +40,7 @@ class OpcUaSimulationEngineLifecycleTest {
     @Test
     @DisplayName("start() sets isRunning() to true and getElapsedSeconds() becomes positive")
     void testStartSetsRunning() {
-        engine.start(List.of());
+        engine.start();
 
         assertThat(engine.isRunning()).isTrue();
 
@@ -57,7 +56,7 @@ class OpcUaSimulationEngineLifecycleTest {
     @Test
     @DisplayName("stop() after start sets isRunning() false and resets getElapsedSeconds() to 0")
     void testStopResetsState() {
-        engine.start(List.of());
+        engine.start();
 
         // Wait for the engine to accumulate some elapsed time
         await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
@@ -76,11 +75,11 @@ class OpcUaSimulationEngineLifecycleTest {
     @Test
     @DisplayName("Calling start() twice is a no-op — engine stays running, no exception thrown")
     void testDoubleStartIsNoOp() {
-        engine.start(List.of());
+        engine.start();
         assertThat(engine.isRunning()).isTrue();
 
         // Second start() must not throw and engine must still be running
-        assertThatCode(() -> engine.start(List.of())).doesNotThrowAnyException();
+        assertThatCode(() -> engine.start()).doesNotThrowAnyException();
         assertThat(engine.isRunning()).isTrue();
     }
 
@@ -101,7 +100,7 @@ class OpcUaSimulationEngineLifecycleTest {
     @Test
     @DisplayName("getElapsedSeconds() increases monotonically while the engine is running")
     void testElapsedSecondsIncreasesOverTime() {
-        engine.start(List.of());
+        engine.start();
 
         double first = engine.getElapsedSeconds();
 

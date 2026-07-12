@@ -2,6 +2,7 @@ package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
 import com.inductiveautomation.logixemulator.gateway.DeviceRegistry;
+import com.inductiveautomation.logixemulator.gateway.FileVersionManager;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorConfig;
 import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
 import com.inductiveautomation.logixemulator.gateway.validation.FileValidator;
@@ -25,6 +26,14 @@ import java.util.Optional;
 public class DeviceController {
 
     private static final Logger logger = LoggerFactory.getLogger(DeviceController.class);
+
+    /**
+     * 422 Unprocessable Entity - not defined as a constant on {@link HttpServletResponse}, used
+     * (consistent with the existing literal-429 style in {@code handleDeleteFile}) for an upload
+     * whose file was saved but whose parse/address-space build then failed (defect B4): the
+     * request itself was well-formed, but the file's content could not be applied to the device.
+     */
+    private static final int SC_UNPROCESSABLE_ENTITY = 422;
 
     private final DeviceFileManager deviceManager;
     private final DeviceRegistry registry;
@@ -125,8 +134,8 @@ public class DeviceController {
         }
     }
 
-    private JSONObject processDeviceUpload(HttpServletResponse resp, JSONObject result,
-                                            String deviceName, String fileContent, String filename)
+    JSONObject processDeviceUpload(HttpServletResponse resp, JSONObject result,
+                                    String deviceName, String fileContent, String filename)
             throws JSONException {
         Optional<LogixEmulatorDevice> deviceOpt = deviceManager.findDeviceByName(deviceName);
         if (deviceOpt.isEmpty()) {
@@ -136,16 +145,71 @@ public class DeviceController {
         }
 
         LogixEmulatorDevice device = deviceOpt.get();
-        if (deviceManager.saveFileToDevice(device, fileContent, filename)) {
-            deviceManager.reloadDevice(device);
-            return result.put("success", true).put("filename", filename)
-                .put("size", fileContent.length()).put("device", deviceName)
-                .put("message", "File uploaded and applied to device successfully")
-                .put("status", device.getStatus());
+        if (!deviceManager.saveFileToDevice(device, fileContent, filename)) {
+            resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            return result.put("success", false).put("error", "Failed to update device configuration");
         }
 
-        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-        return result.put("success", false).put("error", "Failed to update device configuration");
+        // File is saved; now attempt to apply it (parse + address-space build). This can fail
+        // even though the file was saved fine, in which case reloadDevice() records the failure
+        // on the device's status rather than throwing (defect B4 - a caller must not be told the
+        // upload succeeded when the tag tree never actually built).
+        deviceManager.reloadDevice(device);
+        String status = device.getStatus();
+
+        if (isBuildFailureStatus(status)) {
+            resp.setStatus(SC_UNPROCESSABLE_ENTITY);
+            // FIX-7 (11/07/2026): status can carry a raw exception message (e.g. onStartup /
+            // HotReloadCoordinator set "Error: " + e.getMessage() verbatim), and exception
+            // messages from file I/O failures routinely embed the server's absolute filesystem
+            // path - sanitise before it's echoed to a REST caller.
+            String safeStatus = DeviceConfigService.sanitizeStatusForResponse(status);
+            return result.put("success", false).put("filename", filename)
+                .put("size", fileContent.length()).put("device", deviceName)
+                .put("error", "File saved but failed to apply to device: " + safeStatus)
+                .put("status", safeStatus);
+        }
+
+        // Defect B5: version the file only now that it is confirmed to have actually parsed and
+        // built — a failed upload (the branch above) must not consume one of the 5 retained
+        // slots. This is the only place on the REST upload path where success is known; the old
+        // FilePreparation.saveVersion() call is config-content-only and is never reached here.
+        saveUploadVersion(device, deviceName);
+
+        return result.put("success", true).put("filename", filename)
+            .put("size", fileContent.length()).put("device", deviceName)
+            .put("message", "File uploaded and applied to device successfully")
+            .put("status", status);
+    }
+
+    /**
+     * Snapshot the device's current on-disk file as a new version (defect B5). Best-effort: a
+     * failure here only means the retention history is thinner than it should be, not that the
+     * upload itself failed, so it is logged rather than turned into an error response.
+     */
+    private void saveUploadVersion(LogixEmulatorDevice device, String deviceName) {
+        String filePath = deviceManager.getDeviceFilePath(device);
+        if (filePath == null || filePath.isEmpty()) {
+            return;
+        }
+
+        File uploadedFile = new File(filePath);
+        FileVersionManager versionManager = deviceManager.getVersionManager(device);
+        if (!versionManager.saveVersion(uploadedFile, uploadedFile.getName())) {
+            logger.warn("Failed to save file version for device {} after successful upload",
+                GatewayAuthHelper.sanitizeForLog(deviceName));
+        }
+    }
+
+    /**
+     * True when {@code status} (the device's {@code getStatus()} immediately after a reload
+     * attempt) indicates the parse/address-space build actually failed, rather than completing
+     * successfully (defect B4). The device's hot-reload pipeline ({@code HotReloadCoordinator} /
+     * {@code LogixEmulatorDevice.onStartup}) always prefixes a build-failure status with
+     * {@code "Error"} - that convention is the load-bearing signal checked here.
+     */
+    static boolean isBuildFailureStatus(String status) {
+        return status != null && status.startsWith("Error");
     }
 
     public JSONObject handleListDevices(RequestContext ctx, HttpServletResponse resp) throws JSONException {

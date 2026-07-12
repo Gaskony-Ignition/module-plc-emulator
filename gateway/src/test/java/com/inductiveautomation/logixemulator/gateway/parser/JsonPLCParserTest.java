@@ -157,6 +157,67 @@ class JsonPLCParserTest {
     }
 
     @Test
+    @DisplayName("Regression test for B2: flat 'tags' shape with 'type'/'scope' is normalized "
+        + "into 'global_tags'/'programs' so buildAddressSpace() can see the tags")
+    void testFlatTagsWithTypeAndScopeNormalizedToBuilderShape() {
+        String content = """
+            {
+              "controller": "DodJsonController",
+              "tags": [
+                {"name": "RampInt", "type": "DINT", "scope": "Controller:Global"},
+                {"name": "SineReal", "type": "REAL", "scope": "Controller:Global"},
+                {"name": "ProgCounter", "type": "DINT", "scope": "Program:MainProgram"}
+              ]
+            }
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.json");
+
+        assertThat(result).isNotNull();
+        // The flat 'tags' shape must be gone - buildAddressSpace() never reads it.
+        assertThat(result.has("tags")).isFalse();
+
+        JsonArray globalTags = result.getAsJsonArray("global_tags");
+        assertThat(globalTags).isNotNull();
+        assertThat(globalTags.size()).isEqualTo(2);
+        assertThat(globalTags)
+            .extracting(t -> t.getAsJsonObject().get("name").getAsString())
+            .containsExactlyInAnyOrder("RampInt", "SineReal");
+        JsonObject rampInt = globalTags.get(0).getAsJsonObject();
+        assertThat(rampInt.get("data_type").getAsString()).isEqualTo("DINT");
+        assertThat(rampInt.has("type")).isFalse();
+        assertThat(rampInt.has("scope")).isFalse();
+
+        JsonArray programs = result.getAsJsonArray("programs");
+        assertThat(programs).isNotNull();
+        assertThat(programs.size()).isEqualTo(1);
+        JsonObject mainProgram = programs.get(0).getAsJsonObject();
+        assertThat(mainProgram.get("name").getAsString()).isEqualTo("MainProgram");
+        JsonArray programTags = mainProgram.getAsJsonArray("tags");
+        assertThat(programTags.size()).isEqualTo(1);
+        assertThat(programTags.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("ProgCounter");
+    }
+
+    @Test
+    @DisplayName("Flat 'tags' with no 'scope' field defaults to Controller:Global")
+    void testFlatTagsDefaultScopeIsGlobal() {
+        String content = """
+            {
+              "tags": [
+                {"name": "Tag1", "type": "BOOL"}
+              ]
+            }
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.json");
+
+        assertThat(result).isNotNull();
+        JsonArray globalTags = result.getAsJsonArray("global_tags");
+        assertThat(globalTags.size()).isEqualTo(1);
+        assertThat(globalTags.get(0).getAsJsonObject().get("data_type").getAsString()).isEqualTo("BOOL");
+    }
+
+    @Test
     @DisplayName("Should handle invalid JSON gracefully")
     void testInvalidJson() {
         String content = "this is not valid JSON {{{";

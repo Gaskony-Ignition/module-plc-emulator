@@ -1,0 +1,652 @@
+﻿(*********************************************
+
+  Import-Export
+  Version   := RSLogix 5000 v37.00
+  Owner     := , 
+  Exported  := Fri Jun 19 12:30:12 2026
+
+  Note:  File encoded in UTF-8.  Only edit file in a program 
+         which supports UTF-8 (like Notepad, not Wordpad).
+
+**********************************************)
+IE_VER := 2.28;
+
+CONTROLLER Controller_PLC (ProcessorType := "1756-L72",
+                           Major := 37,
+                           TimeSlice := 20,
+                           ShareUnusedTimeSlice := 1,
+                           RedundancyEnabled := 0,
+                           KeepTestEditsOnSwitchOver := 0,
+                           DataTablePadPercentage := 50,
+                           SecurityCode := 0,
+                           ChangesToDetect := 16#ffff_ffff_ffff_ffff,
+                           SFCExecutionControl := "CurrentActive",
+                           SFCRestartPosition := "MostRecent",
+                           SFCLastScan := "DontScan",
+                           SerialNumber := 16#70a2_1e0e,
+                           MatchProjectToController := No,
+                           CanUseRPIFromProducer := No,
+                           InhibitAutomaticFirmwareUpdate := 0,
+                           PassThroughConfiguration := EnabledWithAppend,
+                           DownloadProjectDocumentationAndExtendedProperties := Yes,
+                           ReportMinorOverflow := 0,
+                           DataExchangeId := {D1EB459E-651C-44D3-9256-6BAF815C161A})
+	DATATYPE HMI_UDT (FamilyType := NoFamily)
+		SINT ZZZZZZZZZZUDT0 (Hidden := 1);
+		BIT Start_PB ZZZZZZZZZZUDT0 : 0 (Description := "HMI start button");
+		BIT Stop_PB ZZZZZZZZZZUDT0 : 1 (Description := "HMI stop button");
+		BIT Start_Active ZZZZZZZZZZUDT0 : 2 (Description := "output from the HMI to controller for start");
+		BIT Stop_Active ZZZZZZZZZZUDT0 : 3 (Description := "output from HMI to controller to stop");
+	END_DATATYPE
+
+	DATATYPE P1_UDT (FamilyType := NoFamily)
+		REAL RW_Tank_tnk_lvl;
+		REAL RW_Pump_flow;
+		SINT ZZZZZZZZZZP1_UDT2 (Hidden := 1);
+		BIT RW_Tank_PR_Valve_sts ZZZZZZZZZZP1_UDT2 : 0;
+		BIT RW_Tank_P6B_Valve_sts ZZZZZZZZZZP1_UDT2 : 1;
+		BIT RW_Tank_P_Valve_sts ZZZZZZZZZZP1_UDT2 : 2;
+		BIT RW_Pump_sts ZZZZZZZZZZP1_UDT2 : 3;
+		BIT RW_Pump_fault ZZZZZZZZZZP1_UDT2 : 4;
+		REAL RW_Pump;
+		SINT ZZZZZZZZZZP1_UDT9 (Hidden := 1);
+		BIT RW_Tank_PR_Valve ZZZZZZZZZZP1_UDT9 : 0;
+		BIT RW_Tank_P_Valve ZZZZZZZZZZP1_UDT9 : 1;
+		BIT RW_Pump_start ZZZZZZZZZZP1_UDT9 : 2;
+		BIT RW_Pump_stop ZZZZZZZZZZP1_UDT9 : 3;
+		BIT RW_Tank_P6B_Valve ZZZZZZZZZZP1_UDT9 : 4;
+	END_DATATYPE
+
+	DATATYPE P2_UDT (FamilyType := NoFamily)
+		REAL ChemTreat_NaCl_Tank_tnk_lvl;
+		REAL ChemTreat_NaOCl_Tank_tnk_lvl;
+		REAL ChemTreat_HCl_Tank_tnk_lvl;
+		SINT ZZZZZZZZZZP2_UDT3 (Hidden := 1);
+		BIT ChemTreat_NaCl_Tank_Valve_sts ZZZZZZZZZZP2_UDT3 : 0;
+		BIT ChemTreat_NaOCl_Tank_Valve_sts ZZZZZZZZZZP2_UDT3 : 1;
+		BIT ChemTreat_HCl_Tank_Valve_sts ZZZZZZZZZZP2_UDT3 : 2;
+		BIT ChemTreat_NaCl_Tank_Valve ZZZZZZZZZZP2_UDT3 : 3;
+		BIT ChemTreat_NaOCl_Tank_Valve ZZZZZZZZZZP2_UDT3 : 4;
+		BIT ChemTreat_HCl_Tank_Valve ZZZZZZZZZZP2_UDT3 : 5;
+	END_DATATYPE
+
+	DATATYPE P3_UDT (FamilyType := NoFamily)
+		REAL Ultrafiltration_UFFT_Tank_tnk_lvl;
+		SINT ZZZZZZZZZZP3_UDT1 (Hidden := 1);
+		BIT Ultrafiltration_UFFT_Tank_Valve_sts ZZZZZZZZZZP3_UDT1 : 0;
+		BIT Ultrafiltration_UF_Drain_Valve_sts ZZZZZZZZZZP3_UDT1 : 1;
+		BIT Ultrafiltration_UF_ROFT_Valve_sts ZZZZZZZZZZP3_UDT1 : 2;
+		BIT Ultrafiltration_UF_BWP_Valve_sts ZZZZZZZZZZP3_UDT1 : 3;
+		BIT Ultrafiltration_UFFT_Tank_Valve ZZZZZZZZZZP3_UDT1 : 4;
+		BIT Ultrafiltration_UF_Drain_Valve ZZZZZZZZZZP3_UDT1 : 5;
+		BIT Ultrafiltration_UF_ROFT_Valve ZZZZZZZZZZP3_UDT1 : 6;
+		BIT Ultrafiltration_UF_BWP_Valve ZZZZZZZZZZP3_UDT1 : 7;
+	END_DATATYPE
+
+	DATATYPE Phases_UDT (FamilyType := NoFamily)
+		SINT ZZZZZZZZZZPhases_UDT0 (Hidden := 1);
+		BIT Filling ZZZZZZZZZZPhases_UDT0 : 0;
+		BIT Draining ZZZZZZZZZZPhases_UDT0 : 1;
+	END_DATATYPE
+
+	DATATYPE RW_tank_AL_UDT (FamilyType := NoFamily)
+		SINT ZZZZZZZZZZRW_tank_AL0 (Hidden := 1);
+		BIT LL_alarm ZZZZZZZZZZRW_tank_AL0 : 0;
+		BIT L_alarm ZZZZZZZZZZRW_tank_AL0 : 1;
+		BIT H_alarm ZZZZZZZZZZRW_tank_AL0 : 2;
+		BIT HH_alarm ZZZZZZZZZZRW_tank_AL0 : 3;
+	END_DATATYPE
+
+	DATATYPE System_State_UDT (FamilyType := NoFamily)
+		SINT ZZZZZZZZZZSystem_Sta0 (Hidden := 1);
+		BIT IDLE ZZZZZZZZZZSystem_Sta0 : 0;
+		BIT START ZZZZZZZZZZSystem_Sta0 : 1;
+		BIT RUNNING ZZZZZZZZZZSystem_Sta0 : 2;
+		BIT SHUTDOWN ZZZZZZZZZZSystem_Sta0 : 3;
+		BOOL Permissives[32];
+		SINT ZZZZZZZZZZSystem_Sta6 (Hidden := 1);
+		BIT Permissives_Ready ZZZZZZZZZZSystem_Sta6 : 0;
+	END_DATATYPE
+
+	DATATYPE SYS_MESSAGES (FamilyType := NoFamily)
+		DINT ProgramScanTime;
+		REAL AvailableMemory;
+		SINT ControllerStatus;
+		REAL ScanTime;
+	END_DATATYPE
+
+	MODULE Local (Parent := "Local",
+	              ParentModPortId := 1,
+	              CatalogNumber := "1756-L72",
+	              Vendor := 1,
+	              ProductType := 14,
+	              ProductCode := 93,
+	              Major := 37,
+	              Minor := 11,
+	              ChassisSize := 13,
+	              Slot := 0,
+	              Mode := 2#0000_0000_0000_0001,
+	              CompatibleModule := 0,
+	              KeyMask := 2#0000_0000_0001_1111)
+	END_MODULE
+
+	MODULE EN2T (Parent := "Local",
+	             ParentModPortId := 1,
+	             CatalogNumber := "1756-EN2T",
+	             Vendor := 1,
+	             ProductType := 12,
+	             ProductCode := 166,
+	             Major := 11,
+	             Minor := 2,
+	             PortLabel := "RxBACKPLANE",
+	             Slot := 1,
+	             CommMethod := 536870914,
+	             Mode := 2#0000_0000_0000_0000,
+	             CompatibleModule := 1,
+	             KeyMask := 2#0000_0000_0001_1111,
+	             DataExchangeId := {53CE97C2-060E-4B4F-BCB5-9F23ACDA7070})
+			ExtendedProp := [[[___<public><Vendor>Rockwell Automation/Allen-Bradley</Vendor><CatNum>1756-EN2T</CatNum><ConfigID>4325481</ConfigID></public>___]]]
+	END_MODULE
+
+	MODULE Dig_In_1 (Description := "32 pin Digital Input",
+	                 Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "1756-IB32/B",
+	                 Vendor := 1,
+	                 ProductType := 7,
+	                 ProductCode := 12,
+	                 Major := 3,
+	                 Minor := 1,
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 2,
+	                 CommMethod := 536870913,
+	                 ConfigMethod := 8388609,
+	                 Mode := 2#0000_0000_0000_0000,
+	                 CompatibleModule := 1,
+	                 KeyMask := 2#0000_0000_0001_1111,
+	                 DataExchangeId := {26583C3D-0EBF-497C-B86B-26AA222FF8D2})
+			ExtendedProp := [[[___<public><ConfigID>113</ConfigID><CatNum>1756-IB32</CatNum></public>___]]]
+			ConfigData  := [28,16,0,0,0,0,1,1,1,1,1,1,1,1,-1,-1];
+			CONNECTION StandardInput (Rate := 20000,
+			                          EventID := 0)
+					InputData (Description := "using this as digital input module one on controller PLC") := [0,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE Dig_In_2 (Description := "Digital Input number two",
+	                 Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "1756-IB32/B",
+	                 Vendor := 1,
+	                 ProductType := 7,
+	                 ProductCode := 12,
+	                 Major := 3,
+	                 Minor := 1,
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 3,
+	                 CommMethod := 536870913,
+	                 ConfigMethod := 8388609,
+	                 Mode := 2#0000_0000_0000_0000,
+	                 CompatibleModule := 1,
+	                 KeyMask := 2#0000_0000_0001_1111,
+	                 DataExchangeId := {A6C3B983-E19A-4621-BE44-584AEAAEB985})
+			ExtendedProp := [[[___<public><ConfigID>113</ConfigID><CatNum>1756-IB32</CatNum></public>___]]]
+			ConfigData  := [28,16,0,0,0,0,1,1,1,1,1,1,1,1,-1,-1];
+			CONNECTION StandardInput (Rate := 20000,
+			                          EventID := 0)
+					InputData (Description := "using this as digital input module 2 on controller PLC") := [0,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE Dig_In_3 (Description := "Digital Input number 3",
+	                 Parent := "Local",
+	                 ParentModPortId := 1,
+	                 CatalogNumber := "1756-IB32/B",
+	                 Vendor := 1,
+	                 ProductType := 7,
+	                 ProductCode := 12,
+	                 Major := 3,
+	                 Minor := 1,
+	                 PortLabel := "RxBACKPLANE",
+	                 Slot := 4,
+	                 CommMethod := 536870913,
+	                 ConfigMethod := 8388609,
+	                 Mode := 2#0000_0000_0000_0000,
+	                 CompatibleModule := 1,
+	                 KeyMask := 2#0000_0000_0001_1111,
+	                 DataExchangeId := {D0D54C6F-4B91-480F-AFB5-B9A9FA615511})
+			ExtendedProp := [[[___<public><ConfigID>113</ConfigID><CatNum>1756-IB32</CatNum></public>___]]]
+			ConfigData  := [28,16,0,0,0,0,1,1,1,1,1,1,1,1,-1,-1];
+			CONNECTION StandardInput (Rate := 20000,
+			                          EventID := 0)
+					InputData (Description := "using this as digital input module 3 on controller PLC") := [0,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE Dig_Out_1 (Description := "32 pin digital output first module",
+	                  Parent := "Local",
+	                  ParentModPortId := 1,
+	                  CatalogNumber := "1756-OB32",
+	                  Vendor := 1,
+	                  ProductType := 7,
+	                  ProductCode := 17,
+	                  Major := 3,
+	                  Minor := 1,
+	                  PortLabel := "RxBACKPLANE",
+	                  Slot := 5,
+	                  CommMethod := 536870913,
+	                  ConfigMethod := 8388609,
+	                  Mode := 2#0000_0000_0000_0000,
+	                  CompatibleModule := 1,
+	                  KeyMask := 2#0000_0000_0001_1111,
+	                  DataExchangeId := {5819413F-5F95-4075-B770-D106C9CAC117})
+			ExtendedProp := [[[___<public><ConfigID>401</ConfigID><CatNum>1756-OB32</CatNum></public>___]]]
+			ConfigData  := [28,18,0,0,0,0,0,0,0,0];
+			CONNECTION Standard (Rate := 20000,
+			                     EventID := 0)
+					InputData  := [0,0];
+					OutputData (Description := "using this as digital output this is the first module") := [0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE Dig_Out_2 (Description := "16 pin Digital Output",
+	                  Parent := "Local",
+	                  ParentModPortId := 1,
+	                  CatalogNumber := "1756-OB16D",
+	                  Vendor := 1,
+	                  ProductType := 7,
+	                  ProductCode := 4,
+	                  Major := 3,
+	                  Minor := 1,
+	                  PortLabel := "RxBACKPLANE",
+	                  Slot := 6,
+	                  CommMethod := 536870914,
+	                  ConfigMethod := 8388612,
+	                  Mode := 2#0000_0000_0000_0000,
+	                  CompatibleModule := 1,
+	                  KeyMask := 2#0000_0000_0001_1111,
+	                  DataExchangeId := {25FB873C-8C33-481F-9D87-7C7329DBAA8C})
+			ExtendedProp := [[[___<public><ConfigID>504</ConfigID><CatNum>1756-OB16D</CatNum></public>___]]]
+			ConfigData  := [44,19,0,0,0,0,0,0,0,0,-1,-1,-1,0];
+			CONNECTION Diagnostic (Rate := 20000,
+			                       EventID := 0)
+					InputData  := [0,0,[0,0],0,0,0,0];
+					OutputData (Description := "using this as digital output this is the second module") := [0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE An_IN_1 (Description := "First Analog Input",
+	                Parent := "Local",
+	                ParentModPortId := 1,
+	                CatalogNumber := "1756-IF16/B",
+	                Vendor := 1,
+	                ProductType := 10,
+	                ProductCode := 6,
+	                Major := 2,
+	                Minor := 1,
+	                PortLabel := "RxBACKPLANE",
+	                Slot := 7,
+	                CommMethod := 536870913,
+	                Mode := 2#0000_0000_0000_0000,
+	                CompatibleModule := 1,
+	                KeyMask := 2#0000_0000_0001_1111,
+	                DataExchangeId := {C8772436-CB22-4FC2-A81D-F0D63A15F618})
+			ExtendedProp := [[[___<public><ConfigID>201</ConfigID><CatNum>1756-IF16</CatNum></public>___]]]
+			ConfigData  := [392,34,1,2,100,[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,2.00000000e+001
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,2.00000000e+001,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000
+		,0.00000000e+000,2.00000000e+001,0.00000000e+000,2.00000000e+001,-1.00000000e+001,1.00000000e+001
+		,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000
+		,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001
+		,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001
+		,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000
+		,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000
+		,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000]];
+			CONNECTION Input (Rate := 100000,
+			                  EventID := 0,
+			                  Unicast := No)
+					InputData (Description := "using this as analog input first module",
+            EngineeringUnit.CH0DATA := "mm",
+            EngineeringUnit.CH1DATA := "mm",
+            EngineeringUnit.CH2DATA := "mm",
+            EngineeringUnit.CH3DATA := "Liters") := [0,0,0,0,0,0,0,0,0,0,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE An_In_2 (Description := "analog input number two",
+	                Parent := "Local",
+	                ParentModPortId := 1,
+	                CatalogNumber := "1756-IF16/B",
+	                Vendor := 1,
+	                ProductType := 10,
+	                ProductCode := 6,
+	                Major := 2,
+	                Minor := 1,
+	                PortLabel := "RxBACKPLANE",
+	                Slot := 8,
+	                CommMethod := 536870913,
+	                Mode := 2#0000_0000_0000_0000,
+	                CompatibleModule := 1,
+	                KeyMask := 2#0000_0000_0001_1111,
+	                DataExchangeId := {FD61719F-A2D4-4F02-8639-76E96C8D7255})
+			ExtendedProp := [[[___<public><ConfigID>201</ConfigID><CatNum>1756-IF16</CatNum></public>___]]]
+			ConfigData  := [392,34,1,2,100,[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,2.00000000e+001
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000
+		,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001
+		,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000
+		,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001
+		,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001
+		,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000
+		,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000
+		,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000]];
+			CONNECTION Input (Rate := 100000,
+			                  EventID := 0,
+			                  Unicast := No)
+					InputData (Description := "using this as digital output this is the second module",
+            EngineeringUnit.CH0DATA := "mm") := [0,0,0,0,0,0,0,0,0,0,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE An_In_3 (Description := "the third analog input module",
+	                Parent := "Local",
+	                ParentModPortId := 1,
+	                CatalogNumber := "1756-IF16/B",
+	                Vendor := 1,
+	                ProductType := 10,
+	                ProductCode := 6,
+	                Major := 2,
+	                Minor := 1,
+	                PortLabel := "RxBACKPLANE",
+	                Slot := 9,
+	                CommMethod := 536870913,
+	                Mode := 2#0000_0000_0000_0000,
+	                CompatibleModule := 1,
+	                KeyMask := 2#0000_0000_0001_1111,
+	                DataExchangeId := {7CCB6CEF-8ACB-458F-B7E2-3CAF202246CD})
+			ExtendedProp := [[[___<public><ConfigID>201</ConfigID><CatNum>1756-IF16</CatNum></public>___]]]
+			ConfigData  := [392,34,1,2,100,[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000
+		,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001
+		,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000
+		,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001
+		,1.00000000e+001,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001
+		,0.00000000e+000,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000
+		,1.00000000e+002,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000
+		,0.00000000e+000],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,-1.00000000e+001,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000
+		],[0,3,0,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,-1.00000000e+001
+		,1.00000000e+001,-1.00000000e+001,1.00000000e+001,0.00000000e+000,0.00000000e+000]];
+			CONNECTION Input (Rate := 100000,
+			                  EventID := 0,
+			                  Unicast := No)
+					InputData (Description := "using this as digital output this is the third module") := [0,0,0,0,0,0,0,0,0,0,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,0];
+			END_CONNECTION
+
+	END_MODULE
+
+	MODULE An_Out (Description := "Analog Output",
+	               Parent := "Local",
+	               ParentModPortId := 1,
+	               CatalogNumber := "1756-OF8/B",
+	               Vendor := 1,
+	               ProductType := 10,
+	               ProductCode := 9,
+	               Major := 2,
+	               Minor := 4,
+	               PortLabel := "RxBACKPLANE",
+	               Slot := 10,
+	               CommMethod := 536870913,
+	               Mode := 2#0000_0000_0000_0000,
+	               CompatibleModule := 1,
+	               KeyMask := 2#0000_0000_0001_1111,
+	               DataExchangeId := {9BD09E33-4A57-4E37-B9F8-932F18F37514})
+			ExtendedProp := [[[___<public><ConfigID>303</ConfigID><CatNum>1756-OF8</CatNum></public>___]]]
+			ConfigData  := [360,34,0,0,0,[0,1,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000,1.00000000e+002,0.00000000e+000],[0,1,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000],[0,1,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,0.00000000e+000,1.00000000e+002
+		,0.00000000e+000],[0,1,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000,1.00000000e+002,0.00000000e+000],[0,1,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000],[0,1,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002,0.00000000e+000,1.00000000e+002
+		,0.00000000e+000],[0,1,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000,1.00000000e+002,0.00000000e+000],[0,1,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,2.00000000e+001,0.00000000e+000,1.00000000e+002
+		,0.00000000e+000,1.00000000e+002,0.00000000e+000]];
+			CONNECTION Float (Rate := 12000,
+			                  EventID := 0,
+			                  Unicast := No)
+					InputData  := [0,0,0,0,0,0,0,0,0,0,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000,0.00000000e+000,0];
+					OutputData  := [0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000
+		,0.00000000e+000,0.00000000e+000];
+			END_CONNECTION
+
+	END_MODULE
+
+	TAG
+		Alarms : RW_tank_AL_UDT (Description := "Struct that contains all level alarms for RW_tank") := [0];
+		Cycle_Time_drain : FBD_TIMER  := [1,0,0,0,0,0,0,0,0,4,0,0];
+		False : BOOL (Description := "constant bool set at zero, this tag is used for structured text",
+		            RADIX := Decimal,
+		            Constant := Yes) := 0;
+		GSV_Message : SYS_MESSAGES (Description := "system messages about the plc project") := [0,0.00000000e+000,0,0.00000000e+000];
+		HMI : HMI_UDT (Description := "struct that contains basic buttons and output tags",
+		            COMMENT.START_PB := "Start button from HMI",
+		            COMMENT.STOP_PB := "Stop button from HMI",
+		            COMMENT.START_ACTIVE := "Output of start button",
+		            COMMENT.STOP_ACTIVE := "Output of stop button") := [0];
+		P1 : P1_UDT (Description := "struct that contains all P1 tags",
+		            COMMENT.RW_TANK_TNK_LVL := "analog input of the raw water tank level",
+		            COMMENT.RW_PUMP_FLOW := "Analog input of the pump flow percentage",
+		            COMMENT.RW_TANK_PR_VALVE_STS := "status of the raw water source valve open/close, digital input (Open/closecmdclose/closed)",
+		            COMMENT.RW_TANK_P6B_VALVE_STS := "status of P6 valve status connected to Raw water tank, open/close,digital input  (Open/closecmdclose/closed)",
+		            COMMENT.RW_TANK_P_VALVE_STS := "status of drain valve connected to raw water tank open/close, digital input  (Open/closecmdclose/closed)",
+		            COMMENT.RW_PUMP_STS := "status of pump if it is (on/off)$Ndigital input",
+		            COMMENT.RW_PUMP_FAULT := "raw water pump fault true/false digital input",
+		            COMMENT.RW_PUMP := "analog output shows the Running percentage of the pump",
+		            COMMENT.RW_TANK_PR_VALVE := "Digital Output Raw water source valve, (open/close cmd)",
+		            COMMENT.RW_TANK_P_VALVE := "Digital Output P6B $Nsource valve, (open/close cmd)",
+		            COMMENT.RW_PUMP_START := "Digital Raw water tank Drain valve, (open/close cmd)",
+		            COMMENT.RW_PUMP_STOP := "Digital Output Raw water pump start (start cmd)",
+		            COMMENT.RW_TANK_P6B_VALVE := "Digital Output Raw water pump $N(close cmd)") := [0.00000000e+000,0.00000000e+000,0,0.00000000e+000,0];
+		P1_SYS : System_State_UDT (Description := "Struct that contains the Process One system $Nstates",
+		            COMMENT.IDLE := "tracks if $Nthe IDLE state is (true/false)",
+		            COMMENT.START := "tracks if $Nthe Start$N state is (true/false)",
+		            COMMENT.RUNNING := "tracks if the $NRunning state is (true/false)",
+		            COMMENT.SHUTDOWN := "tracks the if the Shutdown state is (true/false)",
+		            COMMENT.PERMISSIVES := "set of permissives need to be true before the plant goes from starting→running (kept defualting to size 32 array no matter what I changed)",
+		            COMMENT.PERMISSIVES_READY := "tag that tracks if all three permissves are true it allows the state change from Start→Running") := [0,[2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0,2#0
+				,2#0,2#0,2#0,2#0,2#0],0];
+		P2 : P2_UDT (Description := "Strcut that contains all Process 2 tags",
+		            COMMENT.CHEMTREAT_NACL_TANK_TNK_LVL := "analog input that tracks tank level for NaCl",
+		            COMMENT.CHEMTREAT_NAOCL_TANK_TNK_LVL := "analog input that tracks tank level for NaOCl",
+		            COMMENT.CHEMTREAT_HCL_TANK_TNK_LVL := "analog input that tracks tank level for HCI",
+		            COMMENT.CHEMTREAT_NACL_TANK_VALVE_STS := "digital input thatt tracks the status NaCl valve $N(Open/closecmdclose/closed)",
+		            COMMENT.CHEMTREAT_NAOCL_TANK_VALVE_STS := "digital input thatt tracks the status NaOCl valve $N(Open/closecmdclose/closed)",
+		            COMMENT.CHEMTREAT_HCL_TANK_VALVE_STS := "digital input thatt tracks the status HCI valve $N(Open/closecmdclose/closed)",
+		            COMMENT.CHEMTREAT_NACL_TANK_VALVE := "digital output that for HCI tank valve (Open/close cmd)",
+		            COMMENT.CHEMTREAT_NAOCL_TANK_VALVE := "digital output that for NaOCl tank valve (Open/close cmd)",
+		            COMMENT.CHEMTREAT_HCL_TANK_VALVE := "digital output that for HCI tank valve (Open/close cmd)") := [0.00000000e+000,0.00000000e+000,0.00000000e+000,0];
+		P3 : P3_UDT (Description := "Struct that contains all process 3 tags",
+		            COMMENT.ULTRAFILTRATION_UFFT_TANK_TNK_LVL := "analog input of Ultrafiltration Feed Tank Level",
+		            COMMENT.ULTRAFILTRATION_UFFT_TANK_VALVE_STS := "Digital Input Ultrafiltration Feed Tank Level valve status (Open/closecmdclose/closed)",
+		            COMMENT.ULTRAFILTRATION_UF_DRAIN_VALVE_STS := "Digital Input Ultraflitration$N valve status (Open/closecmdclose/closed)",
+		            COMMENT.ULTRAFILTRATION_UF_ROFT_VALVE_STS := "Digital Input Reverse Osmosis Feed tank$N valve status (Open/closecmdclose/closed)",
+		            COMMENT.ULTRAFILTRATION_UF_BWP_VALVE_STS := "Digital Input Backwash permate valve status (Open/closecmdclose/closed)",
+		            COMMENT.ULTRAFILTRATION_UFFT_TANK_VALVE := "Digital Output Ultrafiltration Feed Tank Level (open/close cmd)",
+		            COMMENT.ULTRAFILTRATION_UF_DRAIN_VALVE := "Digital Output Ultrafiltration valve (open/close cmd)",
+		            COMMENT.ULTRAFILTRATION_UF_ROFT_VALVE := "Digital Output Reverse Osmosis Feed Tank (open/close cmd)",
+		            COMMENT.ULTRAFILTRATION_UF_BWP_VALVE := "Digital Output backwash permate valve (open/close cmd)") := [0.00000000e+000,0];
+		Test_CH8 : REAL (RADIX := Float) := 0.00000000e+000;
+		Timer_done : BOOL (RADIX := Decimal) := 0;
+		True : BOOL (Description := "constant bool tag set to one that can be used for structured text",
+		            RADIX := Decimal,
+		            Constant := Yes) := 1;
+	END_TAG
+
+	PROGRAM MainProgram (MAIN := "main",
+	                     MODE := 0,
+	                     DisableFlag := 0,
+	                     UseAsFolder := 0)
+		TAG
+		END_TAG
+
+		ST_ROUTINE Init 
+			'P1.RW_Tank_PR_Valve := False;
+			'P1.RW_Pump_start := False;
+			'P1.RW_Tank_P_Valve := False;
+			'P3.Ultrafiltration_UFFT_Tank_Valve := False;
+			'Timer_done := False;
+			'
+			'P1.RW_Tank_tnk_lvl:= (Local:7:I.Ch0Data / 20) * 1200;
+			'P3.Ultrafiltration_UFFT_Tank_tnk_lvl := (Local:7:I.Ch1Data / 20) * 1200;
+		END_ST_ROUTINE
+
+		ROUTINE main 
+				N: XIC(HMI.Start_PB)OTE(HMI.Start_Active);
+				N: XIC(HMI.Stop_PB)OTE(HMI.Stop_Active);
+				N: XIC(S:FS)JSR(Init,0);
+				N: JSR(State_Machine,0);
+				N: JSR(Water_Treatment_Logic,0);
+				N: JSR(Timer,0);
+		END_ROUTINE
+
+		ST_ROUTINE State_Machine 
+			'Local:5:O.Data.0 := P1.RW_Tank_PR_Valve;
+			'Local:5:O.Data.1 := P1.RW_Pump_start;
+			'Local:5:O.Data.2 := P3.Ultrafiltration_UFFT_Tank_Valve;
+			'
+			'if(not HMI.Start_Active)then
+			'	P1_SYS.IDLE := True;
+			'	P1_SYS.START := False;
+			'	P1_SYS.RUNNING := False;
+			'	P1_SYS.SHUTDOWN := False;
+			'	 P1.RW_Tank_PR_Valve := False;
+			'	 
+			'elsif(HMI.Start_Active and not P1_SYS.Permissives_Ready)then 
+			'	P1_SYS.IDLE := False;
+			'	P1_SYS.START := True;
+			'	P1_SYS.RUNNING := False;
+			'	P1_SYS.SHUTDOWN := False;
+			'	
+			'	P1.RW_Tank_PR_Valve := True;
+			'	
+			'elsif(HMI.Start_Active and P1_SYS.Permissives_Ready)then
+			'	P1_SYS.IDLE := False;
+			'	P1_SYS.START := False;
+			'	P1_SYS.RUNNING := True;
+			'	P1_SYS.SHUTDOWN := False;
+			'end_if;
+			'
+			'if(P1.RW_Tank_tnk_lvl <= 300)then
+			'	P1_SYS.Permissives_Ready := False;
+			'else
+			'	P1_SYS.Permissives_Ready := True;
+			'end_if;
+			'
+			'if(HMI.Stop_Active)then
+			'	HMI.Start_PB := False;
+			'	
+			'	P1_SYS.IDLE := False;
+			'	P1_SYS.START := False;
+			'	P1_SYS.RUNNING := False;
+			'	P1_SYS.SHUTDOWN := True;
+			'end_if;
+			'
+			'
+		END_ST_ROUTINE
+
+		ST_ROUTINE Timer 
+			'
+			'
+			'Cycle_Time_drain.PRE := 5000;
+			'Cycle_Time_drain.TimerEnable := P3.Ultrafiltration_UFFT_Tank_Valve;
+			'
+			'// 2. Execute the timer unconditionally so it can process its bits
+			'TONR(Cycle_Time_drain);
+			'
+			'if(Cycle_Time_drain.DN)then
+			'	Timer_done := True;
+			'	P3.Ultrafiltration_UFFT_Tank_Valve := False;
+			'	P1.RW_Tank_PR_Valve := True;
+			'else
+			'	Timer_done:= False;
+			'end_if;
+			'
+		END_ST_ROUTINE
+
+		ST_ROUTINE Water_Treatment_Logic 
+			'P1.RW_Tank_tnk_lvl:= (Local:7:I.Ch0Data / 20) * 1200;
+			'P3.Ultrafiltration_UFFT_Tank_tnk_lvl := (Local:7:I.Ch1Data / 20) * 1200;
+			'
+			'if(P1_SYS.RUNNING and P1.RW_Tank_tnk_lvl <= 500 and P3.Ultrafiltration_UFFT_Tank_tnk_lvl < 1000.0)then
+			'	P1.RW_Tank_PR_Valve := True;
+			'	P1.RW_Pump_start := False;
+			'	P1.RW_Tank_P_Valve := False;
+			'		P3.Ultrafiltration_UFFT_Tank_Valve := False;
+			'elsif(P1_SYS.RUNNING and P1.RW_Tank_tnk_lvl >= 800 and P3.Ultrafiltration_UFFT_Tank_tnk_lvl < 1000.0)then
+			'	P1.RW_Tank_PR_Valve := False;
+			'	P1.RW_Pump_start := True;
+			'	P1.RW_Tank_P_Valve := True;
+			'elsif(P1_SYS.RUNNING and P3.Ultrafiltration_UFFT_Tank_tnk_lvl >= 1000.0)then
+			'	P1.RW_Tank_PR_Valve := False;
+			'	P1.RW_Pump_start := False;
+			'	P1.RW_Tank_P_Valve := False;
+			'	P3.Ultrafiltration_UFFT_Tank_Valve := True;
+			'end_if;
+			'
+			'
+		END_ST_ROUTINE
+
+		CHILD_PROGRAMS
+		END_CHILD_PROGRAMS
+
+	END_PROGRAM
+
+	TASK MainTask (Type := CONTINUOUS,
+	               Rate := 10,
+	               Priority := 10,
+	               Watchdog := 500,
+	               DisableUpdateOutputs := No,
+	               InhibitTask := No)
+			MainProgram;
+	END_TASK
+
+CONFIG CST(SystemTimeMasterID := 0) END_CONFIG
+
+CONFIG TimeSynchronize(Priority1 := 128,
+	                                 Priority2 := 128,
+	                                 PTPEnable := 0) END_CONFIG
+
+CONFIG WallClockTime(LocalTimeAdjustment := 0,
+	                     TimeZone := 0) END_CONFIG
+
+END_CONTROLLER
+

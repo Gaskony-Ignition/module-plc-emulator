@@ -1,7 +1,8 @@
 # API Reference - Logix PLC Emulator
 
-**Version**: 9.2.14
-**Last Updated**: 2026-02-21
+**Version**: 10.0.0
+**Last Updated**: 2026-07-10 (auth/routes/limits corrected — defect B7; file version list/revert
+routes added — defect B5; v10.0.0 fidelity plan)
 **Base URL**: `http://your-gateway:8088`
 
 ---
@@ -33,78 +34,88 @@ The Logix PLC Emulator exposes several APIs for:
 
 | Category | Base Path | Authentication Required |
 |----------|-----------|-------------------------|
-| **File Upload** | `/data/logixemulator/*` | Yes (Designer/Admin role) |
+| **Module API** | `/data/logixemulator/*` | Yes (Gateway session) |
 | **Web UI** | `/res/logixemulator/*` | No (public resources) |
-| **Device Config** | `/config/opc-ua/devices/*` | Yes (Admin role) |
+| **Platform device config** | `/data/api/v1/resources/com.inductiveautomation.opcua/device` | Yes (Gateway session + `x-csrf-token`) |
 
 ### Supported Content Types
 
 - `application/json`
-- `multipart/form-data`
-- `application/x-www-form-urlencoded`
-- `text/plain`
+- `text/plain` (the `/upload` endpoint takes the raw file content as the request body — see [File Upload API](#file-upload-api))
 
 ---
 
 ## Authentication
 
-All `/data/logixemulator/*` endpoints require authentication using Ignition Gateway credentials.
+> **HTTP Basic Authentication does NOT work against this module.** This section previously
+> documented `Authorization: Basic ...` as the recommended method; that was never correct.
+> `GatewayAuthHelper.isGatewayAuthenticated()` — the only authentication check the module's
+> endpoints perform — looks solely at the Gateway HTTP session (`user` session attribute set by
+> the Gateway login page) and the request actor. There is no code path that inspects an
+> `Authorization` header. Verified against a live 8.3 gateway during the v10.0.0 DoD run
+> (`plc-dod/device-creation-blocker.txt`, `plc-dod/csrf-finding.txt`).
 
-### Authentication Methods
+### Real authentication flow: session cookie via Gateway login
 
-#### 1. HTTP Basic Authentication (Recommended for API)
+All `/data/logixemulator/*` endpoints require an authenticated Gateway session:
 
-**Format**: `Authorization: Basic base64(username:password)`
+1. Log in through the Gateway's normal login flow (the web UI, or its underlying `POST` to the
+   Gateway's login endpoint) and retain the session cookie the Gateway sets.
+2. Send that cookie with every subsequent request to `/data/logixemulator/*`.
 
-**Example**:
+**Example (cURL)**:
 ```bash
-curl -u admin:password http://localhost:8088/data/logixemulator/upload
-```
-
-**Header**:
-```
-Authorization: Basic YWRtaW46cGFzc3dvcmQ=
-```
-
-#### 2. Session Cookies (Web UI)
-
-**Steps**:
-1. Login via Gateway web UI
-2. Browser stores `JSESSIONID` cookie
-3. Cookie included in subsequent requests
-
-**Example**:
-```bash
-# Login and save cookie
+# Log in and persist the session cookie
 curl -c cookies.txt -d "username=admin&password=password" \
   http://localhost:8088/system/login
 
-# Use cookie for API call
-curl -b cookies.txt -F "file=@test.L5K" \
-  http://localhost:8088/data/logixemulator/upload
+# Reuse the cookie for module API calls
+curl -b cookies.txt -H "X-Requested-With: XMLHttpRequest" \
+  --data-binary @tags.json -H "X-Filename: tags.json" \
+  "http://localhost:8088/data/logixemulator/upload?device=MyDevice"
 ```
 
-### Required Roles
+### Module endpoints: session + `X-Requested-With` only
 
-| Endpoint | Required Role |
-|----------|---------------|
-| File Upload | Designer or Administrator |
-| Device Config | Administrator |
-| Web UI (read-only) | Any authenticated user |
+State-changing module endpoints (`/upload`, `/device/:name/delete`, tag-write and simulation
+routes) additionally require the module's own lightweight CSRF check —
+`GatewayAuthHelper.requireCSRFToken()` — which only checks for the header:
+
+```
+X-Requested-With: XMLHttpRequest
+```
+
+Module endpoints do **not** need the platform's `x-csrf-token` header — that header only applies
+to the separate platform config-resource API described below.
+
+### Platform device-creation calls additionally need `x-csrf-token`
+
+Creating the device itself (Config → OPC UA → Device Connections, or scripting the same call) goes
+through Ignition 8.3's **generic platform config-resource API**
+(`POST /data/api/v1/resources/com.inductiveautomation.opcua/device`), which is not part of this
+module and enforces the platform's own CSRF scheme: every state-changing request must carry an
+`x-csrf-token` header whose value is obtained from the authenticated session (a real browser's SPA
+reads it at load time; a scripted client must fetch it separately). Omitting it returns a bare
+Jetty `403 Forbidden` with no JSON body and no application-level log line — this is what made the
+device-creation blocker in the v10.0.0 DoD run hard to diagnose (`plc-dod/csrf-finding.txt`).
+Driving the real Gateway UI (e.g. with Playwright) sidesteps this token entirely and is the more
+robust path for scripted device creation.
 
 ### Authentication Errors
 
-**401 Unauthorized** - No credentials provided or invalid credentials
+**401 Unauthorized** - No authenticated Gateway session
 ```json
 {
+  "success": false,
   "error": "Authentication required"
 }
 ```
 
-**403 Forbidden** - Valid credentials but insufficient permissions
+**403 Forbidden** - Authenticated, but the module's `X-Requested-With` CSRF check failed
 ```json
 {
-  "error": "Insufficient permissions. Designer or Administrator role required."
+  "success": false,
+  "error": "CSRF validation failed — X-Requested-With header required"
 }
 ```
 
@@ -114,13 +125,25 @@ curl -b cookies.txt -F "file=@test.L5K" \
 
 ### Endpoint Summary
 
+This is the real, non-phantom route list mounted by `FileUploadRoutes`/`Routes.java` (20 routes
+total, all under `/data/logixemulator/`). This document covers upload, device listing, per-device
+status, delete, file versions, and system stats; the remaining tag/simulation/log/auth-check
+routes are not documented here yet.
+
 | Method | Endpoint | Description | Auth Required |
 |--------|----------|-------------|---------------|
-| `POST` | `/data/logixemulator/upload` | Upload PLC file and apply to device | Yes |
-| `GET` | `/data/logixemulator/devices` | List all simulator devices | Yes |
-| `GET` | `/data/logixemulator/devices/{name}` | Get device details | Yes |
-| `DELETE` | `/data/logixemulator/devices/{name}` | Delete device | Yes |
-| `GET` | `/data/logixemulator/status` | Get module status | Yes |
+| `POST` | `/data/logixemulator/upload` | Upload a PLC file and apply it to an **existing** device (see prerequisite below) | Yes |
+| `GET` | `/data/logixemulator/devices` | List all registered devices | Yes |
+| `GET` | `/data/logixemulator/device/:name/status` | Get status/file info for one device | Yes |
+| `DELETE` | `/data/logixemulator/device/:name/delete` | Delete a device's uploaded file | Yes |
+| `GET` | `/data/logixemulator/device/:name/versions` | List retained file versions for a device (defect B5) | Yes |
+| `POST` | `/data/logixemulator/device/:name/versions/revert` | Revert a device's file to a retained version (defect B5) | Yes |
+| `GET` | `/data/logixemulator/system/stats` | Get module/system stats (CPU, RAM, device count) | Yes |
+
+> **Phantom routes corrected**: earlier revisions of this document described `GET`/`DELETE
+> /data/logixemulator/devices/{name}` and `GET /data/logixemulator/status` — neither exists.
+> `Routes.java` defines `DEVICE_STATUS = "/device/:name/status"`, `DEVICE_DELETE =
+> "/device/:name/delete"`, and `SYSTEM_STATS = "/system/stats"`.
 
 ---
 
@@ -128,172 +151,175 @@ curl -b cookies.txt -F "file=@test.L5K" \
 
 ### POST /data/logixemulator/upload
 
-Upload a PLC file and apply it to a specific device.
+Upload a PLC file and apply it to a device.
+
+> **Prerequisite: the device must already exist.** `/upload` does **not** create a device. It looks
+> the target device up by name (`DeviceController.processDeviceUpload()` →
+> `deviceManager.findDeviceByName()`) and returns `404 Device not found` with a hint if it doesn't
+> exist yet. Create the device first via **Config → OPC UA → Device Connections** (device type
+> "Logix PLC Emulator" / `com.gaskony.logixemulator.LogixEmulator`), *then* upload a file to it.
+> A caller who has never created the device will get a 404 on every upload attempt, no matter how
+> correct the request otherwise is (`plc-dod/device-creation-blocker.txt`).
 
 #### Request
 
 **Method**: `POST`
 
-**URL**: `/data/logixemulator/upload`
+**URL**: `/data/logixemulator/upload?device=<deviceName>`
 
-**Content-Type**: `multipart/form-data`
+**Content-Type**: not multipart — the request body **is** the raw file content
+(`GatewayAuthHelper.readRequestContent()` reads the body directly; there is no multipart form
+parsing on this endpoint).
 
 **Headers**:
 ```
-Authorization: Basic <base64-credentials>
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary...
+Cookie: JSESSIONID=<session cookie from Gateway login>
+X-Requested-With: XMLHttpRequest
+X-Filename: tags.json
+Content-Length: <byte length of the file>
 ```
 
-**Form Fields**:
+**Query Parameters**:
 
-| Field | Type | Required | Description | Constraints |
-|-------|------|----------|-------------|-------------|
-| `file` | File | Yes | PLC file to upload | Max 10MB, extensions: .L5K, .L5X, .JSON, .CSV |
-| `deviceName` | String | Yes | Target device name | 1-50 chars, alphanumeric + underscores |
-| `parserType` | String | No | Parser to use | Values: `ROCKWELL_L5K`, `ROCKWELL_L5X`, `JSON`, `CSV` |
-| `autoApply` | Boolean | No | Auto-apply to device | Default: `true` |
+| Parameter | Type | Required | Description |
+|-----------|------|----------|--------------|
+| `device` | String | No (see note) | Target device name. If omitted, the file is validated and echoed back but not applied to any device. |
+
+**Headers (request)**:
+
+| Header | Required | Description | Constraints |
+|--------|----------|--------------|-------------|
+| `X-Filename` | No | Original filename, used for format auto-detection (`.l5k`, `.l5x`, `.json`, `.csv`) | Sanitised via `PathSecurity.sanitizeFileName()`; defaults to `uploaded_file.txt` if absent |
+
+The parser format is **not** selected by an explicit `parserType` field — `ParserFactory` picks
+the parser automatically from the `X-Filename` extension.
 
 #### Examples
 
-**cURL - Upload L5K File**:
+Requires the device (`Building1_PLC` below) to already exist — see the prerequisite note above.
+
+**cURL - Upload a JSON tag file to an existing device**:
 ```bash
-curl -X POST http://localhost:8088/data/logixemulator/upload \
-  -u admin:password \
-  -F "file=@/path/to/plc.L5K" \
-  -F "deviceName=Building1_PLC" \
-  -F "parserType=ROCKWELL_L5K"
+curl -X POST "http://localhost:8088/data/logixemulator/upload?device=Building1_PLC" \
+  -b cookies.txt \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -H "X-Filename: tags.json" \
+  --data-binary @/path/to/tags.json
 ```
 
-**cURL - Upload JSON File**:
-```bash
-curl -X POST http://localhost:8088/data/logixemulator/upload \
-  -u admin:password \
-  -F "file=@/path/to/tags.json" \
-  -F "deviceName=TestDevice" \
-  -F "parserType=JSON"
-```
-
-**JavaScript (Browser)**:
+**JavaScript (Browser, e.g. the module's own web UI)**:
 ```javascript
-const formData = new FormData();
-formData.append('file', fileInput.files[0]);
-formData.append('deviceName', 'Building1_PLC');
-formData.append('parserType', 'ROCKWELL_L5K');
+const fileContent = await file.text();
 
-fetch('http://localhost:8088/data/logixemulator/upload', {
+fetch(`/data/logixemulator/upload?device=${encodeURIComponent(deviceName)}`, {
   method: 'POST',
   headers: {
-    'Authorization': 'Basic ' + btoa('admin:password')
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-Filename': file.name
   },
-  body: formData
+  credentials: 'same-origin', // send the existing Gateway session cookie
+  body: fileContent
 })
   .then(response => response.json())
-  .then(data => console.log('Success:', data))
+  .then(data => console.log('Result:', data))
   .catch(error => console.error('Error:', error));
 ```
 
-**Python (requests library)**:
+**Python (requests library, with a pre-authenticated session)**:
 ```python
 import requests
 
+session = requests.Session()
+# ... perform the Gateway login flow with `session` first ...
+
 url = 'http://localhost:8088/data/logixemulator/upload'
-auth = ('admin', 'password')
+with open('/path/to/tags.json', 'rb') as f:
+    content = f.read()
 
-files = {'file': open('/path/to/plc.L5K', 'rb')}
-data = {
-    'deviceName': 'Building1_PLC',
-    'parserType': 'ROCKWELL_L5K'
-}
-
-response = requests.post(url, auth=auth, files=files, data=data)
+response = session.post(
+    url,
+    params={'device': 'Building1_PLC'},
+    headers={'X-Requested-With': 'XMLHttpRequest', 'X-Filename': 'tags.json'},
+    data=content
+)
 print(response.json())
-```
-
-**Java (HttpClient)**:
-```java
-HttpClient client = HttpClient.newHttpClient();
-
-String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
-String auth = Base64.getEncoder().encodeToString("admin:password".getBytes());
-
-HttpRequest request = HttpRequest.newBuilder()
-    .uri(URI.create("http://localhost:8088/data/logixemulator/upload"))
-    .header("Authorization", "Basic " + auth)
-    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-    .POST(HttpRequest.BodyPublishers.ofFile(Paths.get("/path/to/plc.L5K")))
-    .build();
-
-HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-System.out.println(response.body());
 ```
 
 #### Response
 
-**Success (200 OK)**:
+**Success (200 OK)** — file saved and the device reloaded/rebuilt without error:
 ```json
 {
   "success": true,
-  "message": "File uploaded and applied successfully",
-  "filename": "plc.L5K",
-  "fileSize": 123456,
-  "deviceName": "Building1_PLC",
-  "parserType": "ROCKWELL_L5K",
-  "tagsCreated": 42,
-  "parseTime": 1234,
-  "timestamp": "2025-11-22T10:30:00Z"
+  "filename": "tags.json",
+  "size": 512,
+  "device": "Building1_PLC",
+  "message": "File uploaded and applied to device successfully",
+  "status": "Running"
 }
 ```
 
-**Error (400 Bad Request)** - Invalid file:
+**Error (422 Unprocessable Entity)** — file saved, but the device failed to apply it (defect B4:
+this used to incorrectly report `success: true`/HTTP 200 for this case):
 ```json
 {
   "success": false,
-  "error": "File size exceeds maximum allowed size (10MB)",
-  "filename": "huge.L5K",
-  "fileSize": 15728640,
-  "maxSize": 10485760
+  "filename": "tags.json",
+  "size": 512,
+  "device": "Building1_PLC",
+  "error": "File saved but failed to apply to device: Error: Hot reload failed - ...",
+  "status": "Error: Hot reload failed - ..."
 }
 ```
 
-**Error (400 Bad Request)** - Path traversal:
+**Error (404 Not Found)** — the device does not exist yet (the most common failure for a
+first-time caller — see the prerequisite note above):
 ```json
 {
   "success": false,
-  "error": "Invalid filename: path traversal detected",
-  "filename": "../../../etc/passwd"
+  "error": "Device not found: Building1_PLC",
+  "hint": "Create the device in Config → OPC UA → Device Connections first"
+}
+```
+
+**Error (400 Bad Request)** — content/format validation failed (`FileValidator`):
+```json
+{
+  "success": false,
+  "error": "Invalid L5X file - missing <RSLogix5000Content> root element. This is not a valid Studio 5000 XML export file."
 }
 ```
 
 **Error (401 Unauthorized)**:
 ```json
 {
+  "success": false,
   "error": "Authentication required"
 }
 ```
 
-**Error (413 Payload Too Large)**:
-```json
-{
-  "error": "File size exceeds maximum allowed size (10MB)",
-  "providedSize": 15728640,
-  "maxSize": 10485760
-}
-```
-
-**Error (422 Unprocessable Entity)** - Parse error:
+**Error (413 Payload Too Large)** — over the 50MB limit:
 ```json
 {
   "success": false,
-  "error": "Failed to parse L5K file",
-  "details": "Missing CONTROLLER declaration at line 1",
-  "filename": "malformed.L5K"
+  "error": "File too large: 60 MB exceeds max 50 MB"
+}
+```
+
+**Error (429 Too Many Requests)** — upload rate limit exceeded (100/hr/user, 1000/hr/IP — see
+[Rate Limiting](#rate-limiting)):
+```json
+{
+  "success": false,
+  "error": "Rate limit exceeded: user limit of 100 uploads per hour",
+  "retryAfter": 3529
 }
 ```
 
 #### Security
 
-- **Authentication**: Required (Designer or Admin role)
-- **File Size Limit**: 10 MB (10,485,760 bytes)
+- **Authentication**: Required (Gateway session; see [Authentication](#authentication))
+- **File Size Limit**: 50 MB (`FileValidator.DEFAULT_MAX_SIZE_MB`; earlier revisions of this document said 10MB, which was never correct)
 - **Path Traversal Protection**: Filenames and device names sanitized
 - **XXE Protection**: XML parsing with 6 security features enabled
 - **Content-Length Validation**: Required header, validated before reading body
@@ -305,7 +331,7 @@ System.out.println(response.body());
 
 ### GET /data/logixemulator/devices
 
-List all Logix PLC Emulator devices.
+List all registered Logix PLC Emulator devices.
 
 #### Request
 
@@ -315,209 +341,320 @@ List all Logix PLC Emulator devices.
 
 **Headers**:
 ```
-Authorization: Basic <base64-credentials>
+Cookie: JSESSIONID=<session cookie from Gateway login>
 ```
 
 #### Examples
 
 **cURL**:
 ```bash
-curl -u admin:password http://localhost:8088/data/logixemulator/devices
+curl -b cookies.txt http://localhost:8088/data/logixemulator/devices
 ```
 
-**Python**:
+**Python (with a pre-authenticated session)**:
 ```python
-import requests
-
 url = 'http://localhost:8088/data/logixemulator/devices'
-auth = ('admin', 'password')
-
-response = requests.get(url, auth=auth)
+response = session.get(url)
 print(response.json())
 ```
 
 #### Response
 
-**Success (200 OK)**:
+**Success (200 OK)** — matches `DeviceController.handleListDevices()`:
 ```json
 {
+  "success": true,
   "devices": [
     {
       "name": "Building1_PLC",
       "status": "Running",
-      "tagCount": 42,
-      "parserType": "ROCKWELL_L5K",
-      "lastFileUpload": "2025-11-22T10:30:00Z",
-      "fileName": "plc.L5K"
+      "enabled": true,
+      "fileName": "plc.L5K",
+      "parserType": "Rockwell L5K",
+      "simulationEnabled": false
     },
     {
       "name": "TestDevice",
       "status": "Ready - Waiting for file upload",
-      "tagCount": 0,
+      "enabled": true,
+      "fileName": null,
       "parserType": "JSON",
-      "lastFileUpload": null,
-      "fileName": null
+      "simulationEnabled": false
     }
   ],
-  "totalDevices": 2
+  "count": 2
 }
 ```
 
-### GET /data/logixemulator/devices/{name}
+> **Phantom route corrected**: there is no `GET /data/logixemulator/devices/{name}` endpoint —
+> per-device detail is `GET /device/:name/status` below.
 
-Get details for a specific device.
+### GET /data/logixemulator/device/:name/status
+
+Get status and file info for a specific device.
 
 #### Request
 
 **Method**: `GET`
 
-**URL**: `/data/logixemulator/devices/{name}`
+**URL**: `/data/logixemulator/device/:name/status` (e.g. `/device/Building1_PLC/status`)
 
 **Path Parameters**:
-- `name` - Device name (URL-encoded if contains special characters)
+- `name` - Device name (URL-encoded if it contains special characters)
 
 #### Examples
 
 **cURL**:
 ```bash
-curl -u admin:password http://localhost:8088/data/logixemulator/devices/Building1_PLC
+curl -b cookies.txt http://localhost:8088/data/logixemulator/device/Building1_PLC/status
 ```
 
 #### Response
 
-**Success (200 OK)**:
+**Success (200 OK)** — matches `DeviceController.handleDeviceStatus()`:
 ```json
 {
-  "name": "Building1_PLC",
+  "success": true,
+  "deviceName": "Building1_PLC",
   "status": "Running",
-  "tagCount": 42,
-  "parserType": "ROCKWELL_L5K",
   "fileName": "plc.L5K",
+  "hasFile": true,
   "fileSize": 123456,
-  "lastFileUpload": "2025-11-22T10:30:00Z",
-  "lastParseTime": 1234,
-  "tags": [
-    {
-      "name": "Motor1_Speed",
-      "dataType": "REAL",
-      "scope": "Controller:Global",
-      "opcPath": "[ns=1;s=Building1_PLC]/Controller:Global/Motor1_Speed"
-    },
-    {
-      "name": "Motor1_Running",
-      "dataType": "BOOL",
-      "scope": "Controller:Global",
-      "opcPath": "[ns=1;s=Building1_PLC]/Controller:Global/Motor1_Running"
-    }
-  ]
+  "lastModified": 1732270200000,
+  "filePath": "Building1_PLC_plc.L5K",
+  "parserType": "Rockwell L5K",
+  "enabled": true,
+  "simulationEnabled": false
 }
 ```
 
 **Error (404 Not Found)**:
 ```json
 {
-  "error": "Device not found",
-  "deviceName": "NonExistentDevice"
+  "success": false,
+  "error": "Device not found: NonExistentDevice"
 }
 ```
 
-### DELETE /data/logixemulator/devices/{name}
+### DELETE /data/logixemulator/device/:name/delete
 
-Delete a device and all its tags.
+Delete a device's uploaded file (does not delete the OPC UA device connection itself — that is
+managed through Config → OPC UA → Device Connections).
 
 #### Request
 
 **Method**: `DELETE`
 
-**URL**: `/data/logixemulator/devices/{name}`
+**URL**: `/data/logixemulator/device/:name/delete` (e.g. `/device/TestDevice/delete`)
 
 **Headers**:
 ```
-Authorization: Basic <base64-credentials>
+Cookie: JSESSIONID=<session cookie from Gateway login>
+X-Requested-With: XMLHttpRequest
 ```
 
 #### Examples
 
 **cURL**:
 ```bash
-curl -X DELETE -u admin:password \
-  http://localhost:8088/data/logixemulator/devices/TestDevice
-```
-
-**Python**:
-```python
-import requests
-
-url = 'http://localhost:8088/data/logixemulator/devices/TestDevice'
-auth = ('admin', 'password')
-
-response = requests.delete(url, auth=auth)
-print(response.json())
+curl -X DELETE -b cookies.txt -H "X-Requested-With: XMLHttpRequest" \
+  http://localhost:8088/data/logixemulator/device/TestDevice/delete
 ```
 
 #### Response
 
-**Success (200 OK)**:
+**Success (200 OK)** — matches `DeviceController.handleDeleteFile()`:
 ```json
 {
   "success": true,
-  "message": "Device deleted successfully",
-  "deviceName": "TestDevice",
-  "tagsRemoved": 42
+  "message": "File deleted successfully",
+  "fileName": "TestDevice_plc.L5K"
 }
 ```
 
 **Error (404 Not Found)**:
 ```json
 {
-  "error": "Device not found",
-  "deviceName": "NonExistentDevice"
+  "success": false,
+  "error": "Device not found: NonExistentDevice"
 }
 ```
 
-### GET /data/logixemulator/status
+> **Phantom route corrected**: there is no `DELETE /data/logixemulator/devices/{name}` endpoint —
+> the real route is `/device/:name/delete` (note singular `device`, and the `/delete` suffix).
 
-Get module status and statistics.
+### GET /data/logixemulator/device/:name/versions
+
+List the file versions retained for a device (charter §2.7: "retains the last 5 uploads and can
+revert"), newest first, flagging which entry is the device's current live file. Read endpoint —
+subject to the **read** rate limiter (see [Rate Limiting](#rate-limiting)), not the write limiter.
+
+> **Defect B5, fixed 10/07/2026**: this route did not exist at all before v10.0.0 —
+> `FileVersionManager.saveVersion()` was never called on the REST upload path, so no versions were
+> ever written, and `getVersions()`/`restoreVersion()` had zero callers anywhere in the codebase
+> (`plc-dod/item7-versioning-FAIL.txt`). A successful `/upload` (see above) now calls `saveVersion`
+> after the file is confirmed to have parsed and built; a failed upload does not consume a
+> retention slot.
 
 #### Request
 
 **Method**: `GET`
 
-**URL**: `/data/logixemulator/status`
+**URL**: `/data/logixemulator/device/:name/versions` (e.g. `/device/DodPLC1/versions`)
+
+**Headers**:
+```
+Cookie: JSESSIONID=<session cookie from Gateway login>
+```
 
 #### Examples
 
 **cURL**:
 ```bash
-curl -u admin:password http://localhost:8088/data/logixemulator/status
+curl -b cookies.txt http://localhost:8088/data/logixemulator/device/DodPLC1/versions
 ```
 
 #### Response
 
-**Success (200 OK)**:
+**Success (200 OK)** — matches `VersionController.handleListVersions()`:
 ```json
 {
-  "moduleVersion": "9.2.14",
-  "moduleStatus": "Running",
-  "totalDevices": 2,
-  "runningDevices": 1,
-  "waitingDevices": 1,
-  "totalTags": 42,
-  "supportedParsers": [
-    "ROCKWELL_L5K",
-    "ROCKWELL_L5X",
-    "JSON",
-    "CSV"
+  "success": true,
+  "deviceName": "DodPLC1",
+  "versions": [
+    { "filename": "DodPLC1_ver.csv", "size": 1024, "timestamp": 1752100000000, "current": true },
+    { "filename": "ver_20260710_120000.csv", "size": 998, "timestamp": 1752099000000, "current": false }
   ],
-  "maxFileSize": 10485760,
-  "securityFeatures": {
-    "authenticationEnabled": true,
-    "xxeProtectionEnabled": true,
-    "pathTraversalProtectionEnabled": true,
-    "fileSizeLimitEnabled": true
-  }
+  "count": 2,
+  "maxVersions": 5
 }
 ```
+
+**Error (404 Not Found)**:
+```json
+{
+  "success": false,
+  "error": "Device not found: NonExistentDevice"
+}
+```
+
+### POST /data/logixemulator/device/:name/versions/revert
+
+Restore a device's current file from one of its retained versions, then reload the device through
+the **same code path a REST upload uses** (`DeviceFileManager.reloadDevice()`), so the reverted
+content is actually re-parsed and re-applied — not just copied to disk. Write endpoint — subject
+to CSRF (`X-Requested-With`) and the **write** rate limiter (see [Rate Limiting](#rate-limiting)).
+
+A successful revert is itself treated as a new upload for versioning purposes: it becomes the
+newest retained snapshot, so the version just reverted-from is not immediately pushed out of the
+5-version retention window by its own restore.
+
+#### Request
+
+**Method**: `POST`
+
+**URL**: `/data/logixemulator/device/:name/versions/revert` (e.g. `/device/DodPLC1/versions/revert`)
+
+**Headers**:
+```
+Cookie: JSESSIONID=<session cookie from Gateway login>
+Content-Type: application/json
+X-Requested-With: XMLHttpRequest
+```
+
+**Body**:
+```json
+{ "filename": "ver_20260710_120000.csv" }
+```
+
+`filename` must be one of the `filename` values previously returned by
+`GET /device/:name/versions` — it is matched against that same listing server-side (never used to
+build a file path directly), so an arbitrary or path-traversal filename cannot be restored.
+
+#### Examples
+
+**cURL**:
+```bash
+curl -X POST -b cookies.txt -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -d '{"filename":"ver_20260710_120000.csv"}' \
+  http://localhost:8088/data/logixemulator/device/DodPLC1/versions/revert
+```
+
+#### Response
+
+**Success (200 OK)** — matches `VersionController.handleRevertVersion()`:
+```json
+{
+  "success": true,
+  "deviceName": "DodPLC1",
+  "restoredFrom": "ver_20260710_120000.csv",
+  "status": "Running"
+}
+```
+
+**Error (404 Not Found)** — unknown version filename:
+```json
+{
+  "success": false,
+  "error": "Unknown version: does-not-exist.csv"
+}
+```
+
+**Error (409 Conflict)** — device has never had a file uploaded (nothing to revert into):
+```json
+{
+  "success": false,
+  "error": "Device has no current file to revert - upload a file first"
+}
+```
+
+**Error (422 Unprocessable Entity)** — same honesty convention as `/upload` (defect B4): the
+version was restored to disk, but the reload that followed failed to parse/build it:
+```json
+{
+  "success": false,
+  "deviceName": "DodPLC1",
+  "restoredFrom": "ver_20260710_120000.csv",
+  "error": "Version restored to disk but failed to apply to device: Error: Hot reload failed - ...",
+  "status": "Error: Hot reload failed - ..."
+}
+```
+
+### GET /data/logixemulator/system/stats
+
+Get module/system stats (CPU, RAM, registered device count).
+
+#### Request
+
+**Method**: `GET`
+
+**URL**: `/data/logixemulator/system/stats`
+
+#### Examples
+
+**cURL**:
+```bash
+curl -b cookies.txt http://localhost:8088/data/logixemulator/system/stats
+```
+
+#### Response
+
+**Success (200 OK)** — matches `SystemController.handleSystemStats()`:
+```json
+{
+  "success": true,
+  "cpuUsage": 4.2,
+  "ramUsage": 536870912,
+  "ramTotal": 2147483648,
+  "moduleVersion": "10.0.0",
+  "deviceCount": 2
+}
+```
+
+> **Phantom route corrected**: there is no `GET /data/logixemulator/status` endpoint — the real
+> route is `/system/stats`, and its response has no `totalTags`/`supportedParsers`/
+> `securityFeatures`/`maxFileSize` fields; those were never implemented.
 
 ---
 
@@ -585,79 +722,51 @@ Connection Browser - unified tag browsing and file upload page.
 
 ### File Upload Request Format
 
-**Multipart Form Data**:
+**Raw body, not multipart** — `DeviceController.handleFileUpload()` reads the request body
+directly (`GatewayAuthHelper.readRequestContent()`); there is no multipart/form-data parsing on
+this endpoint:
+
 ```http
-POST /data/logixemulator/upload HTTP/1.1
+POST /data/logixemulator/upload?device=Building1_PLC HTTP/1.1
 Host: localhost:8088
-Authorization: Basic YWRtaW46cGFzc3dvcmQ=
-Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Length: 123456
+Cookie: JSESSIONID=<session cookie>
+X-Requested-With: XMLHttpRequest
+X-Filename: plc.l5k
+Content-Length: 512
 
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="file"; filename="plc.L5K"
-Content-Type: application/octet-stream
-
-[binary file content]
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="deviceName"
-
-Building1_PLC
-------WebKitFormBoundary7MA4YWxkTrZu0gW
-Content-Disposition: form-data; name="parserType"
-
-ROCKWELL_L5K
-------WebKitFormBoundary7MA4YWxkTrZu0gW--
+[raw file content - the entire body]
 ```
 
 ### Success Response Format
 
-**Structure**:
-```json
-{
-  "success": true,
-  "message": "Human-readable success message",
-  "data": {
-    "key": "value"
-  },
-  "timestamp": "ISO 8601 timestamp"
-}
-```
+Every endpoint returns a flat JSON object with a `success` boolean plus whatever fields are
+relevant to that call — there is no shared `data`/`timestamp` envelope. See each endpoint's own
+Response section above for its exact fields.
 
-**Example**:
+**Example** (`/upload`):
 ```json
 {
   "success": true,
-  "message": "File uploaded successfully",
-  "data": {
-    "filename": "plc.L5K",
-    "tagsCreated": 42,
-    "parseTime": 1234
-  },
-  "timestamp": "2025-11-22T10:30:00Z"
+  "filename": "plc.L5K",
+  "size": 512,
+  "device": "Building1_PLC",
+  "message": "File uploaded and applied to device successfully",
+  "status": "Running"
 }
 ```
 
 ### Error Response Format
 
-**Structure**:
-```json
-{
-  "success": false,
-  "error": "Human-readable error message",
-  "errorCode": "ERROR_CODE",
-  "details": "Additional error details",
-  "timestamp": "ISO 8601 timestamp"
-}
-```
+Error responses are likewise a flat object: `success: false`, a human-readable `error` string, and
+occasionally a `hint` (e.g. the "device not found" case). There is no `errorCode` or `timestamp`
+field anywhere in the codebase — those were aspirational, never implemented.
 
-**Example**:
+**Example** (`/upload`, device not found):
 ```json
 {
   "success": false,
-  "error": "File size exceeds maximum allowed size (10MB)",
-  "errorCode": "FILE_TOO_LARGE",
-  "details": "Provided size: 15728640 bytes, Maximum: 10485760 bytes",
-  "timestamp": "2025-11-22T10:30:00Z"
+  "error": "Device not found: Building1_PLC",
+  "hint": "Create the device in Config → OPC UA → Device Connections first"
 }
 ```
 
@@ -670,68 +779,67 @@ ROCKWELL_L5K
 | Code | Name | Description | Retry? |
 |------|------|-------------|--------|
 | 200 | OK | Request succeeded | - |
-| 400 | Bad Request | Invalid request (malformed file, path traversal, etc.) | No |
-| 401 | Unauthorized | Authentication required or invalid credentials | Yes (with valid credentials) |
-| 403 | Forbidden | Valid credentials but insufficient permissions | No |
+| 400 | Bad Request | Invalid request (malformed/unsupported file content) | No |
+| 401 | Unauthorized | No authenticated Gateway session | Yes (after logging in) |
+| 403 | Forbidden | Authenticated, but the module's `X-Requested-With` CSRF check failed (or, for the separate platform config API, a missing `x-csrf-token`) | Yes (with the header) |
 | 404 | Not Found | Device not found | No |
-| 411 | Length Required | Content-Length header missing | No |
-| 413 | Payload Too Large | File exceeds 10MB limit | No |
-| 422 | Unprocessable Entity | File parsing failed | No |
+| 413 | Payload Too Large | File exceeds the 50MB limit | No |
+| 422 | Unprocessable Entity | File saved but the device failed to apply it (defect B4) | No |
+| 429 | Too Many Requests | Rate limit exceeded (see [Rate Limiting](#rate-limiting)) | Yes (after `Retry-After`) |
 | 500 | Internal Server Error | Server error (check logs) | Yes (after investigation) |
-| 503 | Service Unavailable | Gateway starting or shutting down | Yes (after delay) |
 
-### Application Error Codes
-
-| Error Code | HTTP Status | Description |
-|------------|-------------|-------------|
-| `AUTH_REQUIRED` | 401 | Authentication credentials not provided |
-| `AUTH_INVALID` | 401 | Invalid username or password |
-| `INSUFFICIENT_PERMISSIONS` | 403 | User lacks required role |
-| `DEVICE_NOT_FOUND` | 404 | Specified device does not exist |
-| `FILE_TOO_LARGE` | 413 | File exceeds 10MB limit |
-| `FILE_EMPTY` | 400 | Uploaded file is empty (0 bytes) |
-| `INVALID_FILE_TYPE` | 400 | File extension not supported |
-| `PATH_TRAVERSAL` | 400 | Path traversal attempt detected |
-| `INVALID_DEVICE_NAME` | 400 | Device name contains invalid characters |
-| `PARSE_ERROR` | 422 | File parsing failed |
-| `XXE_DETECTED` | 400 | XXE attack attempt detected |
-| `MISSING_CONTENT_LENGTH` | 411 | Content-Length header required |
+> This module does not emit `411`/`503`, or a structured application `errorCode` — earlier
+> revisions of this document described both; neither exists in the codebase.
 
 ---
 
 ## Rate Limiting
 
-### Current Implementation
+Rate limiting is implemented (`RateLimiter`, wired up per-endpoint in `FileUploadRoutes`) — three
+independent limiters, each tracking per-user and per-IP counts over a rolling 1-hour window:
 
-**Status**: Not implemented in v9.0.0
+| Limiter | Applies to | Per-user limit | Per-IP limit |
+|---------|-----------|-----------------|--------------|
+| Upload | `/upload` | 100/hour | 1000/hour |
+| Read | tag/status/list reads, `versions` list | 300/hour | 3000/hour |
+| Write | tag writes, simulation toggles, delete, `versions/revert` | 60/hour | 600/hour |
 
-**Planned for future release**:
-- 100 uploads per hour per user
-- 1000 uploads per hour per IP address
-- Configurable limits in Gateway Config
+> The module's `CLAUDE.md` previously said "file upload (60/hr)" — that is actually the **write**
+> limiter's per-user figure; upload is 100/hour/user, confirmed both by the `RateLimiter`
+> constructor calls in `FileUploadRoutes.java` and empirically (429 at request #93 in a hammer-loop
+> that had already consumed ~7-8 units of quota — see `plc-dod/rate-limit-results.txt` and
+> `item6-validation.txt`).
 
-### Rate Limit Headers (Planned)
+### Rate Limit Headers
 
-**Response Headers**:
+**Response Headers** (set by `GatewayAuthHelper.rateLimitResponse()`):
 ```http
 X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1637582400
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1732273729000
+Retry-After: 3529
 ```
 
 **Rate Limit Exceeded (429 Too Many Requests)**:
 ```json
 {
-  "error": "Rate limit exceeded",
-  "limit": 100,
-  "remaining": 0,
-  "resetTime": "2025-11-22T11:00:00Z"
+  "success": false,
+  "error": "Rate limit exceeded: user limit of 100 uploads per hour",
+  "retryAfter": 3529
 }
 ```
 
 ---
 
 ## Code Examples
+
+> **These four samples predate the B7 documentation corrections above and have not been rewritten
+> line-by-line.** They still show `Authorization: Basic` auth, multipart `file`/`deviceName`
+> upload fields, and `/devices/{name}` routes — none of which work against the real module (see
+> [Authentication](#authentication), [File Upload API](#file-upload-api) and
+> [Device Management API](#device-management-api) above for the corrected, verified behaviour).
+> Treat the snippets below as illustrative of *shape* (a client class wrapping the API) rather than
+> copy-pasteable working code.
 
 ### Complete Upload Workflow (Python)
 

@@ -124,16 +124,18 @@ class OpcUaSimulationEngineRecalibrateTest {
     }
 
     @Test
-    @DisplayName("C12: disableSimulationByScope() clears baselines for matched tags only")
-    void disableScopeClearsScopedBaselines() {
-        engine.enableTagSimulation("Controller:Global/X");
-        engine.enableTagSimulation("Programs/Main/Y");
-        engine.recalibrate("Controller:Global/X", 11.0);
-        engine.recalibrate("Programs/Main/Y", 22.0);
+    @DisplayName("C12: per-tag disable clears the disabled tag's baseline only (scope-driven "
+        + "disable now runs per-tag through TagSimulationFacade — v10 C1)")
+    void disableOneTagKeepsOtherBaselines() {
+        // Canonical identifiers (v10 C1): controller tags bare, program tags Program:-prefixed.
+        engine.enableTagSimulation("X");
+        engine.enableTagSimulation("Program:Main.Y");
+        engine.recalibrate("X", 11.0);
+        engine.recalibrate("Program:Main.Y", 22.0);
 
-        engine.disableSimulationByScope("Controller:Global");
+        engine.disableTagSimulation("X");
 
-        assertThat(engine.getBaseline("Controller:Global/X")).isNull();
-        assertThat(engine.getBaseline("Programs/Main/Y")).isEqualTo(22.0);
+        assertThat(engine.getBaseline("X")).isNull();
+        assertThat(engine.getBaseline("Program:Main.Y")).isEqualTo(22.0);
     }
 }

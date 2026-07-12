@@ -29,3 +29,19 @@ export interface TagStats {
   folders: number;
   udtInstances: number;
 }
+
+/** A single retained file version for a device (defect B5). */
+export interface FileVersionInfo {
+  filename: string;
+  size: number;
+  timestamp: number;
+  current: boolean;
+}
+
+export interface VersionsResponse {
+  success: boolean;
+  deviceName: string;
+  versions: FileVersionInfo[];
+  count: number;
+  maxVersions: number;
+}

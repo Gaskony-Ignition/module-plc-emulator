@@ -13,7 +13,7 @@ configure<org.owasp.dependencycheck.gradle.extension.DependencyCheckExtension> {
     analyzers.assemblyEnabled = false
 }
 
-version = "9.2.14"
+version = "10.0.0"
 group = "com.gaskony"
 
 allprojects {
@@ -94,6 +94,10 @@ tasks.register("syncVersion") {
         }
         sync(file("web-ui/package.json"),
             Regex(""""version":\s*"[^"]+""""), """"version": "$ver"""")
+        // package-lock.json: only the two self-version fields (root + "" package entry),
+        // NOT dependency versions — anchored on the module's own package name.
+        sync(file("web-ui/package-lock.json"),
+            Regex("""("name": "logix_emulator_webui",\s*"version": ")[^"]+"""), "\$1$ver")
         sync(file("gateway/src/main/java/com/inductiveautomation/logixemulator/gateway/web/controller/SystemController.java"),
             Regex("""\.put\("moduleVersion",\s*"[^"]+"\)"""), """.put("moduleVersion", "$ver")""")
         sync(file("web-ui/src/App.tsx"),

@@ -219,6 +219,47 @@ class AddressSpaceBuilderTest {
             assertThat(builder.mapDataType("dint")).isEqualTo(OpcUaDataType.Int32);
             assertThat(builder.mapDataType("real")).isEqualTo(OpcUaDataType.Float);
         }
+
+        // =====================================================================================
+        // v32+ unsigned atomics and Date/Time-family types (ADDRESSING.md §3.14, defect C6) -
+        // before this fix every one of these degraded to OpcUaDataType.String.
+        // =====================================================================================
+
+        @Test
+        @DisplayName("maps USINT → OpcUaDataType.Byte (C6)")
+        void testUsint() {
+            assertThat(builder.mapDataType("USINT")).isEqualTo(OpcUaDataType.Byte);
+        }
+
+        @Test
+        @DisplayName("maps UINT/WORD → OpcUaDataType.UInt16 (C6)")
+        void testUint16() {
+            assertThat(builder.mapDataType("UINT")).isEqualTo(OpcUaDataType.UInt16);
+            assertThat(builder.mapDataType("WORD")).isEqualTo(OpcUaDataType.UInt16);
+        }
+
+        @Test
+        @DisplayName("maps UDINT/DWORD → OpcUaDataType.UInt32 (C6)")
+        void testUint32() {
+            assertThat(builder.mapDataType("UDINT")).isEqualTo(OpcUaDataType.UInt32);
+            assertThat(builder.mapDataType("DWORD")).isEqualTo(OpcUaDataType.UInt32);
+        }
+
+        @Test
+        @DisplayName("maps ULINT/LWORD → OpcUaDataType.UInt64 (C6)")
+        void testUint64() {
+            assertThat(builder.mapDataType("ULINT")).isEqualTo(OpcUaDataType.UInt64);
+            assertThat(builder.mapDataType("LWORD")).isEqualTo(OpcUaDataType.UInt64);
+        }
+
+        @Test
+        @DisplayName("maps DT/LDT/LTIME/TIME → OpcUaDataType.Int64 (C6, INFERRED safe default)")
+        void testTimeFamily() {
+            assertThat(builder.mapDataType("DT")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("LDT")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("LTIME")).isEqualTo(OpcUaDataType.Int64);
+            assertThat(builder.mapDataType("TIME")).isEqualTo(OpcUaDataType.Int64);
+        }
     }
 
     // =========================================================================
@@ -311,6 +352,333 @@ class AddressSpaceBuilderTest {
             JsonObject tag = makeTag("MyTag", "DINT");
             tag.add("initial_value", com.google.gson.JsonNull.INSTANCE);
             assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        // =====================================================================================
+        // v32+ unsigned atomics and Date/Time-family types (ADDRESSING.md §3.14, defect C6)
+        // =====================================================================================
+
+        @Test
+        @DisplayName("returns UByte(0)/UShort(0)/UInteger(0)/ULong(0) defaults for the new unsigned types (C6)")
+        void testUnsignedDefaults() {
+            assertThat(builder.getInitialValue(makeTag("T", "USINT"), "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(0));
+            assertThat(builder.getInitialValue(makeTag("T", "UINT"), "UINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort(0));
+            assertThat(builder.getInitialValue(makeTag("T", "UDINT"), "UDINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint(0));
+            assertThat(builder.getInitialValue(makeTag("T", "ULINT"), "ULINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong(0L));
+        }
+
+        @Test
+        @DisplayName("returns 0L default for DT/LDT/LTIME/TIME (C6)")
+        void testTimeFamilyDefaults() {
+            assertThat(builder.getInitialValue(makeTag("T", "DT"), "DT")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "LDT"), "LDT")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "LTIME"), "LTIME")).isEqualTo(0L);
+            assertThat(builder.getInitialValue(makeTag("T", "TIME"), "TIME")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("parses a real initial_value for each new unsigned type (C6/C8)")
+        void testUnsignedParsedValues() {
+            JsonObject usint = makeTag("T", "USINT");
+            usint.addProperty("initial_value", "255");
+            assertThat(builder.getInitialValue(usint, "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(255));
+
+            JsonObject udint = makeTag("T", "UDINT");
+            udint.addProperty("initial_value", "4000000000");
+            assertThat(builder.getInitialValue(udint, "UDINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint(4000000000L));
+        }
+
+        @Test
+        @DisplayName("garbage initial_value for a new unsigned type falls back to default instead of throwing (B1-style leniency)")
+        void testUnsignedGarbageFallsBackToDefault() {
+            JsonObject usint = makeTag("T", "USINT");
+            usint.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(usint, "USINT"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(0));
+        }
+    }
+
+    // =========================================================================
+    // getInitialValue() lenient parsing — regression tests for defect B1
+    // (docs/plans/V10_FIDELITY_PLAN.md). Before the fix, a non-numeric initial_value
+    // (notably the "{structure}" sentinel previously emitted by L5XParser.extractValue()
+    // for array/UDT/STRING Data elements, and empty strings) caused
+    // JsonPrimitive.getAsInt()/getAsFloat()/getAsLong()/getAsDouble() to throw
+    // NumberFormatException, aborting the entire address-space build - see
+    // plc-dod/item2-addressspace-error.txt and AddressSpaceBuilderIntegrationTest.
+    // =========================================================================
+
+    @Nested
+    @DisplayName("getInitialValue() lenient parsing (defect B1)")
+    class GetInitialValueLenientParsingTests {
+
+        @Test
+        @DisplayName("\"{structure}\" for BOOL returns default false")
+        void testStructureSentinelBool() {
+            JsonObject tag = makeTag("MyBit", "BOOL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "BOOL")).isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for DINT returns default 0 instead of throwing")
+        void testStructureSentinelDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for INT returns default 0 instead of throwing")
+        void testStructureSentinelInt16() {
+            JsonObject tag = makeTag("MyShort", "INT");
+            tag.addProperty("initial_value", "{structure}");
+            // Matches the pre-existing no-initial_value default for this type family (Integer 0),
+            // not the Short the parsed-value branch produces - a pre-existing quirk, not a
+            // regression introduced by the B1 fix.
+            assertThat(builder.getInitialValue(tag, "INT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for LINT returns default 0L instead of throwing")
+        void testStructureSentinelLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for REAL returns default 0.0f instead of throwing")
+        void testStructureSentinelReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for LREAL returns default 0.0 instead of throwing")
+        void testStructureSentinelLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("\"{structure}\" for STRING is returned as-is (getAsString never throws)")
+        void testStructureSentinelString() {
+            JsonObject tag = makeTag("MyStr", "STRING");
+            tag.addProperty("initial_value", "{structure}");
+            assertThat(builder.getInitialValue(tag, "STRING")).isEqualTo("{structure}");
+        }
+
+        @Test
+        @DisplayName("empty string for DINT returns default 0 instead of throwing")
+        void testEmptyStringDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("empty string for LINT returns default 0L instead of throwing")
+        void testEmptyStringLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("empty string for REAL returns default 0.0f instead of throwing")
+        void testEmptyStringReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("empty string for LREAL returns default 0.0 instead of throwing")
+        void testEmptyStringLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("garbage string for DINT returns default 0 instead of throwing")
+        void testGarbageStringDint() {
+            JsonObject tag = makeTag("MyInt", "DINT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "DINT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("garbage string for INT returns default 0 instead of throwing")
+        void testGarbageStringInt16() {
+            JsonObject tag = makeTag("MyShort", "INT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "INT")).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("garbage string for LINT returns default 0L instead of throwing")
+        void testGarbageStringLint() {
+            JsonObject tag = makeTag("MyLong", "LINT");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "LINT")).isEqualTo(0L);
+        }
+
+        @Test
+        @DisplayName("garbage string for REAL returns default 0.0f instead of throwing")
+        void testGarbageStringReal() {
+            JsonObject tag = makeTag("MyFloat", "REAL");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "REAL")).isEqualTo(0.0f);
+        }
+
+        @Test
+        @DisplayName("garbage string for LREAL returns default 0.0 instead of throwing")
+        void testGarbageStringLreal() {
+            JsonObject tag = makeTag("MyDouble", "LREAL");
+            tag.addProperty("initial_value", "not-a-number");
+            assertThat(builder.getInitialValue(tag, "LREAL")).isEqualTo(0.0);
+        }
+
+        @Test
+        @DisplayName("garbage string for BOOL is treated as false (no exception)")
+        void testGarbageStringBool() {
+            JsonObject tag = makeTag("MyBit", "BOOL");
+            tag.addProperty("initial_value", "not-a-boolean");
+            assertThat(builder.getInitialValue(tag, "BOOL")).isEqualTo(false);
+        }
+
+        @Test
+        @DisplayName("valid numeric strings still parse correctly for every numeric type family")
+        void testValidValuesStillParseAfterLeniencyChange() {
+            JsonObject boolTag = makeTag("MyBit", "BOOL");
+            boolTag.addProperty("initial_value", "true");
+            assertThat(builder.getInitialValue(boolTag, "BOOL")).isEqualTo(true);
+
+            JsonObject sintTag = makeTag("MySint", "SINT");
+            sintTag.addProperty("initial_value", "7");
+            assertThat(builder.getInitialValue(sintTag, "SINT")).isEqualTo((short) 7);
+
+            JsonObject dintTag = makeTag("MyDint", "DINT");
+            dintTag.addProperty("initial_value", "123");
+            assertThat(builder.getInitialValue(dintTag, "DINT")).isEqualTo(123);
+
+            JsonObject lintTag = makeTag("MyLint", "LINT");
+            lintTag.addProperty("initial_value", "123456789012");
+            assertThat(builder.getInitialValue(lintTag, "LINT")).isEqualTo(123456789012L);
+
+            JsonObject realTag = makeTag("MyReal", "REAL");
+            realTag.addProperty("initial_value", "2.5");
+            assertThat(builder.getInitialValue(realTag, "REAL")).isEqualTo(2.5f);
+
+            JsonObject lrealTag = makeTag("MyLreal", "LREAL");
+            lrealTag.addProperty("initial_value", "2.5");
+            assertThat(builder.getInitialValue(lrealTag, "LREAL")).isEqualTo(2.5);
+
+            JsonObject stringTag = makeTag("MyStr", "STRING");
+            stringTag.addProperty("initial_value", "hello");
+            assertThat(builder.getInitialValue(stringTag, "STRING")).isEqualTo("hello");
+        }
+    }
+
+    // =========================================================================
+    // FIX-15 — arrayElementValue() / arrayElementSource() (array-element initial values)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("arrayElementValue() / arrayElementSource()")
+    class ArrayElementValueTests {
+
+        @Test
+        @DisplayName("returns null when the tag has no element_values at all (pre-FIX-15 shape)")
+        void testNoElementValues() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[2]")).isNull();
+        }
+
+        @Test
+        @DisplayName("returns the element's decoded value when present, by exact bracket key")
+        void testElementValuePresent() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[2]", "42.5");
+            arrayTag.add("element_values", elementValues);
+
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[2]")).isEqualTo("42.5");
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[0]"))
+                .as("an index the export didn't cover must return null, not a stale/default value")
+                .isNull();
+        }
+
+        @Test
+        @DisplayName("multi-dim bracket keys ([1,3]) round-trip verbatim")
+        void testMultiDimElementValue() {
+            JsonObject arrayTag = makeTag("multiArray", "INT");
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[1,3]", "194993");
+            arrayTag.add("element_values", elementValues);
+
+            assertThat(AddressSpaceBuilder.arrayElementValue(arrayTag, "[1,3]")).isEqualTo("194993");
+        }
+
+        @Test
+        @DisplayName("arrayElementSource() falls back to the array tag itself when no element "
+            + "value is present - preserving the pre-FIX-15 initial_value/type-default behaviour")
+        void testSourceFallsBackToArrayTag() {
+            JsonObject arrayTag = makeTag("Arr", "DINT");
+            JsonObject source = AddressSpaceBuilder.arrayElementSource(arrayTag, "DINT", "[0]");
+            assertThat(source).isSameAs(arrayTag);
+        }
+
+        @Test
+        @DisplayName("arrayElementSource() synthesises a fresh node carrying the element's own "
+            + "value, data_type and the array's read_only flag")
+        void testSourceSynthesisesElementNode() {
+            JsonObject arrayTag = makeTag("RealArray", "REAL");
+            arrayTag.addProperty("read_only", true);
+            JsonObject elementValues = new JsonObject();
+            elementValues.addProperty("[2]", "42.5");
+            arrayTag.add("element_values", elementValues);
+
+            JsonObject source = AddressSpaceBuilder.arrayElementSource(arrayTag, "REAL", "[2]");
+
+            assertThat(source).isNotSameAs(arrayTag);
+            assertThat(source.get("data_type").getAsString()).isEqualTo("REAL");
+            assertThat(source.get("initial_value").getAsString()).isEqualTo("42.5");
+            assertThat(source.get("read_only").getAsBoolean()).isTrue();
+            assertThat(builder.getInitialValue(source, "REAL")).isEqualTo(42.5f);
+        }
+    }
+
+    // =========================================================================
+    // FIX-15 — bracket() (shared array-element key format)
+    // =========================================================================
+
+    @Nested
+    @DisplayName("bracket()")
+    class BracketTests {
+
+        @Test
+        @DisplayName("1-D index formats as [n]")
+        void testOneDim() {
+            assertThat(AddressSpaceBuilder.bracket(new int[]{2})).isEqualTo("[2]");
+        }
+
+        @Test
+        @DisplayName("multi-dim indices format comma-separated with no spaces, matching the L5X "
+            + "decorated Index attribute verbatim")
+        void testMultiDim() {
+            assertThat(AddressSpaceBuilder.bracket(new int[]{1, 3})).isEqualTo("[1,3]");
+            assertThat(AddressSpaceBuilder.bracket(new int[]{0, 0, 1})).isEqualTo("[0,0,1]");
         }
     }
 

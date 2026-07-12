@@ -1,6 +1,6 @@
-# Logix PLC Emulator - Testing Guide v9.2.14
+# Logix PLC Emulator - Testing Guide v10.0.0
 
-**Version**: 9.2.14
+**Version**: 10.0.0
 **Last Updated**: 2026-02-21
 **Status**: Production Ready - Security Hardened & Fully Tested
 
@@ -107,7 +107,8 @@ void testXXEPrevention() throws Exception {
 2. **testValidL5XFile** - Valid L5X file acceptance
 3. **testValidJSONFile** - Valid JSON file acceptance
 4. **testValidCSVFile** - Valid CSV file acceptance
-5. **testRejectOversizedFile** - File size limit enforcement (10MB)
+5. **testRejectOversizedFile** - File size limit enforcement (50MB, corrected 10/07/2026 — was
+   incorrectly documented as 10MB, see Test Case 6 below and defect B7)
 6. **testRejectEmptyFile** - Empty file rejection
 7. **testRejectInvalidExtension** - Invalid extension rejection
 8. **testRejectMismatchedContent** - Content/extension mismatch detection
@@ -118,12 +119,12 @@ void testXXEPrevention() throws Exception {
 ```java
 @Test
 void testRejectOversizedFile() {
-    byte[] largeContent = new byte[11 * 1024 * 1024]; // 11MB
+    byte[] largeContent = new byte[51 * 1024 * 1024]; // 51MB - over the real 50MB limit
 
     ValidationResult result = validator.validate("large.L5K", largeContent);
 
     assertThat(result.isValid()).isFalse();
-    assertThat(result.getError()).contains("File size exceeds maximum");
+    assertThat(result.getError()).contains("exceeds maximum");
 }
 ```
 
@@ -147,7 +148,7 @@ void testRejectOversizedFile() {
 
 **DoS Prevention Tests** (4 tests):
 13. **testRejectMissingContentLength** - Missing Content-Length rejected
-14. **testRejectOversizedContent** - Content > 10MB rejected
+14. **testRejectOversizedContent** - Content > 50MB rejected
 15. **testEnforceStreamingRead** - Streaming read enforced (no buffering)
 16. **testRateLimitEnforcement** - Rate limiting enforced (future)
 
@@ -214,7 +215,7 @@ unzip -l build/LogixPLCEmulator-{version}.modl | head -20
 
 Check module details:
 - **Name**: Logix PLC Emulator
-- **Version**: 9.2.14
+- **Version**: 10.0.0
 - **License**: Free Module
 - **Scopes**: G (Gateway only)
 - **Status**: Running
@@ -423,13 +424,19 @@ Counter1,DINT,Program:MainProgram
 
 ### Test Case 6: Oversized File Rejection
 
-**File**: `huge.L5K` (12MB)
+**File**: `huge.L5K` (60MB)
+
+> **Corrected 10/07/2026 (defect B7)**: the real limit is 50MB (`FileValidator.DEFAULT_MAX_SIZE_MB`),
+> not 10MB. A 12MB file, as this test case previously specified, would **not** trigger rejection —
+> it is well under the real threshold and would be accepted. Verified against a live gateway: a
+> 60MB all-zero file correctly returns 413; 11MB and 12MB files are accepted for size purposes
+> (`plc-dod/item6-validation.txt`).
 
 **Expected Result**:
 ```json
 {
   "success": false,
-  "error": "File size exceeds maximum allowed size (10MB)"
+  "error": "File too large: 60 MB exceeds max 50 MB"
 }
 ```
 
@@ -627,16 +634,21 @@ factory.setExpandEntityReferences(false);
 
 **Purpose**: Verify large file attacks are blocked
 
+> **Corrected 10/07/2026 (defect B7)**: the real limit is 50MB, not 10MB — a 15MB file, as this
+> test case previously specified, would be accepted, not rejected. Use a file over 50MB. Auth is a
+> Gateway session cookie (see [API_REFERENCE.md](API_REFERENCE.md#authentication)), not HTTP Basic.
+
 **Test**:
 ```bash
-# Generate 15MB file
-dd if=/dev/zero of=huge.L5K bs=1M count=15
+# Generate a 60MB file - over the real 50MB limit
+dd if=/dev/zero of=huge.L5K bs=1M count=60
 
-# Attempt upload
-curl -X POST http://localhost:8088/data/logixemulator/upload \
-  -u admin:password \
-  -H "Content-Type: multipart/form-data" \
-  -F "file=@huge.L5K"
+# Attempt upload (requires an authenticated session cookie, not Basic auth)
+curl -X POST "http://localhost:8088/data/logixemulator/upload?device=SomeDevice" \
+  -b cookies.txt \
+  -H "X-Requested-With: XMLHttpRequest" \
+  -H "X-Filename: huge.L5K" \
+  --data-binary @huge.L5K
 ```
 
 **Expected Result**:
@@ -978,7 +990,7 @@ https://github.com/nigelgwork/ignition-plc-simulator/actions
 
 ## Version Information
 
-**Module Version**: 9.2.14
+**Module Version**: 10.0.0
 **Ignition Compatibility**: 8.3.0+
 **Java Version**: 17
 **Test Framework**: JUnit Jupiter 5.10.1

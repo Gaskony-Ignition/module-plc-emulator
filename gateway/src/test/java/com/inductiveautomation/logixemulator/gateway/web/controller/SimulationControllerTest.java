@@ -1,6 +1,8 @@
 package com.inductiveautomation.logixemulator.gateway.web.controller;
 
 import com.inductiveautomation.ignition.gateway.dataroutes.RequestContext;
+import com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice;
+import com.inductiveautomation.logixemulator.gateway.device.TagWriteDispatcher;
 import com.inductiveautomation.logixemulator.gateway.web.DeviceFileManager;
 import com.inductiveautomation.logixemulator.gateway.web.RateLimiter;
 import org.json.JSONException;
@@ -12,7 +14,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import jakarta.servlet.ReadListener;
+import jakarta.servlet.ServletInputStream;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -50,17 +58,40 @@ class SimulationControllerTest {
     // -------------------------------------------------------------------------
 
     @Test
-    @DisplayName("convertToNodeIdPath() converts Controller:Global/ prefix correctly")
+    @DisplayName("convertToNodeIdPath() drops the Controller:Global browse folder — controller "
+        + "identifiers are bare (v10 C1, ADDRESSING.md §2.2)")
     void testConvertToNodeIdPathGlobal() {
         assertThat(controller.convertToNodeIdPath("Controller:Global/Motor1/Speed"))
-            .isEqualTo("Controller:Global.Motor1.Speed");
+            .isEqualTo("Motor1.Speed");
     }
 
     @Test
-    @DisplayName("convertToNodeIdPath() converts Programs/ prefix correctly")
+    @DisplayName("convertToNodeIdPath() maps a Programs/ browse path to the Program:<Prog>. "
+        + "selector form (v10 C1, ADDRESSING.md §3.2)")
     void testConvertToNodeIdPathPrograms() {
         assertThat(controller.convertToNodeIdPath("Programs/MainProgram/Counter"))
-            .isEqualTo("Programs.MainProgram.Counter");
+            .isEqualTo("Program:MainProgram.Counter");
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps the bare Controller:Global bulk scope to the empty "
+        + "controller-scope selector (matchesScope treats it as every non-program tag)")
+    void testConvertToNodeIdPathControllerBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Controller:Global")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps the bare Programs bulk scope to the generic "
+        + "Program: selector")
+    void testConvertToNodeIdPathProgramsBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Programs")).isEqualTo("Program:");
+    }
+
+    @Test
+    @DisplayName("convertToNodeIdPath() maps a Programs/<Prog> bulk scope to Program:<Prog>")
+    void testConvertToNodeIdPathSingleProgramBulkScope() {
+        assertThat(controller.convertToNodeIdPath("Programs/MainProgram"))
+            .isEqualTo("Program:MainProgram");
     }
 
     @Test
@@ -161,5 +192,281 @@ class SimulationControllerTest {
         verify(resp).setStatus(429);
         assertThat(result).isNotNull();
         assertThat(result.getBoolean("success")).isFalse();
+    }
+
+    // -------------------------------------------------------------------------
+    // handleToggleTagSimulation — defect B3 regression: slash-to-dot conversion
+    // -------------------------------------------------------------------------
+
+    /**
+     * Wires up an authenticated, CSRF-passing, rate-limit-passing request whose
+     * body is the given JSON string, targeting the given device.
+     */
+    private LogixEmulatorDevice primeAuthenticatedDeviceRequest(String deviceName, String jsonBody) throws Exception {
+        var request = mock(HttpServletRequest.class);
+        when(ctx.getRequest()).thenReturn(request);
+
+        HttpSession session = mock(HttpSession.class);
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("user")).thenReturn("admin");
+        when(request.getHeader("X-Requested-With")).thenReturn("XMLHttpRequest");
+
+        var rateLimitResult = mock(RateLimiter.RateLimitResult.class);
+        when(rateLimitResult.isAllowed()).thenReturn(true);
+        when(request.getRemoteUser()).thenReturn("admin");
+        when(request.getRemoteAddr()).thenReturn("10.0.0.1");
+        when(writeRateLimiter.checkRequest(any(), any())).thenReturn(rateLimitResult);
+
+        when(ctx.getParameter("name")).thenReturn(deviceName);
+
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName(deviceName)).thenReturn(Optional.of(device));
+        when(device.isSimulationEngineAvailable()).thenReturn(true);
+
+        when(request.getInputStream()).thenReturn(jsonInputStream(jsonBody));
+
+        return device;
+    }
+
+    /**
+     * Wires up an authenticated, CSRF-passing, rate-limit-passing request whose
+     * body is the given JSON string, targeting the given device — for
+     * {@code handleWriteTag}, which (unlike {@code handleToggleTagSimulation})
+     * never consults {@code isSimulationEngineAvailable()}, so that stub is
+     * deliberately omitted here to avoid an unnecessary-stubbing failure.
+     */
+    private LogixEmulatorDevice primeAuthenticatedWriteDeviceRequest(String deviceName, String jsonBody) throws Exception {
+        var request = mock(HttpServletRequest.class);
+        when(ctx.getRequest()).thenReturn(request);
+
+        HttpSession session = mock(HttpSession.class);
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("user")).thenReturn("admin");
+        when(request.getHeader("X-Requested-With")).thenReturn("XMLHttpRequest");
+
+        var rateLimitResult = mock(RateLimiter.RateLimitResult.class);
+        when(rateLimitResult.isAllowed()).thenReturn(true);
+        when(request.getRemoteUser()).thenReturn("admin");
+        when(request.getRemoteAddr()).thenReturn("10.0.0.1");
+        when(writeRateLimiter.checkRequest(any(), any())).thenReturn(rateLimitResult);
+
+        when(ctx.getParameter("name")).thenReturn(deviceName);
+
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName(deviceName)).thenReturn(Optional.of(device));
+
+        when(request.getInputStream()).thenReturn(jsonInputStream(jsonBody));
+
+        return device;
+    }
+
+    private static ServletInputStream jsonInputStream(String json) {
+        ByteArrayInputStream raw = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+        return new ServletInputStream() {
+            @Override
+            public boolean isFinished() {
+                return raw.available() == 0;
+            }
+
+            @Override
+            public boolean isReady() {
+                return true;
+            }
+
+            @Override
+            public void setReadListener(ReadListener readListener) {
+                // not needed for synchronous test reads
+            }
+
+            @Override
+            public int read() {
+                return raw.read();
+            }
+        };
+    }
+
+    @Test
+    @DisplayName("handleToggleTagSimulation() converts slash-notation tagPath to dot-notation before "
+        + "registering with the engine (defect B3: engine keys its registry off the live dot-notation "
+        + "NodeId identifier, so an unconverted slash path silently never matched and simulated values "
+        + "never updated)")
+    void testHandleToggleTagSimulationConvertsPathToDotNotation() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Controller:Global/RampInt\",\"enabled\":true,\"pattern\":\"ramp\"}"
+        );
+        when(device.getTagSimulationPattern("RampInt")).thenReturn("ramp");
+        when(device.getSimulatedTagCount()).thenReturn(1);
+
+        JSONObject result = controller.handleToggleTagSimulation(ctx, resp);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isTrue();
+
+        // The engine must be called with the canonical NodeId identifier (bare for a controller
+        // tag, v10 C1) — never the raw slash-notation browse path from the request.
+        verify(device).enableTagSimulation("RampInt", "ramp");
+        verify(device, never()).enableTagSimulation(eq("Controller:Global/RampInt"), any());
+        verify(device, never()).enableTagSimulation(eq("Controller:Global/RampInt"));
+
+        // The response still echoes the tagPath the client sent (slash notation).
+        assertThat(result.getString("tagPath")).isEqualTo("Controller:Global/RampInt");
+    }
+
+    @Test
+    @DisplayName("handleToggleTagSimulation() converts a nested Programs/ path to dot notation")
+    void testHandleToggleTagSimulationConvertsProgramsPath() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Programs/MainProgram/Counter\",\"enabled\":true}"
+        );
+        when(device.getTagSimulationPattern("Program:MainProgram.Counter")).thenReturn("sine");
+
+        controller.handleToggleTagSimulation(ctx, resp);
+
+        verify(device).enableTagSimulation("Program:MainProgram.Counter");
+    }
+
+    @Test
+    @DisplayName("handleToggleTagSimulation() returns 409 with a clear message when the device's "
+        + "simulation.enabled flag is off (engine not started)")
+    void testHandleToggleTagSimulationReturns409WhenSimulationDisabled() throws Exception {
+        var request = mock(HttpServletRequest.class);
+        when(ctx.getRequest()).thenReturn(request);
+
+        HttpSession session = mock(HttpSession.class);
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("user")).thenReturn("admin");
+        when(request.getHeader("X-Requested-With")).thenReturn("XMLHttpRequest");
+
+        var rateLimitResult = mock(RateLimiter.RateLimitResult.class);
+        when(rateLimitResult.isAllowed()).thenReturn(true);
+        when(request.getRemoteUser()).thenReturn("admin");
+        when(request.getRemoteAddr()).thenReturn("10.0.0.1");
+        when(writeRateLimiter.checkRequest(any(), any())).thenReturn(rateLimitResult);
+
+        when(ctx.getParameter("name")).thenReturn("DodPLC1");
+
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
+        when(device.isSimulationEngineAvailable()).thenReturn(false);
+
+        JSONObject result = controller.handleToggleTagSimulation(ctx, resp);
+
+        verify(resp).setStatus(HttpServletResponse.SC_CONFLICT);
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error")).containsIgnoringCase("enable simulation");
+        verify(device, never()).enableTagSimulation(anyString());
+        verify(device, never()).enableTagSimulation(anyString(), anyString());
+    }
+
+    // -------------------------------------------------------------------------
+    // handleWriteTag — read-only rejection (FIX-2 part 1)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("handleWriteTag() returns 403 with a clear message when the tag is read-only "
+        + "(FIX-2) — distinguished from a plain 404 'not found'")
+    void testHandleWriteTagReadOnlyReturns403() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedWriteDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Controller:Global/SimpleArray[0]\",\"value\":\"5\",\"dataType\":\"DINT\"}"
+        );
+        when(device.writeTagValue(eq("SimpleArray[0]"), any()))
+            .thenReturn(TagWriteDispatcher.WriteResult.READ_ONLY);
+
+        JSONObject result = controller.handleWriteTag(ctx, resp);
+
+        verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error"))
+            .containsIgnoringCase("read-only")
+            .contains("SimpleArray[0]");
+    }
+
+    @Test
+    @DisplayName("handleWriteTag() still returns success for a writable tag")
+    void testHandleWriteTagSuccess() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedWriteDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Controller:Global/RampInt\",\"value\":\"5\",\"dataType\":\"DINT\"}"
+        );
+        when(device.writeTagValue(eq("RampInt"), any()))
+            .thenReturn(TagWriteDispatcher.WriteResult.SUCCESS);
+
+        JSONObject result = controller.handleWriteTag(ctx, resp);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isTrue();
+        verify(resp, never()).setStatus(HttpServletResponse.SC_FORBIDDEN);
+        verify(resp, never()).setStatus(HttpServletResponse.SC_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("handleWriteTag() still returns 404 (not 403) when the dispatcher reports "
+        + "NOT_FOUND rather than READ_ONLY")
+    void testHandleWriteTagNotFoundStaysNotFound() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedWriteDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Controller:Global/Missing\",\"value\":\"5\",\"dataType\":\"DINT\"}"
+        );
+        when(device.writeTagValue(eq("Missing"), any()))
+            .thenReturn(TagWriteDispatcher.WriteResult.NOT_FOUND);
+
+        JSONObject result = controller.handleWriteTag(ctx, resp);
+
+        verify(resp).setStatus(HttpServletResponse.SC_NOT_FOUND);
+        assertThat(result.getBoolean("success")).isFalse();
+    }
+
+    // -------------------------------------------------------------------------
+    // handleToggleTagSimulation — read-only rejection (FIX-2 part 2)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("handleToggleTagSimulation() returns 403 when the tag is read-only (FIX-2 part 2) "
+        + "— rejected before device.enableTagSimulation() is ever called, mirroring the direct-write rejection")
+    void testHandleToggleTagSimulationReadOnlyReturns403() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedDeviceRequest(
+            "DodPLC1",
+            "{\"tagPath\":\"Controller:Global/SimpleArray[0]\",\"enabled\":true,\"pattern\":\"ramp\"}"
+        );
+        when(device.isTagReadOnly("SimpleArray[0]")).thenReturn(true);
+
+        JSONObject result = controller.handleToggleTagSimulation(ctx, resp);
+
+        verify(resp).setStatus(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isFalse();
+        assertThat(result.getString("error")).containsIgnoringCase("read-only");
+        verify(device, never()).enableTagSimulation(anyString());
+        verify(device, never()).enableTagSimulation(anyString(), anyString());
+    }
+
+    // -------------------------------------------------------------------------
+    // handleBulkSimulationByScope — read-only tags skipped, not failed (FIX-2 part 2)
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("handleBulkSimulationByScope() completes successfully and reports read-only "
+        + "tags as skipped rather than throwing or failing the whole bulk operation")
+    void testHandleBulkSimulationByScopeReportsSkippedReadOnly() throws Exception {
+        LogixEmulatorDevice device = primeAuthenticatedDeviceRequest(
+            "DodPLC1",
+            "{\"scope\":\"Controller:Global\",\"enabled\":true}"
+        );
+        when(device.enableSimulationByScope("")).thenReturn(2);
+        when(device.getSimulatedTagCount()).thenReturn(5);
+
+        // No exception here is itself part of the assertion: a bulk scope containing
+        // read-only tags must not blow up the whole operation (FIX-2 part 2).
+        JSONObject result = controller.handleBulkSimulationByScope(ctx, resp);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getBoolean("success")).isTrue();
+        assertThat(result.getInt("skippedReadOnly")).isEqualTo(2);
+        assertThat(result.getInt("simulatedTagCount")).isEqualTo(5);
     }
 }

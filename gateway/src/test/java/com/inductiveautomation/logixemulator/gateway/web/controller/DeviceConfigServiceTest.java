@@ -115,4 +115,55 @@ class DeviceConfigServiceTest {
         assertThat(DeviceConfigService.DEVICE_NAME_REGEX).contains("a-zA-Z0-9");
         assertThat(DeviceConfigService.MAX_DEVICE_NAME_LENGTH).isEqualTo(100);
     }
+
+    // -------------------------------------------------------------------------
+    // DoD FIX-7: sanitizeStatusForResponse()
+    // -------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("DoD FIX-7: sanitizeStatusForResponse() strips an absolute Unix path embedded "
+        + "in an exception-derived status, so a REST 422 body never leaks server filesystem "
+        + "layout")
+    void sanitizeStatusStripsAbsoluteUnixPath() {
+        String raw = "Error: Hot reload failed - "
+            + "/home/nigel/data/logix-emulator/plc1.l5x (No such file or directory)";
+
+        String sanitized = DeviceConfigService.sanitizeStatusForResponse(raw);
+
+        assertThat(sanitized)
+            .as("the absolute path must not appear verbatim")
+            .doesNotContain("/home/nigel")
+            .contains("<path>")
+            .contains("Error: Hot reload failed");
+    }
+
+    @Test
+    @DisplayName("DoD FIX-7: sanitizeStatusForResponse() strips an absolute Windows path")
+    void sanitizeStatusStripsAbsoluteWindowsPath() {
+        String raw = "Error: L5X parser failed to parse file. See C:\\ProgramData\\Ignition\\data\\logix-emulator\\plc1.l5x";
+
+        String sanitized = DeviceConfigService.sanitizeStatusForResponse(raw);
+
+        assertThat(sanitized)
+            .as("the absolute Windows path must not appear verbatim")
+            .doesNotContain("ProgramData")
+            .contains("<path>");
+    }
+
+    @Test
+    @DisplayName("sanitizeStatusForResponse() leaves a path-free status unchanged")
+    void sanitizeStatusLeavesOrdinaryStatusUnchanged() {
+        assertThat(DeviceConfigService.sanitizeStatusForResponse("Running")).isEqualTo("Running");
+        assertThat(DeviceConfigService.sanitizeStatusForResponse(
+            "Error: Rockwell L5K/L5X (Allen-Bradley) parser failed to parse file 'garbage.l5x'. "
+                + "Check gateway logs for details."))
+            .contains("garbage.l5x")
+            .doesNotContain("<path>");
+    }
+
+    @Test
+    @DisplayName("sanitizeStatusForResponse() returns null for null input")
+    void sanitizeStatusHandlesNull() {
+        assertThat(DeviceConfigService.sanitizeStatusForResponse(null)).isNull();
+    }
 }

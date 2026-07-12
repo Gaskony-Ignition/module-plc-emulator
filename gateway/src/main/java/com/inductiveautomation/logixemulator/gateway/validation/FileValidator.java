@@ -133,12 +133,25 @@ public class FileValidator {
         long effectiveMaxSizeMB = Math.max(MIN_MAX_SIZE_MB, Math.min(MAX_MAX_SIZE_MB, maxSizeMB));
         long maxSizeBytes = effectiveMaxSizeMB * 1024 * 1024;
 
-        if (content == null || content.trim().isEmpty()) {
+        if (content == null || content.isEmpty()) {
             return ValidationResult.failure("File content is empty");
         }
 
         // Check content size
         long contentSize = content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+
+        // Defect B6: String.trim() strips any character <= U+0020 (space) from both ends - that
+        // includes NUL (0x00) and other control bytes, not just whitespace. A large file
+        // consisting entirely of NUL bytes (e.g. a corrupted/truncated export) is NOT empty - it
+        // has real content-size bytes, per contentSize above - but content.trim().isEmpty() would
+        // be true, and reporting "File content is empty" for an 11MB upload is actively
+        // misleading (item6-validation.txt). Distinguish the two cases with an accurate message.
+        if (content.trim().isEmpty()) {
+            return ValidationResult.failure(String.format(
+                "File content (%d bytes) is not empty but contains no readable data - "
+                    + "it is entirely whitespace or null/control bytes",
+                contentSize));
+        }
         if (contentSize > maxSizeBytes) {
             return ValidationResult.failure(String.format(
                 "Content size (%d MB) exceeds maximum allowed size (%d MB)",
