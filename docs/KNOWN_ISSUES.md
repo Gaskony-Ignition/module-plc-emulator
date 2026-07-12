@@ -141,6 +141,54 @@ scope decision and `L5XParser.extractValue()`'s Javadoc for the code-level detai
 
 ---
 
+#### 7. File Version Snapshots Use Second-Granularity Timestamps
+
+**Status**: Known Limitation (post-v10, identified during the v10.0.0 docs/release pass)
+**Severity**: Low (only matters for uploads separated by less than one second)
+
+`FileVersionManager.saveVersion()` names each retained version file with a
+`yyyyMMdd_HHmmss` timestamp (second precision). Two uploads for the same device
+landing within the same second produce an identical version filename, and the
+second `Files.copy(..., REPLACE_EXISTING)` silently overwrites the first —
+one of the two versions is lost rather than both being retained.
+
+**Impact**: extremely rapid successive uploads (scripted/automated re-upload, or
+two operators uploading near-simultaneously) can silently drop a version from
+the retained-5 history instead of pushing out the oldest one.
+
+**Workaround**: none currently; space uploads by at least one second if
+retaining every intermediate version matters. Accepted as a deferred,
+non-blocking follow-up rather than part of v10.0.0 — fixing it means moving to
+a sub-second or monotonic version discriminator (e.g. an appended counter) in
+`FileVersionManager`.
+
+---
+
+#### 8. No Locking Between Concurrent Upload/Revert Operations
+
+**Status**: Known Limitation (post-v10, identified during the v10.0.0 docs/release pass)
+**Severity**: Low-Medium (only affects overlapping REST calls against the same device)
+
+`DeviceFileManager`'s upload path and `FileVersionManager`'s `saveVersion()` /
+`restoreVersion()` perform their file-copy and directory-listing operations
+without any per-device lock. An upload and a version revert (or two uploads)
+issued for the same device at effectively the same time can interleave: a
+revert can restore a version concurrently with an in-flight upload writing the
+same target file, or two uploads can both read the pre-upload file for
+versioning before either has written its replacement.
+
+**Impact**: under concurrent REST calls against one device, a revert or upload
+can race and leave the on-disk file (or the retained-version set) in a
+state that does not cleanly correspond to either individual request. Normal
+single-operator usage is not affected.
+
+**Workaround**: none currently; avoid issuing overlapping upload/revert
+requests for the same device. Accepted as a deferred, non-blocking follow-up —
+fixing it requires a per-device lock (or serialising) around the
+prepare/save/revert file operations in `FilePreparation`/`FileVersionManager`.
+
+---
+
 ## Reporting New Issues
 
 If you encounter issues not listed here:

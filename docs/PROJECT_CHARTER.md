@@ -39,6 +39,9 @@ On a clean Ignition 8.3 gateway with a signed `.modl`:
 6. Upload/read/write endpoints validated + rate-limited; XML parsing XXE-proof
 7. File version manager retains the last 5 uploads and can revert
 
+**DoD verified:** [pending final clean-gateway run 12/07/2026 — see
+`docs/plans/V10_FIDELITY_PLAN.md`]
+
 ## 3. Maintenance Policy
 
 After §2 passes, a release is justified only by: a defect in a §2 workflow, a
