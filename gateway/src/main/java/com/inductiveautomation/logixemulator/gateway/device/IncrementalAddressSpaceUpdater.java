@@ -3,6 +3,7 @@ package com.inductiveautomation.logixemulator.gateway.device;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.inductiveautomation.logixemulator.gateway.address.AddressPolicy;
 import com.inductiveautomation.logixemulator.gateway.address.RockwellLogixPolicy;
 import org.eclipse.milo.opcua.sdk.server.nodes.UaNode;
@@ -350,13 +351,18 @@ public class IncrementalAddressSpaceUpdater {
     }
 
     private String getTagValue(JsonObject tag) {
+        JsonElement value = null;
         if (tag.has("value")) {
-            return tag.get("value").toString();
+            value = tag.get("value");
+        } else if (tag.has("initial_value")) {
+            value = tag.get("initial_value");
         }
-        if (tag.has("initial_value")) {
-            return tag.get("initial_value").toString();
+        if (value == null || value.isJsonNull()) {
+            return "";
         }
-        return "";
+        // A primitive's bare string form ("2.5", not the JSON-encoded "\"2.5\"") - the compare is
+        // symmetric either way, but parseValue() must receive an unquoted literal (FIX-11).
+        return value.isJsonPrimitive() ? value.getAsString() : value.toString();
     }
 
     private String getDataType(JsonObject tag) {
@@ -366,17 +372,16 @@ public class IncrementalAddressSpaceUpdater {
         return "STRING";
     }
 
+    /**
+     * Coerces a changed value to the Java type the target node stores, via the builder's own
+     * type mapping (FIX-11 - previously a local 5-type switch whose default handed
+     * {@code new Variant("2.5")}, a String, to LINT/LREAL/unsigned/time-typed nodes).
+     *
+     * <p>Deliberately does NOT swallow parse failures: an unparseable value propagates to
+     * {@link #applyIncrementalUpdate}'s per-change catch, counts as a failed change, and so
+     * triggers the coordinator's full-rebuild fallback (FIX-4) instead of corrupting the node.
+     */
     private Object parseValue(String value, String dataType) {
-        try {
-            return switch (dataType.toUpperCase()) {
-                case "BOOL", "BOOLEAN" -> Boolean.parseBoolean(value);
-                case "INT", "INT2", "SINT", "INT1" -> Short.parseShort(value);
-                case "DINT", "INT4" -> Integer.parseInt(value);
-                case "REAL", "FLOAT", "FLOAT4" -> Float.parseFloat(value);
-                default -> value;
-            };
-        } catch (NumberFormatException e) {
-            return value;
-        }
+        return AddressSpaceBuilder.coerceValueForType(new JsonPrimitive(value), dataType);
     }
 }

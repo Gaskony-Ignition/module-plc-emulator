@@ -555,24 +555,7 @@ public class AddressSpaceBuilder {
         JsonElement initialValueElement = tag.get("initial_value");
 
         try {
-            return switch (dataType.toUpperCase()) {
-                case "BOOL", "BOOLEAN" -> initialValueElement.getAsBoolean();
-                case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) initialValueElement.getAsInt();
-                case "USINT" -> Unsigned.ubyte(initialValueElement.getAsInt());
-                case "UINT", "WORD" -> Unsigned.ushort(initialValueElement.getAsInt());
-                case "INT4", "DINT" -> initialValueElement.getAsInt();
-                case "UDINT", "DWORD" -> Unsigned.uint(initialValueElement.getAsLong());
-                case "INT8", "LINT", "DT", "LDT", "LTIME", "TIME" -> initialValueElement.getAsLong();
-                // ULINT/LWORD can in principle exceed Long.MAX_VALUE; getAsLong() truncates rather
-                // than throwing for such pathological literals - accepted as a conservative
-                // limitation (ADDRESSING.md §3.14 is INFERRED for this type; no corpus example
-                // approaches the boundary).
-                case "ULINT", "LWORD" -> Unsigned.ulong(initialValueElement.getAsLong());
-                case "FLOAT4", "REAL", "FLOAT" -> initialValueElement.getAsFloat();
-                case "FLOAT8", "LREAL", "DOUBLE" -> initialValueElement.getAsDouble();
-                case "STRING" -> initialValueElement.getAsString();
-                default -> initialValueElement.getAsString();
-            };
+            return coerceValueForType(initialValueElement, dataType);
         } catch (NumberFormatException | UnsupportedOperationException | IllegalStateException e) {
             // Non-numeric/unparseable initial_value (e.g. the "{structure}" sentinel, an empty
             // string, or any other value that doesn't fit the declared data type) - fall back to
@@ -582,6 +565,41 @@ public class AddressSpaceBuilder {
                 initialValueElement, dataType, defaultValue, e);
             return defaultValue;
         }
+    }
+
+    /**
+     * THE single PLC-type-to-Java-value coercion (FIX-11): maps a JSON value to the Java object a
+     * node of the given PLC data type stores, exactly matching {@link #mapDataType}'s OPC-UA type
+     * mapping (incl. the Milo Unsigned wrappers for USINT/UINT/UDINT/ULINT and the Int64
+     * presentation of the DT/LDT/LTIME/TIME family, ADDRESSING.md §3.14). Used by
+     * {@link #getInitialValue} at build time and by {@code IncrementalAddressSpaceUpdater} during
+     * hot reload, so the two paths cannot drift apart again.
+     *
+     * <p>Throws {@code NumberFormatException}/{@code UnsupportedOperationException}/
+     * {@code IllegalStateException} when the value cannot be parsed as the declared type -
+     * callers choose their own fallback (build: type default per defect B1; hot reload: fail the
+     * change so the coordinator does a full rebuild rather than writing a String into a typed
+     * node).
+     */
+    static Object coerceValueForType(JsonElement valueElement, String dataType) {
+        return switch (dataType.toUpperCase()) {
+            case "BOOL", "BOOLEAN" -> valueElement.getAsBoolean();
+            case "INT1", "SINT", "BYTE", "INT2", "INT" -> (short) valueElement.getAsInt();
+            case "USINT" -> Unsigned.ubyte(valueElement.getAsInt());
+            case "UINT", "WORD" -> Unsigned.ushort(valueElement.getAsInt());
+            case "INT4", "DINT" -> valueElement.getAsInt();
+            case "UDINT", "DWORD" -> Unsigned.uint(valueElement.getAsLong());
+            case "INT8", "LINT", "DT", "LDT", "LTIME", "TIME" -> valueElement.getAsLong();
+            // ULINT/LWORD can in principle exceed Long.MAX_VALUE; getAsLong() truncates rather
+            // than throwing for such pathological literals - accepted as a conservative
+            // limitation (ADDRESSING.md §3.14 is INFERRED for this type; no corpus example
+            // approaches the boundary).
+            case "ULINT", "LWORD" -> Unsigned.ulong(valueElement.getAsLong());
+            case "FLOAT4", "REAL", "FLOAT" -> valueElement.getAsFloat();
+            case "FLOAT8", "LREAL", "DOUBLE" -> valueElement.getAsDouble();
+            case "STRING" -> valueElement.getAsString();
+            default -> valueElement.getAsString();
+        };
     }
 
     /**

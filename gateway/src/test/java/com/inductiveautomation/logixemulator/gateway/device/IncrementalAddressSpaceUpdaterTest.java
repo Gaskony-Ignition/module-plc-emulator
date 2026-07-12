@@ -302,6 +302,112 @@ class IncrementalAddressSpaceUpdaterTest {
         }
     }
 
+    // =====================================================================================
+    // FIX-11 — hot-reload value coercion must route through the same type mapping the builder
+    // uses (AddressSpaceBuilder.getInitialValue's switch), not a 5-type local switch whose
+    // default wrote a java.lang.String into LINT/LREAL/unsigned/time-typed nodes.
+    // =====================================================================================
+
+    @Nested
+    @DisplayName("FIX-11: value coercion routes through the builder's type mapping")
+    class ValueCoercion {
+
+        @Test
+        @DisplayName("LINT arrives as Long, not String")
+        void lintCoercesToLong() {
+            assertThat(applyAndCapture("LINT", "100", "200")).isEqualTo(200L);
+        }
+
+        @Test
+        @DisplayName("LREAL arrives as Double, not String")
+        void lrealCoercesToDouble() {
+            assertThat(applyAndCapture("LREAL", "1.5", "2.5")).isEqualTo(2.5d);
+        }
+
+        @Test
+        @DisplayName("TIME arrives as Long (epoch/duration per ADDRESSING.md §3.14)")
+        void timeCoercesToLong() {
+            assertThat(applyAndCapture("TIME", "0", "5000")).isEqualTo(5000L);
+        }
+
+        @Test
+        @DisplayName("USINT arrives as Milo UByte")
+        void usintCoercesToUByte() {
+            assertThat(applyAndCapture("USINT", "0", "255"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ubyte(255));
+        }
+
+        @Test
+        @DisplayName("UINT arrives as Milo UShort")
+        void uintCoercesToUShort() {
+            assertThat(applyAndCapture("UINT", "0", "65535"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ushort(65535));
+        }
+
+        @Test
+        @DisplayName("UDINT arrives as Milo UInteger")
+        void udintCoercesToUInteger() {
+            assertThat(applyAndCapture("UDINT", "0", "4294967295"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.uint(4294967295L));
+        }
+
+        @Test
+        @DisplayName("ULINT arrives as Milo ULong")
+        void ulintCoercesToULong() {
+            assertThat(applyAndCapture("ULINT", "0", "42"))
+                .isEqualTo(org.eclipse.milo.opcua.stack.core.types.builtin.unsigned.Unsigned.ulong(42L));
+        }
+
+        @Test
+        @DisplayName("REAL still arrives as Float; DINT as Integer (existing families unchanged)")
+        void existingFamiliesUnchanged() {
+            assertThat(applyAndCapture("REAL", "1.0", "2.5")).isEqualTo(2.5f);
+            assertThat(applyAndCapture("DINT", "1", "7")).isEqualTo(7);
+        }
+
+        @Test
+        @DisplayName("an unparseable value for a typed node fails the apply (full-rebuild fallback) "
+            + "instead of writing new Variant(\"garbage\") - a String - into the typed node")
+        void unparseableValueFailsInsteadOfWritingString() {
+            Map<NodeId, UaNode> nodes = new HashMap<>();
+            UaVariableNode node = mock(UaVariableNode.class);
+            nodes.put(new NodeId(1, "Tag1"), node);
+
+            IncrementalAddressSpaceUpdater liveUpdater = new IncrementalAddressSpaceUpdater(
+                nodes::get, id -> new NodeId(1, id), "TestDevice");
+
+            IncrementalAddressSpaceUpdater.CompareResult result = liveUpdater.compare(
+                createTestData("Tag1", "LREAL", 1.0), createTestData("Tag1", "LREAL", "garbage"));
+
+            assertThat(liveUpdater.applyIncrementalUpdate(result)).isFalse();
+            verify(node, org.mockito.Mockito.never()).setValue(any(DataValue.class));
+        }
+
+        /**
+         * Runs a scalar old→new value change for {@code dataType} through compare + apply against
+         * a mocked node at "Tag1" and returns the value actually written.
+         */
+        private Object applyAndCapture(String dataType, String oldValue, String newValue) {
+            Map<NodeId, UaNode> nodes = new HashMap<>();
+            UaVariableNode node = mock(UaVariableNode.class);
+            nodes.put(new NodeId(1, "Tag1"), node);
+
+            IncrementalAddressSpaceUpdater liveUpdater = new IncrementalAddressSpaceUpdater(
+                nodes::get, id -> new NodeId(1, id), "TestDevice");
+
+            IncrementalAddressSpaceUpdater.CompareResult result = liveUpdater.compare(
+                createTestData("Tag1", dataType, oldValue), createTestData("Tag1", dataType, newValue));
+
+            assertThat(liveUpdater.applyIncrementalUpdate(result))
+                .as("the %s change must apply cleanly", dataType)
+                .isTrue();
+
+            ArgumentCaptor<DataValue> captor = ArgumentCaptor.forClass(DataValue.class);
+            verify(node).setValue(captor.capture());
+            return captor.getValue().getValue().getValue();
+        }
+    }
+
     // Helper methods to create test data
 
     private JsonObject arrayTagData(String name, String type, String dims, Object value) {
