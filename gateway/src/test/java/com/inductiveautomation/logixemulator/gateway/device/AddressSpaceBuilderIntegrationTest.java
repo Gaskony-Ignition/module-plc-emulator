@@ -274,6 +274,91 @@ class AddressSpaceBuilderIntegrationTest {
         }
     }
 
+    // =====================================================================================
+    // FIX-10 — dedicated coverage for the post-WriteSyncHelpers write filter
+    // (AddressSpaceBuilder.enableWrites). The filter is a plain pass-through:
+    // (ctx, value) -> ctx.setAttribute(AttributeId.Value, value).
+    //
+    // Re-entrancy scenario being guarded (Milo 1.0.5, verified against milo-sdk-server
+    // sources): UaVariableNode.setValue(v) is filterChain.setAttribute(this, Value, v) - it
+    // RESTARTS the whole AttributeFilterChain from its head. Inside a filter callback,
+    // ctx.setAttribute(Value, v) instead ADVANCES to the next filter (falling through to the
+    // node's backing storage at the end of the chain). A filter that called node.setValue()
+    // would therefore re-enter itself and recurse without bound; the pass-through form
+    // terminates in exactly one chain traversal. These tests pin that behaviour.
+    // =====================================================================================
+
+    @Test
+    @DisplayName("FIX-10: a write through the filter chain (the OPC write path) reaches the "
+        + "node's backing value")
+    void testWriteThroughFilterReachesNodeValue() {
+        buildSingleDintTag("WritableTag", false);
+        var node = variableNode("WritableTag");
+        assertThat(node.getFilterChain().getFilters()).hasSize(1);
+
+        // What the server does for a client write: run the value through the filter chain.
+        node.getFilterChain().setAttribute(
+            node,
+            org.eclipse.milo.opcua.stack.core.AttributeId.Value,
+            new org.eclipse.milo.opcua.stack.core.types.builtin.DataValue(
+                new org.eclipse.milo.opcua.stack.core.types.builtin.Variant(42)));
+
+        assertThat(node.getValue().getValue().getValue()).isEqualTo(42);
+    }
+
+    @Test
+    @DisplayName("FIX-10: node.setValue() (the engine's write path) traverses the filter exactly "
+        + "once and terminates - no unbounded re-entry")
+    void testSetValueDoesNotRecurse() {
+        buildSingleDintTag("EngineTag", false);
+        var node = variableNode("EngineTag");
+
+        // setValue restarts the filter chain (Milo 1.0.5); because the filter delegates via
+        // ctx.setAttribute rather than calling node.setValue() again, this completes in one
+        // traversal. If the filter re-entered, this call would StackOverflowError.
+        node.setValue(new org.eclipse.milo.opcua.stack.core.types.builtin.DataValue(
+            new org.eclipse.milo.opcua.stack.core.types.builtin.Variant(7)));
+
+        assertThat(node.getValue().getValue().getValue()).isEqualTo(7);
+    }
+
+    @Test
+    @DisplayName("FIX-10: a read-only leaf gets NO write filter (and stays READ_ONLY)")
+    void testReadOnlyLeafHasNoWriteFilter() {
+        buildSingleDintTag("RoTag", true);
+        var node = variableNode("RoTag");
+
+        assertThat(node.getFilterChain().getFilters())
+            .as("read-only nodes must not carry the write filter (C5a)")
+            .isEmpty();
+        assertThat(org.eclipse.milo.opcua.sdk.core.AccessLevel.fromValue(node.getAccessLevel()))
+            .isEqualTo(org.eclipse.milo.opcua.sdk.core.AccessLevel.READ_ONLY);
+    }
+
+    /** Builds parsed data containing a single scalar DINT controller tag. */
+    private void buildSingleDintTag(String name, boolean readOnly) {
+        JsonObject tag = new JsonObject();
+        tag.addProperty("name", name);
+        tag.addProperty("data_type", "DINT");
+        if (readOnly) {
+            tag.addProperty("read_only", true);
+        }
+        JsonArray globalTags = new JsonArray();
+        globalTags.add(tag);
+        JsonObject plcData = new JsonObject();
+        plcData.add("global_tags", globalTags);
+        builder.buildAddressSpace(plcData, rootNode, context);
+    }
+
+    /** The created variable node with the given canonical identifier. */
+    private org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode variableNode(String identifier) {
+        return addedNodes.stream()
+            .filter(n -> identifier.equals(n.getNodeId().getIdentifier().toString()))
+            .map(n -> (org.eclipse.milo.opcua.sdk.server.nodes.UaVariableNode) n)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("node not created: " + identifier));
+    }
+
     /** Builds parsed data with a single 1-D BOOL array controller tag. */
     private static JsonObject boolArrayData(String name, int elements, boolean readOnly) {
         JsonObject tag = new JsonObject();
