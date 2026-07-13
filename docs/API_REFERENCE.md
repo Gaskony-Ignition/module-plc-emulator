@@ -1,6 +1,6 @@
 # API Reference - Logix PLC Emulator
 
-**Version**: 10.0.0
+**Version**: 10.1.0
 **Last Updated**: 2026-07-10 (auth/routes/limits corrected — defect B7; file version list/revert
 routes added — defect B5; v10.0.0 fidelity plan)
 **Base URL**: `http://your-gateway:8088`
@@ -647,7 +647,7 @@ curl -b cookies.txt http://localhost:8088/data/logixemulator/system/stats
   "cpuUsage": 4.2,
   "ramUsage": 536870912,
   "ramTotal": 2147483648,
-  "moduleVersion": "10.0.0",
+  "moduleVersion": "10.1.0",
   "deviceCount": 2
 }
 ```

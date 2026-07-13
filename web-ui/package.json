@@ -1,6 +1,6 @@
 {
     "name": "logix_emulator_webui",
-    "version": "10.0.0",
+    "version": "10.1.0",
     "description": "Logix PLC Emulator WebUI Component",
     "main": "build/dist/index.js",
     "scripts": {

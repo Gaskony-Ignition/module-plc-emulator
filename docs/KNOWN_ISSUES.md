@@ -1,6 +1,6 @@
 # Known Issues and Limitations
 
-## Current Version: v10.0.0
+## Current Version: v10.1.0
 
 ### Known Limitations
 
@@ -238,12 +238,12 @@ the code-level detail.
 If you encounter issues not listed here:
 
 1. **Check Gateway Logs**: `Status > Logs > Gateway` (filter for "logixemulator")
-2. **Verify Module Version**: Config > Modules (should show v10.0.0)
+2. **Verify Module Version**: Config > Modules (should show v10.1.0)
 3. **Check Device Status**: Config > Devices > Edit device (status field shows current state)
 
 **Report Issues With:**
 - Ignition version (e.g., 8.3.2)
-- Module version (e.g., v10.0.0)
+- Module version (e.g., v10.1.0)
 - Parser type being used
 - Steps to reproduce
 - Relevant log excerpts

@@ -5,11 +5,39 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - v10.1.0 L5K parser review fixes
+## [10.1.0] - 2026-07-13 - **Real-world L5K parsing**
 
-In-progress work on the `v10.1-l5k` branch (L5K-GRAMMAR.md / ADDRESSING.md), applying the
-findings of an independent review of the v10.1 L5K parser rewrite. No version bump yet - these
-notes will fold into the eventual 10.1.0 entry.
+The v10.0.0 L5K parser silently corrupted real Studio 5000 exports: it matched tag declarations
+by whole-file regex, but a ladder rung (`N : XIC(Sim)OTL(Sts);`) is token-for-token identical to
+a tag declaration (`Name : Type;`), so ladder/FBD instruction mnemonics leaked into the tag tree
+as thousands of bogus tags while every AOI-local tag and array was dropped - and the upload still
+reported success with no warning. (This defect long predated v10.0.0; it was present unchanged in
+9.2.14 and traces to a parser refactor around v7.0.0.) This release replaces that parser and makes
+L5K a first-class, fidelity-verified format alongside L5X, verified against real site exports to
+exact ground-truth tag counts.
+
+### Added
+
+- **Statement-oriented, block-stack L5K parser** (`L5KParser`, complete rewrite). Parses by an
+  explicit block stack over the 22 recognised `KEYWORD`/`END_*` pairs, accumulating statements to
+  the `;` terminator with full quote/bracket/paren/comment awareness. Tag-shaped statements are
+  parsed **only** inside the five whitelisted contexts (controller `TAG`, program `TAG`, AOI
+  `PARAMETERS`, AOI `LOCAL_TAGS`, `DATATYPE`); all routine/ST/FBD/`MODULE`/`CONFIG` content is
+  opaque. A rung-token tripwire hard-fails loudly if instruction text ever reaches a tag context.
+  AOI definitions parse as types and expand through the same machinery and member semantics as the
+  L5X path (`EnableIn`/`EnableOut` emitted, `InOut` excluded, per-member `ExternalAccess`
+  honoured). Output feeds the same vendor-neutral parsed-tag model - no `AddressSpaceBuilder`
+  changes.
+- **Loud parse accounting.** Uploads now carry a parse summary (skipped-line, unknown-type and
+  unmodelled-FBD counters + a `structurallyClean` flag); a non-clean parse surfaces a warning in
+  the response instead of a bare success. Structurally unparseable files hard-fail with an
+  L5K-specific error.
+- **Normative grammar spec** `docs/plans/L5K-GRAMMAR.md`, derived from real exports plus Rockwell
+  1756-RM084; every rule FILE- or MANUAL-CONFIRMED.
+- **Real-file fidelity tests.** An environment-gated integration test
+  (`PLC_EMU_PRIVATE_L5K_DIR`) asserts exact ground-truth counts against genuine site exports; a
+  10-fixture synthetic grammar matrix covers each construct in-repo; a cross-format equivalence
+  test asserts the same AOI expands identically from L5X and L5K.
 
 ### Fixed
 
