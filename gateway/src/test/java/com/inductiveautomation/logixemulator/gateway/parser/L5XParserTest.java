@@ -382,6 +382,56 @@ class L5XParserTest {
     }
 
     @Test
+    @DisplayName("FIX-A: an InOut AOI parameter is excluded from both the type definition and the "
+        + "expanded instance - it is a reference, not backing storage (L5K-GRAMMAR.md §3.2(3), "
+        + "ADDRESSING.md §3.3); Input/Output params and EnableIn/EnableOut are unaffected")
+    void testAoiInOutParameterExcluded() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstructionDefinition Name="My_Aoi" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="InVal" TagType="Base" DataType="DINT" Usage="Input"/>
+                                <Parameter Name="PassThru" TagType="Base" DataType="DINT" Usage="InOut"/>
+                                <Parameter Name="OutVal" TagType="Base" DataType="DINT" Usage="Output"/>
+                            </Parameters>
+                        </AddOnInstructionDefinition>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="Inst" DataType="My_Aoi"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test_inout.l5x");
+
+        assertThat(result).isNotNull();
+
+        // Type definition (aois[].members[]) must not carry the InOut parameter at all.
+        JsonObject aoi = result.getAsJsonArray("aois").get(0).getAsJsonObject();
+        var defMemberNames = new java.util.ArrayList<String>();
+        for (var elem : aoi.getAsJsonArray("members")) {
+            defMemberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(defMemberNames).containsExactly("EnableIn", "EnableOut", "InVal", "OutVal");
+        assertThat(defMemberNames).doesNotContain("PassThru");
+
+        // Expanded instance must likewise omit it.
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        var instanceMemberNames = new java.util.ArrayList<String>();
+        for (var elem : instance.getAsJsonArray("udt_members")) {
+            instanceMemberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(instanceMemberNames).containsExactly("EnableIn", "EnableOut", "InVal", "OutVal");
+        assertThat(instanceMemberNames).doesNotContain("PassThru");
+    }
+
+    @Test
     @DisplayName("Should expand nested UDTs in L5X")
     void testNestedUdtExpansion() {
         String contentWithNestedUdt = """

@@ -519,6 +519,17 @@ public class L5XParser implements PLCParser {
                 // markExternalAccess handling below yields read-only members - or omits them
                 // entirely if an export ever marks them "None" (§3.12).
 
+                // FIX-A (v10.1.0, L5K-GRAMMAR.md §3.2(3) / ADDRESSING.md §3.3): InOut parameters
+                // are a REFERENCE to the caller's tag, not backing storage in this AOI instance -
+                // the real CIP driver does not expose them as instance members at all. Exclude
+                // them from the type's member list entirely, matching L5KParser's
+                // TagStatementBuilder.buildAoiMember (§2.7), which already excludes Usage=InOut.
+                // Deliberate v10.0.0 behaviour change: v10.0.0 emitted a phantom InOut member on
+                // every AOI instance that declared one - see CHANGELOG.md [10.1.0].
+                if ("InOut".equalsIgnoreCase(usage)) {
+                    continue;
+                }
+
                 JsonObject member = new JsonObject();
                 member.addProperty("name", paramName);
                 member.addProperty("data_type", dataType);

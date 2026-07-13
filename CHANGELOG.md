@@ -5,6 +5,50 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v10.1.0 L5K parser review fixes
+
+In-progress work on the `v10.1-l5k` branch (L5K-GRAMMAR.md / ADDRESSING.md), applying the
+findings of an independent review of the v10.1 L5K parser rewrite. No version bump yet - these
+notes will fold into the eventual 10.1.0 entry.
+
+### Fixed
+
+- **L5X AOI instance expansion no longer emits a phantom `InOut` member (FIX-A, swap-fidelity
+  breach).** `L5XParser` added every AOI `<Parameter>` - Input, Output, AND InOut - to an
+  instance's expanded `udt_members`. An `InOut` parameter is a *reference* to the caller's tag,
+  not backing storage in the AOI instance (L5K-GRAMMAR.md §3.2(3), ADDRESSING.md §3.3): the real
+  CIP driver never exposes it as an instance member. The new L5K parser already excluded
+  `Usage := InOut` correctly (`L5KParser.buildAoiMember`); L5X did not. `L5XParser.parseAOI` now
+  excludes `Usage="InOut"` parameters from both the AOI type definition (`aois[].members[]`) and
+  every expanded instance - `EnableIn`/`EnableOut` and Input/Output parameters are unaffected.
+  **This is a deliberate behaviour change from v10.0.0**: any AOI instance binding that referenced
+  an `InOut` parameter's phantom node (which never worked against a real driver anyway) will find
+  that node gone. A cross-format equivalence test
+  (`AoiCrossFormatEquivalenceTest`) now asserts the same AOI (defined identically in L5X and L5K)
+  expands to an identical instance member set through both parsers.
+- **L5K statement accumulator now recognises `(* ... *)` block comments (FIX-B).** A block comment
+  appearing inside a whitelisted `TAG`/`PARAMETERS`/`LOCAL_TAGS`/`DATATYPE` block could previously
+  merge into a neighbouring statement's accumulated text (or, if the comment contained a `;`,
+  desynchronise the terminator scan). `L5KParser.accumulateStatement` now strips block-comment
+  content the same way `scanQuoteState` already does in the opaque (non-tag-bearing) path.
+- **L5K statement accumulator no longer silently drops residue after a same-line terminator
+  (FIX-C).** A second declaration following a `;` on the same physical line (e.g.
+  `A : DINT; B : DINT;`) was previously discarded with no accounting at all. Real exports are
+  one-declaration-per-line so this was latent, but it is exactly the silent-loss class the v10.1
+  rewrite exists to eliminate. Such residue is now counted in `skippedTagLines` and logged as a
+  WARN, flipping `structurallyClean` to `false` - loud, never silent.
+- **L5K UDT/AOI instance expansion now emits a default `initial_value` for atomic leaf members
+  (FIX-D), aligning with `L5XParser.expandUdtInstance`.** `L5KParser.expandRecursive` previously
+  left atomic (non-nested) instance members with no `initial_value` at all, while the L5X path
+  always sets a type-appropriate default. Both parsers now feed `AddressSpaceBuilder` the same
+  member shape. (Investigated and NOT changed: a `usage` marker on expanded instance members. On
+  inspection, `L5XParser.expandUdtInstance` does not itself propagate a `usage` field onto any
+  instance member either - the `"usage":"Local"` annotation `L5XParser.parseAOI` adds lives only
+  on the AOI *type definition's* `LocalTag` entries, never on an instance's `udt_members`, in
+  either parser, and `AddressSpaceBuilder` does not consume `usage` at all. Adding a synthesised
+  `usage` marker to the L5K instance shape would therefore diverge from, not align with, L5X's
+  actual current output - documented here as a residual rather than implemented.)
+
 ## [10.0.0] - 2026-07-12 - **Fidelity Release: Swap-Compatible NodeIds**
 
 Follows the 09/07/2026 Definition-of-Done verification of v9.2.14, which failed
