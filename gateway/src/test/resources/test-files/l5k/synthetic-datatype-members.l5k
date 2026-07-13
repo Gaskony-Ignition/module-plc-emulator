@@ -1,0 +1,26 @@
+(* L5K-GRAMMAR.md §6.2 datatype_members fixture - D3/D4 regression guard: *)
+(* DATATYPE members are TYPE NAME (not NAME : TYPE); member arrays keep dims; *)
+(* BIT members overlay a hidden ZZZZ host byte that is itself not browsable.  *)
+
+IE_VER := 2.11;
+
+CONTROLLER DatatypeMembers (ProcessorType := "1756-L83E")
+	DATATYPE InnerUdt (FamilyType := NoFamily)
+		DINT Val (Radix := Decimal);
+	END_DATATYPE
+
+	DATATYPE MyUdt (FamilyType := NoFamily)
+		DINT Speed (Radix := Decimal);
+		REAL Current (Radix := Float);
+		TIMER OFL_FILTER;
+		InnerUdt Nested;
+		DINT Data[10] (Radix := Decimal);
+		SINT ZZZZZZZZZZMyUdt6 (Hidden := 1);
+		BIT Fault_A ZZZZZZZZZZMyUdt6 : 0 (Radix := Decimal);
+		BIT Fault_B ZZZZZZZZZZMyUdt6 : 1 (Radix := Decimal);
+	END_DATATYPE
+
+	TAG
+		Instance1 : MyUdt (Description := "UDT instance exercising all member kinds");
+	END_TAG
+END_CONTROLLER

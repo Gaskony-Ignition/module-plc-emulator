@@ -176,10 +176,39 @@ public class DeviceController {
         // FilePreparation.saveVersion() call is config-content-only and is never reached here.
         saveUploadVersion(device, deviceName);
 
-        return result.put("success", true).put("filename", filename)
+        result.put("success", true).put("filename", filename)
             .put("size", fileContent.length()).put("device", deviceName)
             .put("message", "File uploaded and applied to device successfully")
             .put("status", status);
+        attachParseSummary(result, device);
+        return result;
+    }
+
+    /**
+     * Surfaces the parser's per-construct accounting in the upload response (L5K-GRAMMAR.md
+     * §5.3): when the freshly applied parse result carries a {@code parseSummary} object (the
+     * v10.1 L5K parser emits one; other parsers may not), it is passed through verbatim, and any
+     * non-zero skip/unknown/unmodelled counter or a {@code structurallyClean == false} flag adds
+     * an explicit warning so the upload can never read as an unqualified success.
+     */
+    private void attachParseSummary(JSONObject result, LogixEmulatorDevice device) throws JSONException {
+        com.google.gson.JsonObject parsedData = device.getParsedData();
+        if (parsedData == null || !parsedData.has("parseSummary")) {
+            return;
+        }
+        JSONObject summary = new JSONObject(parsedData.getAsJsonObject("parseSummary").toString());
+        result.put("parseSummary", summary);
+
+        boolean clean = summary.optBoolean("structurallyClean", true);
+        int skipped = summary.optInt("skippedTagLines", 0);
+        int unknown = summary.optInt("unknownTypeTags", 0);
+        int unmodelled = summary.optInt("unmodelledFbdTypes", 0);
+        if (!clean || skipped > 0 || unknown > 0 || unmodelled > 0) {
+            result.put("warning", String.format(
+                "Parse completed with irregularities: %d skipped tag line(s), %d unknown type(s), "
+                    + "%d unmodelled FBD type(s), structurallyClean=%s - check the gateway log",
+                skipped, unknown, unmodelled, clean));
+        }
     }
 
     /**

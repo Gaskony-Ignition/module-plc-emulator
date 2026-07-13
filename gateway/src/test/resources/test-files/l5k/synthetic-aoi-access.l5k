@@ -1,0 +1,35 @@
+(* L5K-GRAMMAR.md §6.2 aoi_access fixture - §3.2/§3.3 regression guard: instance   *)
+(* members are EnableIn/EnableOut + visible Input/Output params + Read Only and    *)
+(* Read/Write locals; InOut params and ExternalAccess := None locals are absent.   *)
+
+IE_VER := 2.11;
+
+CONTROLLER AoiAccess (ProcessorType := "1756-L83E")
+	ADD_ON_INSTRUCTION_DEFINITION P_Test (Description := "PlantPAx-style access mix", Revision := "1.0")
+		PARAMETERS
+			EnableIn : BOOL (Description := "Enable Input - System Defined Parameter", Usage := Input, RADIX := Decimal,
+			                 Required := No, Visible := No, ExternalAccess := Read Only);
+			EnableOut : BOOL (Description := "Enable Output - System Defined Parameter", Usage := Output, RADIX := Decimal,
+			                  Required := No, Visible := No, ExternalAccess := Read Only);
+			InVal : REAL (Usage := Input, RADIX := Float, Required := Yes, Visible := Yes, ExternalAccess := Read/Write, DefaultData := 0.00000000e+000);
+			OutVal : REAL (Usage := Output, RADIX := Float, Required := No, Visible := Yes, ExternalAccess := Read Only, DefaultData := 0.00000000e+000);
+			RefVal : DINT (Usage := InOut, RADIX := Decimal, Required := Yes, Visible := Yes);
+		END_PARAMETERS
+
+		LOCAL_TAGS
+			HiddenLocal : DINT (RADIX := Decimal, ExternalAccess := None, DefaultData := 0);
+			RoLocal : DINT (RADIX := Decimal, ExternalAccess := Read Only, DefaultData := 0);
+			RwLocal : DINT (RADIX := Decimal, ExternalAccess := Read/Write, DefaultData := 0);
+			FLOW_HOURS : DINT[30] (RADIX := Decimal, ExternalAccess := None,
+			                       DefaultData := "[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]");
+		END_LOCAL_TAGS
+
+		ROUTINE Logic
+			N: XIC(InVal)OTE(OutVal);
+		END_ROUTINE
+	END_ADD_ON_INSTRUCTION_DEFINITION
+
+	TAG
+		Inst : P_Test (Description := "AOI instance under access-visibility test");
+	END_TAG
+END_CONTROLLER

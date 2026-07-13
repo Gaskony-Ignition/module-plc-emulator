@@ -3,14 +3,22 @@ package com.inductiveautomation.logixemulator.gateway.parser;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for L5KParser (Rockwell text format).
- * Tests parsing of controller tags, UDTs, AOIs, and programs.
+ * Unit tests for {@link L5KParser} (Rockwell text format).
+ *
+ * <p><b>Corrected to L5K-GRAMMAR.md for the v10.1 parser rewrite.</b> The pre-v10.1 versions of
+ * these tests used inline content that was not valid L5K at all - tag lines without the
+ * mandatory {@code ;} statement terminator, DATATYPE members written {@code NAME : TYPE}
+ * (the real grammar is {@code TYPE NAME}, §2.6), and {@code BIT} members with no host byte or
+ * bit position (§2.6 requires both). The old regex parser happened to accept all of that; the
+ * statement-oriented parser correctly does not, so every inline fixture here was rewritten to
+ * the normative grammar while keeping each test's original intent. Per-construct grammar
+ * coverage lives in {@link L5KParserGrammarTest}.
  */
 class L5KParserTest {
 
@@ -25,14 +33,13 @@ class L5KParserTest {
     @DisplayName("Should parse simple controller with tags")
     void testParseSimpleController() {
         String content = """
-            CONTROLLER MainController (
-                Description := "Test Controller"
-            )
-            TAG
-                Motor1_Speed : DINT
-                Motor2_Running : BOOL
-                Temperature : REAL
-            END_TAG
+            CONTROLLER MainController (Description := "Test Controller")
+            \tTAG
+            \t\tMotor1_Speed : DINT (RADIX := Decimal) := 0;
+            \t\tMotor2_Running : BOOL (RADIX := Decimal) := 0;
+            \t\tTemperature : REAL (RADIX := Float) := 0.0;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "test.l5k");
@@ -41,22 +48,22 @@ class L5KParserTest {
         assertThat(result.get("vendor").getAsString()).isEqualTo("rockwell");
         assertThat(result.get("format").getAsString()).isEqualTo("L5K");
         assertThat(result.get("controller").getAsString()).isEqualTo("MainController");
+        assertThat(result.getAsJsonArray("global_tags")).hasSize(3);
     }
 
     @Test
-    @DisplayName("Should parse UDT definitions")
+    @DisplayName("Should parse UDT definitions (TYPE NAME member order, §2.6)")
     void testParseUdtDefinitions() {
         String content = """
-            CONTROLLER TestController (
-            )
-            DATATYPE MyMotorType
-                Speed : DINT
-                Running : BOOL
-                Current : REAL
-            END_DATATYPE
-            TAG
-                Motor1 : MyMotorType
-            END_TAG
+            CONTROLLER TestController (Description := "UDT test")
+            \tDATATYPE MyMotorType (FamilyType := NoFamily)
+            \t\tDINT Speed (Radix := Decimal);
+            \t\tREAL Current (Radix := Float);
+            \tEND_DATATYPE
+            \tTAG
+            \t\tMotor1 : MyMotorType;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "udt_test.l5k");
@@ -79,46 +86,54 @@ class L5KParserTest {
 
         assertThat(motor1).isNotNull();
         assertThat(motor1.has("udt_members")).isTrue();
+        assertThat(motor1.getAsJsonArray("udt_members")).hasSize(2);
     }
 
     @Test
     @DisplayName("Should parse AOI definitions")
     void testParseAoiDefinitions() {
         String content = """
-            CONTROLLER TestController (
-            )
-            ADD_ON_INSTRUCTION_DEFINITION MyAOI
-            PARAMETERS
-                Input1 : DINT
-                Output1 : DINT
-            END_PARAMETERS
-            LOCAL_TAGS
-                InternalVar : DINT
-            END_LOCAL_TAGS
-            END_ADD_ON_INSTRUCTION_DEFINITION
-            TAG
-                AOI_Instance : MyAOI
-            END_TAG
+            CONTROLLER TestController (Description := "AOI test")
+            \tADD_ON_INSTRUCTION_DEFINITION MyAOI (Revision := "1.0")
+            \t\tPARAMETERS
+            \t\t\tInput1 : DINT (Usage := Input, RADIX := Decimal, Required := Yes, Visible := Yes, DefaultData := 0);
+            \t\t\tOutput1 : DINT (Usage := Output, RADIX := Decimal, Required := No, Visible := Yes, DefaultData := 0);
+            \t\tEND_PARAMETERS
+            \t\tLOCAL_TAGS
+            \t\t\tInternalVar : DINT (RADIX := Decimal, ExternalAccess := Read/Write, DefaultData := 0);
+            \t\tEND_LOCAL_TAGS
+            \tEND_ADD_ON_INSTRUCTION_DEFINITION
+            \tTAG
+            \t\tAOI_Instance : MyAOI;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "aoi_test.l5k");
 
         assertThat(result).isNotNull();
         assertThat(result.has("global_tags")).isTrue();
+        assertThat(result.has("aois")).isTrue();
+
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(instance.get("name").getAsString()).isEqualTo("AOI_Instance");
+        assertThat(instance.has("udt_members")).isTrue();
     }
 
     @Test
     @DisplayName("Should parse program tags")
     void testParseProgramTags() {
         String content = """
-            CONTROLLER TestController (
-            )
-            PROGRAM MainProgram
-            TAG
-                LocalCounter : DINT
-                LocalFlag : BOOL
-            END_TAG
-            END_PROGRAM
+            CONTROLLER TestController (Description := "program test")
+            \tTAG
+            \tEND_TAG
+            \tPROGRAM MainProgram (MAIN := 1)
+            \t\tTAG
+            \t\t\tLocalCounter : DINT (RADIX := Decimal) := 100;
+            \t\t\tLocalFlag : BOOL (RADIX := Decimal) := 0;
+            \t\tEND_TAG
+            \tEND_PROGRAM
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "program_test.l5k");
@@ -131,35 +146,41 @@ class L5KParserTest {
 
         JsonObject mainProgram = programs.get(0).getAsJsonObject();
         assertThat(mainProgram.get("name").getAsString()).isEqualTo("MainProgram");
+        assertThat(mainProgram.getAsJsonArray("tags")).hasSize(2);
     }
 
     @Test
     @DisplayName("Should parse array tags")
     void testParseArrayTags() {
         String content = """
-            CONTROLLER TestController (
-            )
-            TAG
-                DataArray : DINT[10]
-                Matrix : REAL[5,3]
-            END_TAG
+            CONTROLLER TestController (Description := "array test")
+            \tTAG
+            \t\tDataArray : DINT[10] (RADIX := Decimal);
+            \t\tMatrix : REAL[5,3] (RADIX := Float);
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "array_test.l5k");
 
         assertThat(result).isNotNull();
         assertThat(result.has("global_tags")).isTrue();
+
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).hasSize(2);
+        assertThat(tags.get(0).getAsJsonObject().get("dimensions").getAsString()).isEqualTo("10");
+        assertThat(tags.get(1).getAsJsonObject().get("dimensions").getAsString()).isEqualTo("5,3");
     }
 
     @Test
     @DisplayName("Should expand built-in TIMER type")
     void testExpandTimerType() {
         String content = """
-            CONTROLLER TestController (
-            )
-            TAG
-                DelayTimer : TIMER
-            END_TAG
+            CONTROLLER TestController (Description := "timer test")
+            \tTAG
+            \t\tDelayTimer : TIMER := [0,5000,0];
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "timer_test.l5k");
@@ -184,11 +205,11 @@ class L5KParserTest {
     @DisplayName("Should expand built-in COUNTER type")
     void testExpandCounterType() {
         String content = """
-            CONTROLLER TestController (
-            )
-            TAG
-                ProductCounter : COUNTER
-            END_TAG
+            CONTROLLER TestController (Description := "counter test")
+            \tTAG
+            \t\tProductCounter : COUNTER := [0,0,0];
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "counter_test.l5k");
@@ -249,52 +270,60 @@ class L5KParserTest {
     }
 
     @Test
-    @DisplayName("Should parse BIT members in UDTs")
+    @DisplayName("Should parse BIT members in UDTs (host byte + bit position, §2.6)")
     void testParseBitMembers() {
         String content = """
-            CONTROLLER TestController (
-            )
-            DATATYPE StatusType
-                BIT Fault_A
-                BIT Fault_B
-                Value : DINT
-            END_DATATYPE
-            TAG
-                SystemStatus : StatusType
-            END_TAG
+            CONTROLLER TestController (Description := "bit member test")
+            \tDATATYPE StatusType (FamilyType := NoFamily)
+            \t\tSINT ZZZZZZZZZZStatusType0 (Hidden := 1);
+            \t\tBIT Fault_A ZZZZZZZZZZStatusType0 : 0 (Radix := Decimal);
+            \t\tBIT Fault_B ZZZZZZZZZZStatusType0 : 1 (Radix := Decimal);
+            \t\tDINT Value (Radix := Decimal);
+            \tEND_DATATYPE
+            \tTAG
+            \t\tSystemStatus : StatusType;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "bit_test.l5k");
 
         assertThat(result).isNotNull();
         assertThat(result.has("udts")).isTrue();
+
+        JsonObject udt = result.getAsJsonArray("udts").get(0).getAsJsonObject();
+        JsonArray members = udt.getAsJsonArray("members");
+        assertThat(members).hasSize(3); // Fault_A, Fault_B, Value - hidden host byte dropped
     }
 
     @Test
     @DisplayName("Should skip ZZZZ padding members")
     void testSkipZZZZMembers() {
         String content = """
-            CONTROLLER TestController (
-            )
-            DATATYPE MyType
-                RealMember : DINT
-                ZZZZZZZZZZZZZZZZZZ : SINT
-            END_DATATYPE
+            CONTROLLER TestController (Description := "hidden host test")
+            \tDATATYPE MyType (FamilyType := NoFamily)
+            \t\tDINT RealMember (Radix := Decimal);
+            \t\tSINT ZZZZZZZZZZZZZZZZZZ (Hidden := 1);
+            \tEND_DATATYPE
+            \tTAG
+            \t\tT1 : MyType;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "zzzz_test.l5k");
 
         assertThat(result).isNotNull();
-        if (result.has("udts")) {
-            JsonArray udts = result.getAsJsonArray("udts");
-            for (var elem : udts) {
-                JsonObject udt = elem.getAsJsonObject();
-                if ("MyType".equals(udt.get("name").getAsString())) {
-                    JsonArray members = udt.getAsJsonArray("members");
-                    for (var memberElem : members) {
-                        JsonObject member = memberElem.getAsJsonObject();
-                        assertThat(member.get("name").getAsString()).doesNotStartWith("ZZZZ");
-                    }
+        assertThat(result.has("udts")).isTrue();
+        JsonArray udts = result.getAsJsonArray("udts");
+        for (var elem : udts) {
+            JsonObject udt = elem.getAsJsonObject();
+            if ("MyType".equals(udt.get("name").getAsString())) {
+                JsonArray members = udt.getAsJsonArray("members");
+                assertThat(members).hasSize(1);
+                for (var memberElem : members) {
+                    JsonObject member = memberElem.getAsJsonObject();
+                    assertThat(member.get("name").getAsString()).doesNotStartWith("ZZZZ");
                 }
             }
         }
@@ -304,20 +333,20 @@ class L5KParserTest {
     @DisplayName("Should expand nested UDTs recursively")
     void testNestedUdtExpansion() {
         String content = """
-            CONTROLLER TestController (
-            )
-            DATATYPE InnerType
-                Value : DINT
-                Status : BOOL
-            END_DATATYPE
-            DATATYPE OuterType
-                Name : STRING
-                Inner : InnerType
-                Count : DINT
-            END_DATATYPE
-            TAG
-                MyOuter : OuterType
-            END_TAG
+            CONTROLLER TestController (Description := "nested UDT test")
+            \tDATATYPE InnerType (FamilyType := NoFamily)
+            \t\tDINT Value (Radix := Decimal);
+            \t\tBOOL Status (Radix := Decimal);
+            \tEND_DATATYPE
+            \tDATATYPE OuterType (FamilyType := NoFamily)
+            \t\tSTRING Name;
+            \t\tInnerType Inner;
+            \t\tDINT Count (Radix := Decimal);
+            \tEND_DATATYPE
+            \tTAG
+            \t\tMyOuter : OuterType;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "nested_udt.l5k");
@@ -364,22 +393,22 @@ class L5KParserTest {
     @DisplayName("Should expand deeply nested UDTs (3 levels)")
     void testDeeplyNestedUdtExpansion() {
         String content = """
-            CONTROLLER TestController (
-            )
-            DATATYPE Level3
-                DeepValue : REAL
-            END_DATATYPE
-            DATATYPE Level2
-                MidValue : DINT
-                Deep : Level3
-            END_DATATYPE
-            DATATYPE Level1
-                TopValue : BOOL
-                Mid : Level2
-            END_DATATYPE
-            TAG
-                TopLevel : Level1
-            END_TAG
+            CONTROLLER TestController (Description := "deep nesting test")
+            \tDATATYPE Level3 (FamilyType := NoFamily)
+            \t\tREAL DeepValue (Radix := Float);
+            \tEND_DATATYPE
+            \tDATATYPE Level2 (FamilyType := NoFamily)
+            \t\tDINT MidValue (Radix := Decimal);
+            \t\tLevel3 Deep;
+            \tEND_DATATYPE
+            \tDATATYPE Level1 (FamilyType := NoFamily)
+            \t\tBOOL TopValue (Radix := Decimal);
+            \t\tLevel2 Mid;
+            \tEND_DATATYPE
+            \tTAG
+            \t\tTopLevel : Level1;
+            \tEND_TAG
+            END_CONTROLLER
             """;
 
         JsonObject result = parser.parseContent(content, "deep_nested.l5k");

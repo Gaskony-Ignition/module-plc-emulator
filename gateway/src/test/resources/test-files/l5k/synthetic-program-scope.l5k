@@ -1,0 +1,31 @@
+(* L5K-GRAMMAR.md §6.2 program_scope fixture - R5 regression guard: program-scoped *)
+(* tags nest under the right program; an empty TAG block yields zero tags; rungs   *)
+(* inside program ROUTINEs never leak.                                             *)
+
+IE_VER := 2.11;
+
+CONTROLLER ProgScope (ProcessorType := "1756-L83E")
+	TAG
+		GlobalOne : DINT (RADIX := Decimal) := 0;
+	END_TAG
+
+	PROGRAM EmptyProg (MAIN := 1)
+		TAG
+		END_TAG
+		ROUTINE MainRoutine
+			N: XIC(GlobalOne.0)OTE(GlobalOne.1);
+		END_ROUTINE
+	END_PROGRAM
+
+	PROGRAM WorkProg (Description := "program with two local tags")
+		TAG
+			LocalCounter : DINT (RADIX := Decimal) := 0;
+			LocalFlag : BOOL (RADIX := Decimal) := 0;
+		END_TAG
+		ROUTINE MainRoutine
+			N: XIC(LocalFlag)OTE(LocalCounter.0);
+		END_ROUTINE
+		CHILD_PROGRAMS
+		END_CHILD_PROGRAMS
+	END_PROGRAM
+END_CONTROLLER

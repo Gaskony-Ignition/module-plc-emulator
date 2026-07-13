@@ -1,0 +1,17 @@
+(* L5K-GRAMMAR.md §6.2 config_depth fixture - §1.2 rule 2 / §1.5 regression guard: *)
+(* CONFIG blocks emitted at column 0 (as file A really does) are still logically   *)
+(* inside CONTROLLER, carry no tags, and must not end controller scope early.      *)
+
+IE_VER := 2.11;
+
+CONTROLLER ConfigDepth (ProcessorType := "1756-L83E")
+	TAG
+		OnlyTag : DINT (RADIX := Decimal) := 0;
+	END_TAG
+
+	TASK MainTask (Type := CONTINUOUS, Rate := 10, Priority := 10, Watchdog := 500)
+		MainProgram;
+	END_TASK
+CONFIG MessageLog(TimeoutTicks := 0, ID := 0) END_CONFIG
+CONFIG ErrorLog(FileName := "error.log", MaxFileSize := 1024) END_CONFIG
+END_CONTROLLER

@@ -1,11 +1,18 @@
-CONTROLLER TestController
+(* Minimal valid L5K sample (L5K-GRAMMAR.md grammar). The pre-v10.1 version of this file *)
+(* used an invented "TAG name TYPE value" line format that was never real L5K syntax.    *)
 
-TAG MyTag DINT 0
-TAG MyString STRING "Hello"
-TAG MyBool BOOL 0
+IE_VER := 2.11;
 
-PROGRAM MainProgram
-    TAG LocalTag DINT 100
-END
+CONTROLLER TestController (ProcessorType := "1756-L83E")
+	TAG
+		MyTag : DINT (RADIX := Decimal) := 0;
+		MyString : STRING := [5,'Hello'];
+		MyBool : BOOL (RADIX := Decimal) := 0;
+	END_TAG
 
+	PROGRAM MainProgram (MAIN := 1)
+		TAG
+			LocalTag : DINT (RADIX := Decimal) := 100;
+		END_TAG
+	END_PROGRAM
 END_CONTROLLER
