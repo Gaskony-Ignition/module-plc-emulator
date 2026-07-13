@@ -200,6 +200,39 @@ prepare/save/revert file operations in `FilePreparation`/`FileVersionManager`.
 
 ---
 
+#### 9. L5K Alias Tag Type/Read-Only Resolution Is a Minimum-Viable Heuristic
+
+**Status**: By Design (v10.1.0, L5K-GRAMMAR.md §2.2 scope decision - deliberately deferred, not
+implemented, from the v10.1 L5K parser review)
+**Severity**: Low (affects only the reported `data_type`/read-only flag of `OF`-alias tags; the
+alias tag itself is still emitted and browsable)
+
+An L5K alias tag declaration (`<name> OF <target> [(attrs)];`, L5K-GRAMMAR.md §2.2) is a reference
+to a base tag, bit, or module I/O channel - its real data type and access are strictly the
+resolved target's, which a full implementation would look up. `L5KParser.TagStatementBuilder`
+instead uses a **minimum-viable heuristic** (`resolveAliasType`): a `.bit`-suffixed target always
+resolves to `BOOL`; otherwise the alias's own `RADIX` attribute (when present) picks `REAL`
+(`Float`/`Exponential`) or `SINT` (`ASCII`); failing both, an opaque `DINT` leaf is assumed.
+
+**Why deferred:** L5K-GRAMMAR.md §2.2 explicitly scopes full alias-to-target type/value resolution
+to a **future Phase-2 enhancement**, not v10.1 - the grammar only requires the parser to emit the
+alias as a leaf node with an `alias_for` target string, not to walk the target chain and mirror its
+actual type/access. This was re-confirmed during the independent v10.1 parser review (review
+finding #5): the heuristic is correct behaviour *for this phase*, not an oversight.
+
+**Impact**: an alias whose target is neither a `.bit` reference nor RADIX-tagged Float/ASCII will
+be reported as `DINT` even if the real target is, say, a `REAL` or a UDT member of another type; a
+read-only target's alias may not correctly inherit read-only status unless the alias's own
+attributes independently indicate it. File A's 572 alias tags (L5K-GRAMMAR.md §3.8) are affected
+by this heuristic to varying degrees depending on their targets.
+
+**Workaround**: none currently; treat an alias tag's `data_type`/read-only flag as best-effort
+until full target-chain resolution is implemented. See `docs/plans/L5K-GRAMMAR.md` §2.2 for the
+grammar-level scope decision and `L5KParser.TagStatementBuilder.resolveAliasType()`'s Javadoc for
+the code-level detail.
+
+---
+
 ## Reporting New Issues
 
 If you encounter issues not listed here:
