@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static com.inductiveautomation.logixemulator.gateway.parser.DataTypeUtils.getDefaultValue;
 import static com.inductiveautomation.logixemulator.gateway.parser.DataTypeUtils.normalizeDataType;
 
 /**
@@ -1561,6 +1562,18 @@ public class L5KParser implements PLCParser {
                 if (!ATOMIC_TYPES.contains(memberType.toUpperCase(java.util.Locale.ROOT))
                     && typeDefs.containsKey(memberType)) {
                     expandRecursive(member, typeDefs.get(memberType), typeDefs, depth + 1);
+                } else {
+                    // FIX-D (v10.1.0): align with L5XParser.expandUdtInstance, which sets a
+                    // type-appropriate default initial_value on every atomic (non-expanding) leaf
+                    // member so both formats feed AddressSpaceBuilder/getInitialValue() the same
+                    // shape. (A verified residual: L5XParser.expandUdtInstance does NOT itself
+                    // propagate a "usage" marker onto per-instance expanded members either - the
+                    // "usage":"Local" annotation L5XParser.parseAOI adds lives only on the AOI
+                    // TYPE DEFINITION's LocalTag entries (aois[].members[]), never on an
+                    // instance's udt_members, in either parser, and AddressSpaceBuilder does not
+                    // consume "usage" at all - so no usage marker is fabricated here; doing so
+                    // would diverge from, not align with, L5X's actual instance-expansion shape.)
+                    member.addProperty("initial_value", getDefaultValue(memberType));
                 }
                 out.add(member);
             }
