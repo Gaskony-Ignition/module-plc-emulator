@@ -1,0 +1,12 @@
+(* L5K-GRAMMAR.md §6.2 loud_fail fixture (c) - a doctored file with a stray rung   *)
+(* statement inside the controller TAG block: the §5.1 tripwire must hard-fail     *)
+(* the parse (null), never emit a pseudo-tag named N.                              *)
+
+IE_VER := 2.11;
+
+CONTROLLER Doctored (ProcessorType := "1756-L83E")
+	TAG
+		GoodTag : DINT (RADIX := Decimal) := 0;
+		N: XIC(Sim)OTL(Sts);
+	END_TAG
+END_CONTROLLER

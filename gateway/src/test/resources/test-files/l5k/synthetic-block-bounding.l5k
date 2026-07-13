@@ -1,0 +1,54 @@
+(*********************************************
+
+  Import-Export
+  Version := RSLogix 5000 v37.00
+
+*********************************************)
+
+IE_VER := 2.11;
+
+CONTROLLER BlockBounding (ProcessorType := "1756-L83E",
+                          Description := "L5K-GRAMMAR.md §6.2 block_bounding fixture - D1/D2 regression guard")
+	ADD_ON_INSTRUCTION_DEFINITION My_Aoi (Description := "AOI whose ROUTINE rungs leaked as tags under the v10 parser",
+	                                      Revision := "1.0", ExecutePrescan := No, SoftwareRevision := "v37.00")
+		PARAMETERS
+			EnableIn : BOOL (Description := "Enable Input - System Defined Parameter", Usage := Input, RADIX := Decimal,
+			                 Required := No, Visible := No, ExternalAccess := Read Only);
+			EnableOut : BOOL (Description := "Enable Output - System Defined Parameter", Usage := Output, RADIX := Decimal,
+			                  Required := No, Visible := No, ExternalAccess := Read Only);
+			DI : BOOL (Usage := Input, RADIX := Decimal, Required := Yes, Visible := Yes, ExternalAccess := Read/Write, DefaultData := 0);
+			Sts : BOOL (Usage := Output, RADIX := Decimal, Required := No, Visible := Yes, ExternalAccess := Read/Write, DefaultData := 0);
+		END_PARAMETERS
+
+		LOCAL_TAGS
+			Off_T : TIMER (ExternalAccess := Read/Write, DefaultData := "[0,0,0]");
+		END_LOCAL_TAGS
+
+		ROUTINE Logic
+			RC: "rung comment that even mentions the words TAG and END_TAG and a ; semicolon";
+			N: XIO(Sim)[XIO(NC) XIC(DI) ,XIC(NC) XIO(DI) ]OTL(Sts);
+			N: XIC(Sts)MUL(On_Time,1000.0,Off_T.PRE)TON(Off_T,?,?)XIC(Off_T.DN)OTE(HighD);
+		END_ROUTINE
+
+		ROUTINE Prescan
+			N: OTU(Sts);
+		END_ROUTINE
+	END_ADD_ON_INSTRUCTION_DEFINITION
+
+	TAG
+		FirstTag : DINT (RADIX := Decimal) := 0;
+		AoiInstance : My_Aoi (Description := "instance of the AOI above");
+	END_TAG
+
+	PROGRAM MainProgram (MAIN := 1)
+		TAG
+		END_TAG
+		ROUTINE MainRoutine
+			N: XIC(FirstTag.0)OTE(FirstTag.1);
+		END_ROUTINE
+	END_PROGRAM
+
+	TASK MainTask (Type := CONTINUOUS, Rate := 10, Priority := 10, Watchdog := 500)
+		MainProgram;
+	END_TASK
+END_CONTROLLER
