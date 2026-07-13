@@ -1,0 +1,6 @@
+CONTROLLER ResidueTest (Description := "FIX-C fixture: residue after a same-line terminator")
+	TAG
+		A : DINT; B : DINT;
+		C : DINT (RADIX := Decimal) := 0;
+	END_TAG
+END_CONTROLLER

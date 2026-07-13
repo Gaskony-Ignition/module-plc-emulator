@@ -373,6 +373,55 @@ class L5KParserGrammarTest {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Fixture: synthetic-block-comment.l5k (FIX-B)
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("block_comment: a (* ... *) block comment between two tag declarations, and "
+        + "another spanning an attribute list, are stripped entirely - both neighbouring tags "
+        + "parse correctly and no depth/terminator confusion occurs (FIX-B)")
+    void blockCommentsInsideTagBlockAreStripped() throws IOException {
+        JsonObject result = parseFixture("synthetic-block-comment.l5k");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tagNames(tags)).containsExactly("FirstTag", "SecondTag", "ThirdTag");
+
+        JsonObject thirdTag = findTag(tags, "ThirdTag");
+        assertThat(thirdTag.get("data_type").getAsString()).isEqualTo("DINT");
+        assertThat(thirdTag.get("initial_value").getAsString()).isEqualTo("0");
+
+        JsonObject summary = result.getAsJsonObject("parseSummary");
+        assertThat(summary.get("controllerTagCount").getAsInt()).isEqualTo(3);
+        assertThat(summary.get("skippedTagLines").getAsInt()).isZero();
+        assertThat(summary.get("structurallyClean").getAsBoolean()).isTrue();
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Fixture: synthetic-residue.l5k (FIX-C)
+    // ---------------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("residue: content following a same-line ';' terminator is never silently "
+        + "dropped - it is counted and WARNed (structurallyClean flips false), while the tag "
+        + "before the terminator and the next line's tag both still parse (FIX-C)")
+    void residueAfterSameLineTerminatorIsCountedNotSilent() throws IOException {
+        JsonObject result = parseFixture("synthetic-residue.l5k");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        // A (before the terminator) and C (its own physical line) both parse; B (the residue
+        // after A's ';' on the same line) is not parsed as its own tag - but it must be LOUD.
+        assertThat(tagNames(tags)).containsExactly("A", "C");
+
+        JsonObject summary = result.getAsJsonObject("parseSummary");
+        assertThat(summary.get("skippedTagLines").getAsInt()).isEqualTo(1);
+        assertThat(summary.get("structurallyClean").getAsBoolean())
+            .as("non-zero skippedTagLines must never read as an unqualified success (§5.3)")
+            .isFalse();
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Vendored public corpus export (in-repo smoke case for a full real export shape:
     // wrapped CONTROLLER attrs, UDT BIT/host members, ST_ROUTINE ' comments, ladder ROUTINEs)
     // ---------------------------------------------------------------------------------------

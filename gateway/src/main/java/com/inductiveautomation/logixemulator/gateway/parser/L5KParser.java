@@ -345,6 +345,19 @@ public class L5KParser implements PLCParser {
                 }
 
                 StatementScan scan = accumulateStatement(lines, i);
+                if (scan.residue() != null) {
+                    // FIX-C (§1.4 R3's own scope note: real files are one-declaration-per-line,
+                    // so this is latent, but the whole point of the statement-oriented rewrite is
+                    // to never silently drop content). Content following a same-line ';' is not
+                    // itself parsed as a further statement - simpler and acceptable per the fix
+                    // spec - but it must be LOUD, never silent: count it and WARN.
+                    counters.skippedTagLines++;
+                    logger.warn(
+                        "L5K '{}' line {}: residue '{}' after a same-line statement terminator is "
+                            + "not parsed as its own statement - counted, not silently dropped "
+                            + "(skippedTagLines={})",
+                        fileName, i + 1, truncateForLog(scan.residue()), counters.skippedTagLines);
+                }
                 processStatement(scan.text, ctx, i + 1);
                 i = scan.nextLine;
             }
@@ -805,43 +818,78 @@ public class L5KParser implements PLCParser {
                 + " - no matching ')' before EOF");
     }
 
-    /** Result of {@link #accumulateStatement}: the joined statement text (terminator included)
-     *  and the index of the next line to resume scanning from. */
-    private record StatementScan(String text, int nextLine) { }
+    /** Result of {@link #accumulateStatement}: the joined statement text (terminator included,
+     *  block comments stripped), the index of the next line to resume scanning from, and any
+     *  non-blank, non-comment content found on the SAME physical line after the terminator
+     *  (FIX-C) - {@code null} when there is none. */
+    private record StatementScan(String text, int nextLine, String residue) { }
 
     /**
      * Accumulates physical lines starting at {@code startIdx} into one logical statement,
-     * terminating at the first {@code ;} that is outside a quoted string and outside {@code [ ]}
-     * bracket nesting (L5K-GRAMMAR.md §1.4 R3/R4). Assumes - matching both dissected real files -
-     * that no second statement begins on the same physical line as a terminator; see class Javadoc
-     * for the scope note this implies.
+     * terminating at the first {@code ;} that is outside a quoted string and outside {@code [ ]}/
+     * {@code ( )} nesting (L5K-GRAMMAR.md §1.4 R3/R4).
+     *
+     * <p><b>FIX-B:</b> {@code (* ... *)} block comments are recognised and their content is
+     * stripped from the accumulated statement entirely - consistent with how
+     * {@link #scanQuoteState} handles them in the opaque path - so a comment between two tag
+     * declarations (or inside one, between attributes) never merges into a statement's text, never
+     * perturbs bracket/paren depth, and never hides/fakes a terminator. Comment state carries
+     * across physical lines like quote state does, so a multi-line block comment is handled too.
+     *
+     * <p><b>FIX-C:</b> content following a same-line terminator is never silently discarded: it is
+     * returned as {@link StatementScan#residue()} for the caller to count and WARN on (§5.2) -
+     * this parser deliberately does not attempt to re-parse it as a further statement (real files
+     * are one-declaration-per-line, so this is a defensive net, not the common case).
      */
     private static StatementScan accumulateStatement(String[] lines, int startIdx) {
         StringBuilder sb = new StringBuilder();
         boolean inDouble = false;
         boolean inSingle = false;
+        boolean inComment = false;
         int bracketDepth = 0;
         int parenDepth = 0;
 
         int i = startIdx;
         while (i < lines.length) {
             String line = lines[i];
-            sb.append(line).append(' ');
+            StringBuilder clean = new StringBuilder(line.length());
 
-            for (int c = 0; c < line.length(); c++) {
+            int c = 0;
+            while (c < line.length()) {
                 char ch = line.charAt(c);
+
+                if (inComment) {
+                    if (ch == '*' && c + 1 < line.length() && line.charAt(c + 1) == ')') {
+                        inComment = false;
+                        c += 2;
+                    } else {
+                        c++;
+                    }
+                    continue;
+                }
                 if (inSingle) {
+                    clean.append(ch);
                     if (ch == '\'') {
                         inSingle = false;
                     }
+                    c++;
                     continue;
                 }
                 if (inDouble) {
+                    clean.append(ch);
                     if (ch == '"') {
                         inDouble = false;
                     }
+                    c++;
                     continue;
                 }
+                if (ch == '(' && c + 1 < line.length() && line.charAt(c + 1) == '*') {
+                    inComment = true;
+                    c += 2;
+                    continue;
+                }
+
+                clean.append(ch);
                 switch (ch) {
                     case '"' -> inDouble = true;
                     case '\'' -> inSingle = true;
@@ -851,12 +899,16 @@ public class L5KParser implements PLCParser {
                     case ')' -> parenDepth = Math.max(0, parenDepth - 1);
                     case ';' -> {
                         if (bracketDepth == 0 && parenDepth == 0) {
-                            return new StatementScan(sb.toString(), i + 1);
+                            sb.append(clean);
+                            String residue = extractResidue(line.substring(c + 1));
+                            return new StatementScan(sb.toString(), i + 1, residue);
                         }
                     }
                     default -> { }
                 }
+                c++;
             }
+            sb.append(clean).append(' ');
             i++;
         }
 
@@ -865,9 +917,77 @@ public class L5KParser implements PLCParser {
                 + " - no ';' found before EOF (bracket/quote state never closed)");
     }
 
+    /**
+     * FIX-C: {@code afterTerminator} is the raw text following a statement's {@code ;} on its own
+     * physical line. Returns {@code null} when nothing but whitespace and/or a block
+     * comment remains (the ordinary, expected case); otherwise the trimmed raw residue, so the
+     * caller can WARN with the actual offending text.
+     */
+    private static String extractResidue(String afterTerminator) {
+        String withoutComments = stripLineComments(afterTerminator).strip();
+        return withoutComments.isEmpty() ? null : afterTerminator.strip();
+    }
+
+    /** Single-line {@code (* ... *)} comment stripper (quote-aware) used only by
+     *  {@link #extractResidue} to decide whether same-line trailing text is "real" content or
+     *  just a trailing comment - residue is by construction confined to one physical line, so no
+     *  cross-line comment state needs to be carried here. */
+    private static String stripLineComments(String s) {
+        StringBuilder out = new StringBuilder(s.length());
+        boolean inSingle = false;
+        boolean inDouble = false;
+        boolean inComment = false;
+        int c = 0;
+        while (c < s.length()) {
+            char ch = s.charAt(c);
+            if (inComment) {
+                if (ch == '*' && c + 1 < s.length() && s.charAt(c + 1) == ')') {
+                    inComment = false;
+                    c += 2;
+                } else {
+                    c++;
+                }
+                continue;
+            }
+            if (inSingle) {
+                out.append(ch);
+                if (ch == '\'') {
+                    inSingle = false;
+                }
+                c++;
+                continue;
+            }
+            if (inDouble) {
+                out.append(ch);
+                if (ch == '"') {
+                    inDouble = false;
+                }
+                c++;
+                continue;
+            }
+            if (ch == '(' && c + 1 < s.length() && s.charAt(c + 1) == '*') {
+                inComment = true;
+                c += 2;
+                continue;
+            }
+            out.append(ch);
+            if (ch == '"') {
+                inDouble = true;
+            } else if (ch == '\'') {
+                inSingle = true;
+            }
+            c++;
+        }
+        return out.toString();
+    }
+
     private static String stripTerminator(String statementText) {
         int idx = statementText.lastIndexOf(';');
         return (idx < 0 ? statementText : statementText.substring(0, idx)).strip();
+    }
+
+    private static String truncateForLog(String s) {
+        return s.length() > 80 ? s.substring(0, 80) + "..." : s;
     }
 
     // ===========================================================================================
