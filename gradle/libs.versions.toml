@@ -1,0 +1,31 @@
+[versions]
+ignition = "8.3.0"
+gson = "2.14.0"
+opc-ua-gateway-api = "10.3.0"
+jakarta-servlet = "6.0.0"
+gateway-web = "8.3.0"
+sqlite-jdbc = "3.53.2.1"
+junit-jupiter = "5.14.4"
+junit-platform-launcher = "1.14.4"
+mockito = "5.23.0"
+assertj = "3.27.7"
+awaitility = "4.3.0"
+
+[libraries]
+ignition-common = { module = "com.inductiveautomation.ignitionsdk:ignition-common", version.ref = "ignition" }
+ignition-gateway-api = { module = "com.inductiveautomation.ignitionsdk:gateway-api", version.ref = "ignition" }
+ignition-driver-api = { module = "com.inductiveautomation.ignitionsdk:driver-api", version.ref = "ignition" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
+opc-ua-gateway-api = { module = "com.inductiveautomation.opcua:opc-ua-gateway-api", version.ref = "opc-ua-gateway-api" }
+jakarta-servlet = { module = "jakarta.servlet:jakarta.servlet-api", version.ref = "jakarta-servlet" }
+gateway-web = { module = "com.inductiveautomation.ignition:gateway-web", version.ref = "gateway-web" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter" }
+junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junit-jupiter" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
+mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "mockito" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+awaitility = { module = "org.awaitility:awaitility", version.ref = "awaitility" }

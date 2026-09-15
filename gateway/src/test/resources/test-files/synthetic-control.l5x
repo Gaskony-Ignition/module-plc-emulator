@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture (not a real Studio 5000 export) for the C4 CONTROL full-set fidelity test
+  (ADDRESSING.md §3.11, §5.9). CONTROL tags appear in the real corpus only inside the unlicensed
+  1768 export (local-testing-only, never vendored/committed — see
+  gateway/src/test/resources/corpus/ATTRIBUTION.md); this small top-level fixture exercises the
+  same predefined type so the full 10-member set (incl. .UL, .IN, .FD) can be asserted against a
+  vendorable file.
+-->
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="ControlSynthetic" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="TestControl" TagType="Base" DataType="CONTROL" Radix="NullType" Constant="false" ExternalAccess="Read/Write"/>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>

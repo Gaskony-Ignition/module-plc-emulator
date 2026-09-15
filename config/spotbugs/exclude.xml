@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+
+    <!-- DMI_HARDCODED_ABSOLUTE_FILENAME: Intentional - searching for Ignition log DB at known paths -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.SystemController" />
+        <Bug pattern="DMI_HARDCODED_ABSOLUTE_FILENAME" />
+    </Match>
+
+    <!-- SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING: Dynamic SQL with parameterized queries (safe) -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.SystemController" />
+        <Bug pattern="SQL_PREPARED_STATEMENT_GENERATED_FROM_NONCONSTANT_STRING" />
+    </Match>
+
+    <!-- EI_EXPOSE_REP: Internal API - parsedData getter used only within module -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.device.LogixEmulatorDevice" />
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+
+    <!-- EI_EXPOSE_REP: Sprint 3 P6 collaborators extracted from LogixEmulatorDevice.
+         Same internal-API justification — module-internal accessors. -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.device.AddressSpaceLifecycle" />
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.device.FilePreparation" />
+        <Bug pattern="EI_EXPOSE_REP" />
+    </Match>
+
+    <!-- EI_EXPOSE_REP2: Internal constructor injection - controllers are module-internal -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.SimulationController" />
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.DeviceController" />
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.TagController" />
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.controller.VersionController" />
+        <Bug pattern="EI_EXPOSE_REP2" />
+    </Match>
+
+    <!-- ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD: Singleton pattern, single-threaded startup -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook" />
+        <Bug pattern="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" />
+    </Match>
+
+    <!-- MS_EXPOSE_REP: Internal module state, accessed only within module -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.SimulatorModuleHook" />
+        <Bug pattern="MS_EXPOSE_REP" />
+    </Match>
+
+    <!-- CT_CONSTRUCTOR_THROW: TagTreeBuilder constructor builds tree from parsed data;
+         throwing JSONException here is intentional to signal invalid input -->
+    <Match>
+        <Class name="com.inductiveautomation.logixemulator.gateway.web.TagTreeBuilder" />
+        <Bug pattern="CT_CONSTRUCTOR_THROW" />
+    </Match>
+
+</FindBugsFilter>

@@ -1,0 +1,79 @@
+/* ==========================================================================
+   Versions Panel — file version history + revert (defect B5)
+   Scoped to .app-wrapper; reuses Device Manager's dm-card/dm-btn/dm-modal-*
+   ========================================================================== */
+
+.app-wrapper .dm-versions-card {
+  margin-top: 16px;
+}
+
+.app-wrapper .dm-versions-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.app-wrapper .dm-versions-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.app-wrapper .dm-versions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-wrapper .dm-versions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.app-wrapper .dm-versions-filename {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-wrapper .dm-versions-meta {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.app-wrapper .dm-versions-current-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  background: var(--accent-secondary-bg);
+  color: var(--accent-secondary);
+}
+
+.app-wrapper .dm-versions-revert-btn {
+  flex-shrink: 0;
+}

@@ -1,0 +1,1252 @@
+package com.inductiveautomation.logixemulator.gateway.parser;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import static org.assertj.core.api.Assertions.*;
+
+/**
+ * Unit tests for L5XParser.
+ * Tests XML parsing, UDT expansion, and CRITICAL: XXE vulnerability prevention.
+ */
+class L5XParserTest {
+
+    private L5XParser parser;
+
+    @BeforeEach
+    void setUp() {
+        parser = new L5XParser();
+    }
+
+    @Test
+    @DisplayName("Should parse simple L5X file")
+    void testParseSimpleL5X() throws Exception {
+        String content = Files.readString(
+            Path.of("src/test/resources/test-files/simple.l5x"));
+
+        JsonObject result = parser.parseContent(content, "simple.l5x");
+
+        assertThat(result).isNotNull();
+        assertThat(result.has("controller")).isTrue();
+        assertThat(result.get("controller").getAsString()).isEqualTo("TestController");
+        assertThat(result.has("vendor")).isTrue();
+        assertThat(result.get("vendor").getAsString()).isEqualTo("rockwell");
+    }
+
+    @Test
+    @DisplayName("Should parse controller-scoped tags")
+    void testParseControllerTags() throws Exception {
+        String content = Files.readString(
+            Path.of("src/test/resources/test-files/simple.l5x"));
+
+        JsonObject result = parser.parseContent(content, "simple.l5x");
+
+        assertThat(result.has("global_tags")).isTrue();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        // Verify tag structure
+        JsonObject firstTag = tags.get(0).getAsJsonObject();
+        assertThat(firstTag.has("name")).isTrue();
+        assertThat(firstTag.has("data_type")).isTrue();
+    }
+
+    @Test
+    @DisplayName("Should parse programs with program-scoped tags")
+    void testParseProgramTags() throws Exception {
+        String content = Files.readString(
+            Path.of("src/test/resources/test-files/simple.l5x"));
+
+        JsonObject result = parser.parseContent(content, "simple.l5x");
+
+        assertThat(result.has("programs")).isTrue();
+        JsonArray programs = result.getAsJsonArray("programs");
+        assertThat(programs.size()).isGreaterThan(0);
+
+        JsonObject program = programs.get(0).getAsJsonObject();
+        assertThat(program.get("name").getAsString()).isEqualTo("MainProgram");
+        assertThat(program.has("tags")).isTrue();
+
+        JsonArray programTags = program.getAsJsonArray("tags");
+        assertThat(programTags.size()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("Should parse and expand UDT definitions")
+    void testParseUDT() throws Exception {
+        String content = Files.readString(
+            Path.of("src/test/resources/test-files/with-udt.l5x"));
+
+        JsonObject result = parser.parseContent(content, "with-udt.l5x");
+
+        // Check UDT definitions
+        if (result.has("udts")) {
+            JsonArray udts = result.getAsJsonArray("udts");
+            assertThat(udts.size()).isGreaterThan(0);
+
+            JsonObject udt = udts.get(0).getAsJsonObject();
+            assertThat(udt.get("name").getAsString()).isEqualTo("MyUDT");
+            assertThat(udt.has("members")).isTrue();
+
+            JsonArray members = udt.getAsJsonArray("members");
+            assertThat(members.size()).isEqualTo(3); // Value, Status, Name
+        }
+
+        // Check UDT instance expansion
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        if (tags.size() > 0) {
+            JsonObject udtInstance = tags.get(0).getAsJsonObject();
+            assertThat(udtInstance.get("data_type").getAsString()).isEqualTo("MyUDT");
+
+            // UDT instances should have expanded members
+            if (udtInstance.has("udt_members")) {
+                JsonArray udtMembers = udtInstance.getAsJsonArray("udt_members");
+                assertThat(udtMembers.size()).isEqualTo(3);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("SECURITY: Should prevent XXE attacks")
+    void testXXEPrevention() throws Exception {
+        // This malicious file attempts to read /etc/passwd via XXE
+        String maliciousContent = Files.readString(
+            Path.of("src/test/resources/test-files/malicious-xxe.l5x"));
+
+        JsonObject result = parser.parseContent(maliciousContent, "malicious-xxe.l5x");
+
+        // Parser should either:
+        // 1. Return null (parsing failed safely)
+        // 2. Return result but controller name should NOT contain file contents
+        if (result != null && result.has("controller")) {
+            String controllerName = result.get("controller").getAsString();
+
+            // Controller name should NOT contain actual file contents
+            // If XXE worked, it would contain /etc/passwd contents like "root:x:0:0..."
+            assertThat(controllerName)
+                .doesNotContain("root:")
+                .doesNotContain("bin:")
+                .doesNotContain("daemon:");
+        }
+
+        // The fact that we don't get an exception is good
+        // The XXE should be blocked by our security configuration
+    }
+
+    /**
+     * Regression test for defect B8 ({@code docs/plans/V10_FIDELITY_PLAN.md}): the original
+     * {@code malicious-xxe.l5x} fixture is only 235 bytes, which is below the REST-level pre-parse
+     * size sanity check ({@code FileValidator} - "L5X file too small... typically 10KB or
+     * larger"), so an end-to-end upload of that fixture never actually reaches the XML parser -
+     * the earlier size gate rejects it first (see {@code plc-dod/item6-validation.txt}: XXE was
+     * only ever verified via {@link #testXXEPrevention} calling {@link L5XParser} directly).
+     *
+     * <p>{@code xxe-big.l5x} (padded with benign tags to be a realistic-sized export, from the
+     * v10.0.0 DoD run) is large enough to clear that size gate, so this test both proves the
+     * fixture would actually reach the parser via a real upload, and asserts the parser itself
+     * safely rejects the DOCTYPE/entity: no exception escapes, no {@code /etc/passwd} content is
+     * disclosed anywhere in the (null or entity-free) result.
+     */
+    @Test
+    @DisplayName("SECURITY (B8): a realistically-sized XXE payload is safely rejected by the "
+        + "L5X parser (defence in depth - since 11.0.0 no upload can reach this parser at all)")
+    void testXXEPreventionWithRealisticallySizedFixture() throws Exception {
+        String maliciousContent = Files.readString(
+            Path.of("src/test/resources/test-files/xxe-big.l5x"));
+
+        // This test used to assert the fixture CLEARS FileValidator, proving it was big enough
+        // to reach the parser through the real upload path. That premise is deliberately false
+        // as of 11.0.0: FileValidator now rejects every ".l5x" outright, so the XXE surface is
+        // removed rather than merely guarded. Assert that instead, then keep the parser-level
+        // rejection below as defence in depth in case L5X is ever re-exposed.
+        assertThat(
+            com.inductiveautomation.logixemulator.gateway.validation.FileValidator
+                .validateContent(maliciousContent, "xxe-big.l5x")
+                .isValid())
+            .as("since 11.0.0 an .l5x upload must be rejected before it can reach any XML parser")
+            .isFalse();
+
+        JsonObject result = parser.parseContent(maliciousContent, "xxe-big.l5x");
+
+        // disallow-doctype-decl is enabled in L5XParser, so a DOCTYPE-bearing document must fail
+        // to parse entirely (null), not partially parse with the entity silently dropped.
+        assertThat(result).as("a DOCTYPE-bearing L5X must be rejected outright, not parsed").isNull();
+    }
+
+    @Test
+    @DisplayName("Should handle malformed XML gracefully")
+    void testMalformedXML() {
+        String invalidXML = "This is not valid XML";
+
+        JsonObject result = parser.parseContent(invalidXML, "invalid.l5x");
+
+        assertThat(result).isNull(); // Should return null for invalid XML
+    }
+
+    @Test
+    @DisplayName("Should handle empty XML")
+    void testEmptyXML() {
+        String emptyXML = "";
+
+        JsonObject result = parser.parseContent(emptyXML, "empty.l5x");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Should handle XML without Controller element")
+    void testMissingController() {
+        String xmlNoController = "<?xml version=\"1.0\"?>\n<RSLogix5000Content></RSLogix5000Content>";
+
+        JsonObject result = parser.parseContent(xmlNoController, "no-controller.l5x");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Should correctly identify L5X files by extension")
+    void testCanHandle() {
+        assertThat(parser.canHandle("test.l5x")).isTrue();
+        assertThat(parser.canHandle("test.L5X")).isTrue();
+        assertThat(parser.canHandle("test.l5k")).isFalse(); // L5K is text format
+        assertThat(parser.canHandle("test.xml")).isFalse();
+        assertThat(parser.canHandle(null)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Should return correct parser type")
+    void testGetParserType() {
+        assertThat(parser.getParserType()).isEqualTo("l5x");
+    }
+
+    @Test
+    @DisplayName("Should extract tag descriptions")
+    void testTagDescriptions() {
+        String contentWithDescription = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyTag" DataType="DINT">
+                            <Description>
+                                <![CDATA[This is my tag description]]>
+                            </Description>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithDescription, "test.l5x");
+
+        assertThat(result).isNotNull();
+        if (result.has("global_tags")) {
+            JsonArray tags = result.getAsJsonArray("global_tags");
+            if (tags.size() > 0) {
+                JsonObject tag = tags.get(0).getAsJsonObject();
+                if (tag.has("description")) {
+                    assertThat(tag.get("description").getAsString())
+                        .contains("This is my tag description");
+                }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Should handle array dimensions")
+    void testArrayDimensions() {
+        String contentWithArray = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyArray" DataType="DINT" Dimensions="10">
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithArray, "test.l5x");
+
+        assertThat(result).isNotNull();
+        if (result.has("global_tags")) {
+            JsonArray tags = result.getAsJsonArray("global_tags");
+            if (tags.size() > 0) {
+                JsonObject tag = tags.get(0).getAsJsonObject();
+                assertThat(tag.has("dimensions")).isTrue();
+                assertThat(tag.has("isArray")).isTrue();
+                assertThat(tag.get("isArray").getAsBoolean()).isTrue();
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Should not emit the '{structure}' sentinel as initial_value for a Decorated array Data element (regression test for defect B1)")
+    void testArrayDataDoesNotEmitStructureSentinel() {
+        // Real Studio 5000 exports render an array's Data element as an <Array> of <Element>
+        // children, never a <DataValue>. Before the B1 fix, extractValue() treated this as
+        // "complex" and returned the "{structure}" sentinel, which AddressSpaceBuilder then tried
+        // (and failed) to parse as a number - see item2-addressspace-error.txt.
+        String contentWithArrayData = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyArray" DataType="DINT" Dimensions="3">
+                            <Data Format="Decorated">
+                                <Array DataType="DINT" Dimensions="3">
+                                    <Element Index="[0]" Value="0"/>
+                                    <Element Index="[1]" Value="0"/>
+                                    <Element Index="[2]" Value="0"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithArrayData, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).hasSize(1);
+        JsonObject tag = tags.get(0).getAsJsonObject();
+
+        assertThat(tag.has("initial_value")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Should parse AOI definitions")
+    void testParseAOI() {
+        String contentWithAoi = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstructionDefinition Name="MyAOI" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="Input1" TagType="Base" DataType="DINT" Usage="Input"/>
+                                <Parameter Name="Output1" TagType="Base" DataType="REAL" Usage="Output"/>
+                            </Parameters>
+                            <LocalTags>
+                                <LocalTag Name="InternalVar" DataType="DINT"/>
+                            </LocalTags>
+                        </AddOnInstructionDefinition>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="MyAOI_Instance" DataType="MyAOI"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithAoi, "test_aoi.l5x");
+
+        assertThat(result).isNotNull();
+
+        // Check that AOIs are parsed
+        assertThat(result.has("aois")).isTrue();
+        JsonArray aois = result.getAsJsonArray("aois");
+        assertThat(aois.size()).isEqualTo(1);
+
+        JsonObject aoi = aois.get(0).getAsJsonObject();
+        assertThat(aoi.get("name").getAsString()).isEqualTo("MyAOI");
+        assertThat(aoi.get("type").getAsString()).isEqualTo("AOI");
+
+        // EnableIn/EnableOut are exposed like any other parameter (FIX-13, ADDRESSING.md §5.3 -
+        // the real driver browses them on every AOI backing tag; a previous version of this test
+        // asserted their ABSENCE, enforcing the very expansion gap the fidelity suite caught).
+        JsonArray members = aoi.getAsJsonArray("members");
+        java.util.List<String> memberNames = new java.util.ArrayList<>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(memberNames).contains("EnableIn", "EnableOut", "Input1", "Output1");
+
+        // Check that AOI instance tag is expanded
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject aoiInstance = tags.get(0).getAsJsonObject();
+        assertThat(aoiInstance.get("name").getAsString()).isEqualTo("MyAOI_Instance");
+        assertThat(aoiInstance.has("udt_members")).isTrue();
+    }
+
+    @Test
+    @DisplayName("FIX-A: an InOut AOI parameter is excluded from both the type definition and the "
+        + "expanded instance - it is a reference, not backing storage (L5K-GRAMMAR.md §3.2(3), "
+        + "ADDRESSING.md §3.3); Input/Output params and EnableIn/EnableOut are unaffected")
+    void testAoiInOutParameterExcluded() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstructionDefinition Name="My_Aoi" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="InVal" TagType="Base" DataType="DINT" Usage="Input"/>
+                                <Parameter Name="PassThru" TagType="Base" DataType="DINT" Usage="InOut"/>
+                                <Parameter Name="OutVal" TagType="Base" DataType="DINT" Usage="Output"/>
+                            </Parameters>
+                        </AddOnInstructionDefinition>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="Inst" DataType="My_Aoi"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test_inout.l5x");
+
+        assertThat(result).isNotNull();
+
+        // Type definition (aois[].members[]) must not carry the InOut parameter at all.
+        JsonObject aoi = result.getAsJsonArray("aois").get(0).getAsJsonObject();
+        var defMemberNames = new java.util.ArrayList<String>();
+        for (var elem : aoi.getAsJsonArray("members")) {
+            defMemberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(defMemberNames).containsExactly("EnableIn", "EnableOut", "InVal", "OutVal");
+        assertThat(defMemberNames).doesNotContain("PassThru");
+
+        // Expanded instance must likewise omit it.
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        var instanceMemberNames = new java.util.ArrayList<String>();
+        for (var elem : instance.getAsJsonArray("udt_members")) {
+            instanceMemberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(instanceMemberNames).containsExactly("EnableIn", "EnableOut", "InVal", "OutVal");
+        assertThat(instanceMemberNames).doesNotContain("PassThru");
+    }
+
+    @Test
+    @DisplayName("Should expand nested UDTs in L5X")
+    void testNestedUdtExpansion() {
+        String contentWithNestedUdt = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <DataTypes>
+                        <DataType Name="InnerType" Family="NoFamily">
+                            <Members>
+                                <Member Name="InnerValue" DataType="DINT"/>
+                                <Member Name="InnerStatus" DataType="BOOL"/>
+                            </Members>
+                        </DataType>
+                        <DataType Name="OuterType" Family="NoFamily">
+                            <Members>
+                                <Member Name="Name" DataType="STRING"/>
+                                <Member Name="Inner" DataType="InnerType"/>
+                                <Member Name="Count" DataType="DINT"/>
+                            </Members>
+                        </DataType>
+                    </DataTypes>
+                    <Tags>
+                        <Tag Name="MyOuter" DataType="OuterType"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithNestedUdt, "nested_udt.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject outerTag = tags.get(0).getAsJsonObject();
+        assertThat(outerTag.get("name").getAsString()).isEqualTo("MyOuter");
+        assertThat(outerTag.has("udt_members")).isTrue();
+
+        // Find the Inner member
+        JsonArray outerMembers = outerTag.getAsJsonArray("udt_members");
+        JsonObject innerMember = null;
+        for (var elem : outerMembers) {
+            JsonObject member = elem.getAsJsonObject();
+            if ("Inner".equals(member.get("name").getAsString())) {
+                innerMember = member;
+                break;
+            }
+        }
+
+        assertThat(innerMember).isNotNull();
+        assertThat(innerMember.get("data_type").getAsString()).isEqualTo("InnerType");
+        // The Inner member should have its own udt_members (nested expansion)
+        assertThat(innerMember.has("udt_members")).isTrue();
+
+        JsonArray innerMembers = innerMember.getAsJsonArray("udt_members");
+        assertThat(innerMembers.size()).isEqualTo(2); // InnerValue and InnerStatus
+    }
+
+    @Test
+    @DisplayName("Should expand built-in TIMER type in L5X")
+    void testBuiltInTimerExpansion() {
+        String contentWithTimer = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="MyTimer" DataType="TIMER"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(contentWithTimer, "timer.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags.size()).isGreaterThan(0);
+
+        JsonObject timerTag = tags.get(0).getAsJsonObject();
+        assertThat(timerTag.get("name").getAsString()).isEqualTo("MyTimer");
+        assertThat(timerTag.get("data_type").getAsString()).isEqualTo("TIMER");
+        assertThat(timerTag.has("udt_members")).isTrue();
+
+        // TIMER's COMPLETE member set (ADDRESSING.md §3.11): exactly PRE, ACC, EN, TT, DN.
+        // A previous version of this test only asserted contains("PRE", "ACC", "DN", "EN"),
+        // which never fails on an extra member -- that's how the phantom .ER member (fixed in
+        // RockwellBuiltInTypes, C4) went unnoticed. Assert the full set and its absence.
+        JsonArray members = timerTag.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(memberNames).containsExactlyInAnyOrder("PRE", "ACC", "EN", "TT", "DN");
+        assertThat(memberNames).doesNotContain("ER");
+    }
+
+    // =========================================================================================
+    // C5a — ExternalAccess honoured, OpcUaAccess ignored (ADDRESSING.md §3.12)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5a: a tag with ExternalAccess=\"None\" is omitted entirely")
+    void testExternalAccessNoneTagOmitted() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Hidden" DataType="DINT" ExternalAccess="None"/>
+                        <Tag Name="Visible" DataType="DINT" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        var names = new java.util.ArrayList<String>();
+        for (var elem : tags) {
+            names.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(names).containsExactly("Visible");
+    }
+
+    @Test
+    @DisplayName("C5a: ExternalAccess=\"Read Only\" and Constant=\"true\" tags are marked read_only; "
+        + "plain Read/Write tags are not")
+    void testExternalAccessReadOnlyMarking() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="ReadOnlyTag" DataType="DINT" ExternalAccess="Read Only"/>
+                        <Tag Name="ConstantTag" DataType="DINT" Constant="true" ExternalAccess="Read/Write"/>
+                        <Tag Name="WritableTag" DataType="DINT" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        JsonObject readOnlyTag = null;
+        JsonObject constantTag = null;
+        JsonObject writableTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            switch (tag.get("name").getAsString()) {
+                case "ReadOnlyTag" -> readOnlyTag = tag;
+                case "ConstantTag" -> constantTag = tag;
+                case "WritableTag" -> writableTag = tag;
+                default -> { }
+            }
+        }
+
+        assertThat(readOnlyTag).isNotNull();
+        assertThat(readOnlyTag.has("read_only")).isTrue();
+        assertThat(constantTag).isNotNull();
+        assertThat(constantTag.has("read_only")).isTrue();
+        assertThat(writableTag).isNotNull();
+        assertThat(writableTag.has("read_only")).isFalse();
+    }
+
+    @Test
+    @DisplayName("C5a: the sibling OpcUaAccess attribute is deliberately ignored - a tag with "
+        + "OpcUaAccess=\"None\" but ExternalAccess=\"Read/Write\" stays visible")
+    void testOpcUaAccessIgnored() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="NativeOpcUaHidden" DataType="DINT" ExternalAccess="Read/Write" OpcUaAccess="None"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        assertThat(tags).hasSize(1);
+        assertThat(tags.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("NativeOpcUaHidden");
+    }
+
+    @Test
+    @DisplayName("C5a: a UDT member with ExternalAccess=\"None\" is omitted from the expanded instance")
+    void testUdtMemberExternalAccessNoneOmitted() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <DataTypes>
+                        <DataType Name="MyType" Family="NoFamily">
+                            <Members>
+                                <Member Name="Visible" DataType="DINT" ExternalAccess="Read/Write"/>
+                                <Member Name="Hidden" DataType="DINT" ExternalAccess="None"/>
+                            </Members>
+                        </DataType>
+                    </DataTypes>
+                    <Tags>
+                        <Tag Name="Instance" DataType="MyType" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonArray members = instance.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        assertThat(memberNames).containsExactly("Visible");
+    }
+
+    // =========================================================================================
+    // C5b — AOI element name: both <AddOnInstructionDefinition> and <AddOnInstruction> supported
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5b: an AOI wrapped as <AddOnInstruction> (not <AddOnInstructionDefinition>) is "
+        + "still parsed and its instance tags still expand")
+    void testParseAoiWithAddOnInstructionElementName() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <AddOnInstructionDefinitions>
+                        <AddOnInstruction Name="Motor_Control" Revision="1.0">
+                            <Parameters>
+                                <Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input"/>
+                                <Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output"/>
+                                <Parameter Name="Start" TagType="Base" DataType="BOOL" Usage="Input" ExternalAccess="Read/Write"/>
+                                <Parameter Name="Running" TagType="Base" DataType="BOOL" Usage="Output" ExternalAccess="Read Only"/>
+                            </Parameters>
+                            <LocalTags>
+                                <LocalTag Name="RunLatch" DataType="BOOL" ExternalAccess="None"/>
+                            </LocalTags>
+                        </AddOnInstruction>
+                    </AddOnInstructionDefinitions>
+                    <Tags>
+                        <Tag Name="Motor1" DataType="Motor_Control" ExternalAccess="Read/Write"/>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        assertThat(result.has("aois")).isTrue();
+        JsonArray aois = result.getAsJsonArray("aois");
+        assertThat(aois).hasSize(1);
+        assertThat(aois.get(0).getAsJsonObject().get("name").getAsString()).isEqualTo("Motor_Control");
+
+        JsonObject instance = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(instance.has("udt_members")).isTrue();
+        JsonArray members = instance.getAsJsonArray("udt_members");
+        var memberNames = new java.util.ArrayList<String>();
+        for (var elem : members) {
+            memberNames.add(elem.getAsJsonObject().get("name").getAsString());
+        }
+        // RunLatch (ExternalAccess=None) must be omitted; Start/Running must be present.
+        assertThat(memberNames).contains("Start", "Running").doesNotContain("RunLatch");
+    }
+
+    // =========================================================================================
+    // C5c — Module I/O tags (ADDRESSING.md §3.13, INFERRED)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C5c: a digital I/O module's <Modules> section synthesises a "
+        + "<ModuleName>:I.Data tag")
+    void testModuleIoTagSynthesised() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Modules>
+                        <Module Name="Dig_In_1" CatalogNumber="1756-IB32/B" ParentModule="Local">
+                            <Ports>
+                                <Port Id="1" Address="2" Type="ICP" Upstream="true"/>
+                            </Ports>
+                            <Communications>
+                                <ConfigTag ExternalAccess="Read/Write">
+                                    <Data Format="Decorated">
+                                        <Structure DataType="AB:1756_DI:C:1">
+                                            <DataValueMember Name="FilterOffOn_0_7" DataType="SINT" Value="1"/>
+                                        </Structure>
+                                    </Data>
+                                </ConfigTag>
+                                <Connections>
+                                    <Connection Name="StandardInput">
+                                        <InputTag ExternalAccess="Read/Write">
+                                            <Data Format="Decorated">
+                                                <Structure DataType="AB:1756_DI:I:0">
+                                                    <DataValueMember Name="Fault" DataType="DINT" Value="0"/>
+                                                    <DataValueMember Name="Data" DataType="DINT" Value="0"/>
+                                                </Structure>
+                                            </Data>
+                                        </InputTag>
+                                    </Connection>
+                                </Connections>
+                            </Communications>
+                        </Module>
+                    </Modules>
+                    <Tags/>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        JsonObject moduleTag = null;
+        for (var elem : tags) {
+            JsonObject tag = elem.getAsJsonObject();
+            if ("Dig_In_1:I".equals(tag.get("name").getAsString())) {
+                moduleTag = tag;
+            }
+        }
+        assertThat(moduleTag).as("a Dig_In_1:I tag must be synthesised from the Modules section").isNotNull();
+        JsonArray members = moduleTag.getAsJsonArray("udt_members");
+        assertThat(members).hasSize(1);
+        JsonObject dataMember = members.get(0).getAsJsonObject();
+        assertThat(dataMember.get("name").getAsString()).isEqualTo("Data");
+        assertThat(dataMember.get("data_type").getAsString()).isEqualTo("DINT");
+    }
+
+    @Test
+    @DisplayName("C5c: a module whose Input/OutputTag has no top-level \"Data\" member (e.g. an "
+        + "analog module with per-channel members) contributes no I/O tag")
+    void testModuleWithoutDataMemberContributesNoTag() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Modules>
+                        <Module Name="An_In_1" CatalogNumber="1756-IF16/B" ParentModule="Local">
+                            <Ports>
+                                <Port Id="1" Address="7" Type="ICP" Upstream="true"/>
+                            </Ports>
+                            <Communications>
+                                <Connections>
+                                    <Connection Name="Input">
+                                        <InputTag ExternalAccess="Read/Write">
+                                            <Data Format="Decorated">
+                                                <Structure DataType="AB:1756_IF8_Float:I:0">
+                                                    <DataValueMember Name="Ch0Data" DataType="REAL" Value="0.0"/>
+                                                </Structure>
+                                            </Data>
+                                        </InputTag>
+                                    </Connection>
+                                </Connections>
+                            </Communications>
+                        </Module>
+                    </Modules>
+                    <Tags/>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonArray tags = result.getAsJsonArray("global_tags");
+        for (var elem : tags) {
+            assertThat(elem.getAsJsonObject().get("name").getAsString()).doesNotStartWith("An_In_1:");
+        }
+    }
+
+    // =========================================================================================
+    // C8 — initial values read from the Decorated Data element's Value attribute
+    // =========================================================================================
+
+    @Test
+    @DisplayName("C8: a scalar tag's DataValue Value attribute becomes its initial_value")
+    void testInitialValueReadFromValueAttribute() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Counter" DataType="DINT" ExternalAccess="Read/Write">
+                            <Data Format="L5K">
+                                <![CDATA[18]]>
+                            </Data>
+                            <Data Format="Decorated">
+                                <DataValue DataType="DINT" Radix="Decimal" Value="18"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("18");
+    }
+
+    @Test
+    @DisplayName("C8: a BOOL tag's Value=\"1\" is normalised to \"true\" (Boolean.parseBoolean(\"1\") "
+        + "would otherwise silently read as false)")
+    void testBoolInitialValueOneNormalisedToTrue() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Flag" DataType="BOOL" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="BOOL" Value="1"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("true");
+    }
+
+    // =========================================================================================
+    // FIX-8 — ASCII-radix scalar initial values ('A' -> 65)
+    // =========================================================================================
+
+    @Test
+    @DisplayName("FIX-8: an ASCII-radix SINT DataValue with a quoted single character ('A') is "
+        + "decoded to its character code (65)")
+    void testAsciiRadixSingleCharDecodedToCharacterCode() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiChar" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'A'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString())
+            .as("'A' must decode to its character code so the SINT node starts at 65, not 0")
+            .isEqualTo("65");
+    }
+
+    @Test
+    @DisplayName("FIX-8 (extended, item-4 residual): an ASCII-radix '$xx' hex-escape ('$10', the "
+        + "real corpus AsciiTag literal) decodes to its byte value (16)")
+    void testAsciiRadixDollarHexEscapeDecodedToByteValue() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiTag" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$10'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("initial_value")).isTrue();
+        assertThat(tag.get("initial_value").getAsString())
+            .as("$10 is a hex escape for byte 0x10 = 16 decimal; this previously read as 0 (DoD LOW residual)")
+            .isEqualTo("16");
+    }
+
+    @Test
+    @DisplayName("FIX-8: an ASCII-radix escape that is NOT the two-hex-digit $xx form (a "
+        + "multi-character escaped string) is left alone - it stays on the type-default path")
+    void testAsciiRadixMultiCharEscapeStaysOnDefaultPath() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiEscaped" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$00$00$00$00'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        // The raw literal is preserved; it does not parse as a SINT so the builder's B1 safety
+        // net gives the node its type default (0) - conservative, never a wrong decode.
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$00$00$00$00'");
+    }
+
+    @Test
+    @DisplayName("FIX-8: a single-character $ escape other than a hex pair (e.g. '$r') is left alone")
+    void testAsciiRadixSingleCharEscapeStaysOnDefaultPath() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiCr" DataType="SINT" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="ASCII" Value="'$r'"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("'$r'");
+    }
+
+    @Test
+    @DisplayName("FIX-8: an unknown radix keeps the existing pass-through behaviour")
+    void testUnknownRadixValueUnchanged() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="HexByte" DataType="SINT" Radix="Hex" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="SINT" Radix="Hex" Value="16#0c"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.get("initial_value").getAsString()).isEqualTo("16#0c");
+    }
+
+    // =========================================================================================
+    // FIX-15 — array-element initial values read from the decorated <Array><Element> block
+    // (release blocker, plc-dod3/item4-hotreload.txt: RealArray[2] value 0.0 -> 42.5 was never
+    // seen by the parser at all, so every array element started at its type default and a
+    // value-only change to one could never be detected on hot-reload).
+    // =========================================================================================
+
+    @Test
+    @DisplayName("FIX-15: a 1-D REAL array's per-element Values become element_values keyed by "
+        + "the exact L5X Index string")
+    void testArrayElementValuesReadFromDecoratedArray() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="RealArray" DataType="REAL" Dimensions="5" Radix="Float" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="REAL" Dimensions="5" Radix="Float">
+                                    <Element Index="[0]" Value="0.0"/>
+                                    <Element Index="[1]" Value="0.0"/>
+                                    <Element Index="[2]" Value="42.5"/>
+                                    <Element Index="[3]" Value="0.0"/>
+                                    <Element Index="[4]" Value="0.0"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).as("array tag must carry per-element values").isTrue();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[2]").getAsString())
+            .as("RealArray[2]'s exported Value=42.5 must be captured, not lost to the type default")
+            .isEqualTo("42.5");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("0.0");
+    }
+
+    @Test
+    @DisplayName("FIX-15: a multi-dim array keeps the decorated comma-separated Index form "
+        + "verbatim as the element_values key")
+    void testMultiDimArrayElementValuesKeyedByCommaIndex() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="multiArray" DataType="INT" Dimensions="2 4" Radix="Decimal" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="INT" Dimensions="2,4" Radix="Decimal">
+                                    <Element Index="[0,0]" Value="5"/>
+                                    <Element Index="[0,1]" Value="10"/>
+                                    <Element Index="[0,2]" Value="20"/>
+                                    <Element Index="[0,3]" Value="99"/>
+                                    <Element Index="[1,0]" Value="12"/>
+                                    <Element Index="[1,1]" Value="26"/>
+                                    <Element Index="[1,2]" Value="74"/>
+                                    <Element Index="[1,3]" Value="194993"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[1,3]").getAsString()).isEqualTo("194993");
+        assertThat(elementValues.get("[0,0]").getAsString()).isEqualTo("5");
+    }
+
+    @Test
+    @DisplayName("FIX-15: a BOOL array's per-element 1/0 Values normalise to true/false, keyed by "
+        + "the plain element index - AddressSpaceBuilder maps these onto the packed bit nodes via "
+        + "AddressPolicy.boolArrayBit")
+    void testBoolArrayElementValuesNormalisedToTrueFalse() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="PackBits" DataType="BOOL" Dimensions="32" Radix="Decimal" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="BOOL" Dimensions="32" Radix="Decimal">
+                                    <Element Index="[0]" Value="0"/>
+                                    <Element Index="[5]" Value="1"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[5]").getAsString())
+            .as("BOOL Value=\"1\" must normalise to \"true\" exactly like the C8 scalar case")
+            .isEqualTo("true");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("false");
+    }
+
+    @Test
+    @DisplayName("FIX-15: an array element with an unrecognised Radix is skipped, not decoded "
+        + "wrongly - it is absent from element_values so the type default applies")
+    void testUnknownRadixArrayElementSkipped() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="HexArray" DataType="SINT" Dimensions="2" Radix="Hex" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="SINT" Dimensions="2" Radix="Hex">
+                                    <Element Index="[0]" Value="16#0c"/>
+                                    <Element Index="[1]" Value="16#0d"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        // No element could be safely decoded, so no element_values object is emitted at all.
+        assertThat(tag.has("element_values")).isFalse();
+    }
+
+    @Test
+    @DisplayName("FIX-15: an ASCII-radix array element reuses the FIX-8 decoder ('A' -> 65)")
+    void testAsciiRadixArrayElementDecoded() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="AsciiArray" DataType="SINT" Dimensions="2" Radix="ASCII" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="SINT" Dimensions="2" Radix="ASCII">
+                                    <Element Index="[0]" Value="'A'"/>
+                                    <Element Index="[1]" Value="'$10'"/>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        JsonObject elementValues = tag.getAsJsonObject("element_values");
+        assertThat(elementValues.get("[0]").getAsString()).isEqualTo("65");
+        assertThat(elementValues.get("[1]").getAsString()).isEqualTo("16");
+    }
+
+    @Test
+    @DisplayName("FIX-15: an array-of-structure (<Structure Index=\"...\"> children, not <Element>) "
+        + "yields no element_values - per-element structure member values remain deferred "
+        + "(KNOWN_ISSUES.md #6)")
+    void testArrayOfStructureYieldsNoElementValues() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="TimerArray" DataType="TIMER" Dimensions="2" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <Array DataType="TIMER" Dimensions="2">
+                                    <Structure Index="[0]" DataType="TIMER">
+                                        <DataValueMember Name="PRE" DataType="DINT" Value="5000"/>
+                                    </Structure>
+                                    <Structure Index="[1]" DataType="TIMER">
+                                        <DataValueMember Name="PRE" DataType="DINT" Value="1000"/>
+                                    </Structure>
+                                </Array>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).isFalse();
+    }
+
+    @Test
+    @DisplayName("FIX-15: a scalar (non-array) tag never gets an element_values key")
+    void testScalarTagHasNoElementValues() {
+        String content = """
+            <?xml version="1.0"?>
+            <RSLogix5000Content>
+                <Controller Name="Test" ProcessorType="Test">
+                    <Tags>
+                        <Tag Name="Counter" DataType="DINT" ExternalAccess="Read/Write">
+                            <Data Format="Decorated">
+                                <DataValue DataType="DINT" Radix="Decimal" Value="18"/>
+                            </Data>
+                        </Tag>
+                    </Tags>
+                </Controller>
+            </RSLogix5000Content>
+            """;
+
+        JsonObject result = parser.parseContent(content, "test.l5x");
+
+        assertThat(result).isNotNull();
+        JsonObject tag = result.getAsJsonArray("global_tags").get(0).getAsJsonObject();
+        assertThat(tag.has("element_values")).isFalse();
+    }
+}

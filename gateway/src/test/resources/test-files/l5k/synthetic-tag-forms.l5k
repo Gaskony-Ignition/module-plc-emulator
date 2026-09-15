@@ -1,0 +1,23 @@
+(* L5K-GRAMMAR.md §6.2 tag_forms fixture - D7 regression guard: statement-oriented *)
+(* parsing terminates at the ';' after the outermost ']', not at end-of-line.      *)
+
+IE_VER := 2.11;
+
+CONTROLLER TagForms (ProcessorType := "1756-L83E")
+	DATATYPE RecipeType (FamilyType := NoFamily)
+		DINT Amount (Radix := Decimal);
+		REAL Rate (Radix := Float);
+		TIMER Mix;
+	END_DATATYPE
+
+	TAG
+		ScalarHex : DINT (RADIX := Hex) := 16#00ff;
+		ScalarExp : REAL (RADIX := Float) := 1.00000000e+000;
+		Timer1 : TIMER := [4165810,10000,10000];
+		Recipe1 : RecipeType (Description := "multi-line aggregate initialiser") := [3,
+				5.0e+003,
+				[0,2000,0]];
+		PairArr : DINT[2] (RADIX := Decimal) := [1,2];
+		Grid : INT[2,4] (RADIX := Decimal);
+	END_TAG
+END_CONTROLLER

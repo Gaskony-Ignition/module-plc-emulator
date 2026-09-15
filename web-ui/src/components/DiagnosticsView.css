@@ -1,0 +1,388 @@
+/* ==========================================================================
+   Diagnostics View - Device health cards + module logs
+   Scoped to .app-wrapper
+   ========================================================================== */
+
+.app-wrapper .diagnostics-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--bg-primary);
+}
+
+/* Header — floating gradient card (matches AI Terminal) */
+.app-wrapper .diagnostics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  background: var(--header-gradient);
+  border-radius: var(--radius-lg);
+}
+
+.app-wrapper .diagnostics-header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.app-wrapper .diagnostics-header-left > svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.app-wrapper .diagnostics-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.app-wrapper .diagnostics-header p {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin: 2px 0 0;
+}
+
+.app-wrapper .diagnostics-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.app-wrapper .diagnostics-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diagnostics-refresh-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+.app-wrapper .diagnostics-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.app-wrapper .diagnostics-refresh-btn .spinning {
+  animation: diag-spin 1s linear infinite;
+}
+
+@keyframes diag-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Device cards grid */
+.app-wrapper .diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.app-wrapper .diagnostics-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
+}
+
+.app-wrapper .diagnostics-card:hover {
+  border-color: var(--border-hover);
+}
+
+.app-wrapper .diagnostics-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--border-subtle);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.app-wrapper .diagnostics-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.app-wrapper .diagnostics-device-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-wrapper .diagnostics-card-body {
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-wrapper .diagnostics-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.app-wrapper .diagnostics-field-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.app-wrapper .diagnostics-field-value {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.app-wrapper .diagnostics-field-value.active {
+  color: var(--accent-secondary);
+}
+
+/* States */
+.app-wrapper .diagnostics-loading,
+.app-wrapper .diagnostics-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+}
+
+.app-wrapper .diagnostics-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--accent-error-bg);
+  border: 1px solid var(--accent-error-border);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.app-wrapper .diagnostics-error-retry {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--error);
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+.app-wrapper .diagnostics-error-retry:hover {
+  background: var(--accent-error-bg);
+}
+
+/* ---- Embedded Logs Panel ---- */
+.app-wrapper .diag-logs-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-wrapper .diag-logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.app-wrapper .diag-logs-header__title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.app-wrapper .diag-logs-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.app-wrapper .diag-logs-filters {
+  display: flex;
+  gap: 2px;
+}
+
+.app-wrapper .diag-logs-pill {
+  padding: 3px 8px;
+  font-size: 11px;
+  font-family: var(--font-sans);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diag-logs-pill:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.app-wrapper .diag-logs-pill--active {
+  background: var(--accent-primary-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.app-wrapper .diag-logs-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.app-wrapper .diag-logs-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.app-wrapper .diag-logs-icon-btn--active {
+  background: var(--accent-primary-bg);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.app-wrapper .diag-logs-icon-btn--warning {
+  background: var(--accent-warning-bg);
+  border-color: var(--accent-warning);
+  color: var(--accent-warning);
+}
+
+.app-wrapper .diag-logs-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-xs) var(--spacing-lg);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.app-wrapper .diag-logs-empty {
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  padding: var(--spacing-xl) 0;
+}
+
+.app-wrapper .diag-logs-entry {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-wrapper .diag-logs-entry:hover {
+  background: var(--bg-hover);
+}
+
+.app-wrapper .diag-logs-entry__ts {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  min-width: 160px;
+  white-space: nowrap;
+}
+
+.app-wrapper .diag-logs-entry__level {
+  flex-shrink: 0;
+  min-width: 44px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.app-wrapper .diag-logs-entry__level--INFO  { color: var(--success); }
+.app-wrapper .diag-logs-entry__level--WARN  { color: var(--warning); }
+.app-wrapper .diag-logs-entry__level--ERROR { color: var(--error); }
+.app-wrapper .diag-logs-entry__level--DEBUG { color: var(--text-tertiary); }
+.app-wrapper .diag-logs-entry__level--TRACE { color: var(--text-muted); }
+
+.app-wrapper .diag-logs-entry__msg {
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+}
+
+.app-wrapper .diag-logs-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px var(--spacing-lg);
+  border-top: 1px solid var(--border-default);
+  font-size: 11px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Scrollbars */
+.app-wrapper .diagnostics-view::-webkit-scrollbar,
+.app-wrapper .diag-logs-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-track,
+.app-wrapper .diag-logs-body::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-thumb,
+.app-wrapper .diag-logs-body::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.app-wrapper .diagnostics-view::-webkit-scrollbar-thumb:hover,
+.app-wrapper .diag-logs-body::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}

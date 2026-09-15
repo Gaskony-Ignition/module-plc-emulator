@@ -1,0 +1,13 @@
+(* L5K-GRAMMAR.md §6.2 loud_fail fixture (b) - the DATATYPE block is never closed  *)
+(* with END_DATATYPE: structural corruption, parse must return null (§5.1), never  *)
+(* a partial tree.                                                                 *)
+
+IE_VER := 2.11;
+
+CONTROLLER Unbalanced (ProcessorType := "1756-L83E")
+	DATATYPE Broken (FamilyType := NoFamily)
+		DINT Val (Radix := Decimal);
+	TAG
+		SomeTag : DINT (RADIX := Decimal) := 0;
+	END_TAG
+END_CONTROLLER

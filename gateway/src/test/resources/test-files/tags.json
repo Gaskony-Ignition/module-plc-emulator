@@ -1,0 +1,11 @@
+{
+  "controller": "DodJsonController",
+  "tags": [
+    {"name": "RampInt", "type": "DINT", "scope": "Controller:Global"},
+    {"name": "SineReal", "type": "REAL", "scope": "Controller:Global"},
+    {"name": "ToggleBool", "type": "BOOL", "scope": "Controller:Global"},
+    {"name": "StaticWriteInt", "type": "DINT", "scope": "Controller:Global"},
+    {"name": "StaticWriteReal", "type": "REAL", "scope": "Controller:Global"},
+    {"name": "ProgCounter", "type": "DINT", "scope": "Program:MainProgram"}
+  ]
+}

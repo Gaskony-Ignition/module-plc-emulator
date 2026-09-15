@@ -1,0 +1,158 @@
+/* ==========================================================================
+   Dashboard View - Grid layout with stat cards
+   Scoped to .app-wrapper to prevent Gateway UI pollution
+   ========================================================================== */
+
+.app-wrapper .dashboard-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
+  background: var(--bg-primary);
+}
+
+/* Stats cards grid */
+.app-wrapper .dashboard-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+/* Stat card */
+.app-wrapper .dashboard-stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.app-wrapper .dashboard-stat-card:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow-hover);
+}
+
+.app-wrapper .dashboard-stat-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.app-wrapper .dashboard-stat-card-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  line-height: 1.2;
+}
+
+.app-wrapper .dashboard-stat-card-icon {
+  color: var(--accent-primary);
+  opacity: 0.6;
+  margin-bottom: var(--spacing-xs);
+}
+
+/* Skeleton loading */
+.app-wrapper .dashboard-stat-card.loading .dashboard-stat-card-value {
+  background: linear-gradient(90deg, var(--bg-active) 25%, var(--border-hover) 50%, var(--bg-active) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+  color: transparent;
+  width: 60px;
+  height: 28px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Quick actions row */
+.app-wrapper .dashboard-quick-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.app-wrapper .dashboard-quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.app-wrapper .dashboard-quick-action-btn:hover {
+  background: var(--bg-active);
+  border-color: var(--border-hover);
+}
+
+.app-wrapper .dashboard-quick-action-btn svg {
+  color: var(--accent-primary);
+}
+
+/* Error state */
+.app-wrapper .dashboard-error {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--accent-error-bg);
+  border: 1px solid var(--accent-error-border);
+  border-radius: var(--radius-md);
+  color: var(--error);
+  font-size: 13px;
+  margin-bottom: var(--spacing-md);
+}
+
+.app-wrapper .dashboard-error-retry {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--error);
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-sans);
+}
+
+.app-wrapper .dashboard-error-retry:hover {
+  background: var(--accent-error-bg);
+}
+
+/* Scrollbar */
+.app-wrapper .dashboard-view::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-wrapper .dashboard-view::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+.app-wrapper .dashboard-view::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: var(--radius-sm);
+}
+
+.app-wrapper .dashboard-view::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}

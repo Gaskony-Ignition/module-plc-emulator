@@ -1,0 +1,77 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# Gradle
+.gradle/
+build/
+bin/
+out/
+*.class
+
+# Node.js
+node_modules/
+.npm/
+yarn-error.log
+# Note: package-lock.json is NOT ignored - it's required for reproducible CI builds
+yarn.lock
+
+# Logs
+*.log
+wrapper.log
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+
+# Java heap dumps
+*.hprof
+hs_err_pid*
+
+# Built module files
+*.modl
+*.unsigned.modl
+
+# Module signing credentials (never commit)
+gradle.properties
+sign.properties
+sign.props
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.der
+*.key
+
+# Environment files — broad deny with explicit allowlist
+.env
+.env.*
+!.env.example
+!.env.template
+!.env.*.example
+!.env.*.template
+
+# Public-only key material may still be committed if explicitly suffixed
+!*.public.key
+!*.pub.pem
+
+# Note: gradle.properties.template is the template (safe to commit)
+# Developers should copy template to gradle.properties and fill in credentials
+
+# Windows WSL metadata (must never be committed)
+*:Zone.Identifier
+*Zone.Identifier*
+*.Zone.Identifier

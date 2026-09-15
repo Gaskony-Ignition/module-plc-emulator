@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logix PLC Emulator - Redirecting</title>
+    <script>
+        // Redirect to authenticated upload page
+        window.location.href = '/data/logixemulator/page';
+    </script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 { color: #2d3748; margin-bottom: 10px; }
+        p { color: #718096; margin-bottom: 20px; }
+        a {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        a:hover { background: #5a67d8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Logix PLC Emulator</h1>
+        <p>Redirecting to authenticated upload page...</p>
+        <p>If not redirected automatically, click below:</p>
+        <a href="/data/logixemulator/page">Go to Upload Page</a>
+    </div>
+</body>
+</html>

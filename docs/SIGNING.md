@@ -1,0 +1,215 @@
+# Module Signing Configuration
+
+This document describes the module signing configuration for the Logix PLC Emulator module.
+
+## Overview
+
+The Logix PLC Emulator module is signed with a **self-signed certificate** for development and testing purposes.
+
+## Signing Files
+
+The following files are used for module signing:
+
+| File | Purpose | Included in Git |
+|------|---------|----------------|
+| `keystore.jks` | Keystore containing the private key | ✅ Yes (dev only) |
+| `certificate.der` | Public certificate in DER format | ✅ Yes |
+| `gradle.properties` | Signing configuration | ❌ No (gitignored — copy from template) |
+| `gradle.properties.template` | Signing config template | ✅ Yes |
+| `sign.props` | Alternative signing config (optional) | ❌ No (gitignored) |
+
+## Certificate Details
+
+```
+Owner: CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
+Issuer: CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US
+Algorithm: RSA 2048-bit
+Validity: 10 years (2025-2035)
+Alias: plcsimulator
+Password: [stored in CI secrets]
+```
+
+## Security Warning ⚠️
+
+**THESE CERTIFICATES ARE FOR DEVELOPMENT/TESTING ONLY**
+
+The keystore password is stored in CI/CD secrets and should never be committed to version control. For local development:
+- Copy `gradle.properties.template` to `gradle.properties` and fill in credentials
+- Or use environment variables (see CI/CD Integration section)
+- Never commit `gradle.properties` to version control
+
+**DO NOT use these certificates for production deployments!**
+
+For production:
+1. Generate new certificates with private passwords
+2. Store passwords in CI/CD secrets or environment variables
+3. NEVER commit production credentials to version control
+4. Consider submitting to Inductive Automation for official signing
+
+## Configuration
+
+### gradle.properties
+```properties
+# Signing configuration — copy from gradle.properties.template
+ignition.signing.keystoreFile=keystore.jks
+ignition.signing.keystorePassword=[stored in CI secrets]
+ignition.signing.certFile=certificate.der
+ignition.signing.certAlias=plcsimulator
+ignition.signing.certPassword=[stored in CI secrets]
+```
+
+### build.gradle.kts
+```kotlin
+ignitionModule {
+    // ... other config ...
+
+    // Enable module signing
+    skipModlSigning.set(false)
+}
+```
+
+## Generating New Certificates
+
+To regenerate certificates (e.g., for new organization or expiration):
+
+```bash
+# Remove old certificates
+rm -f keystore.jks certificate.der
+
+# Generate new keystore with self-signed certificate
+keytool -genkeypair \
+    -alias plcsimulator \
+    -keyalg RSA \
+    -keysize 2048 \
+    -validity 3650 \
+    -keystore keystore.jks \
+    -storepass "$KEYSTORE_PASSWORD" \
+    -keypass "$KEYSTORE_PASSWORD" \
+    -dname "CN=Logix PLC Emulator Module, OU=Development, O=Gaskony, L=Folsom, ST=CA, C=US" \
+    -ext "SAN=DNS:localhost,IP:127.0.0.1"
+
+# Export certificate in DER format
+keytool -exportcert \
+    -alias plcsimulator \
+    -keystore keystore.jks \
+    -storepass "$KEYSTORE_PASSWORD" \
+    -file certificate.der \
+    -rfc
+
+# Verify certificate
+keytool -printcert -file certificate.der
+```
+
+Use the keytool commands above to regenerate certificates.
+
+## Build Process
+
+When you run `./gradlew clean build`, the following happens:
+
+1. Code is compiled and packaged into JARs
+2. JARs and resources are assembled into a .modl file
+3. Module is signed using the keystore and certificate
+4. Two module files are created:
+   - `LogixPLCEmulator-{version}.modl` - **Signed** (use this)
+   - `LogixPLCEmulator-{version}.unsigned.modl` - Unsigned backup
+
+The signed module includes a `signatures.properties` file inside the .modl archive.
+
+## Verification
+
+To verify a module is signed:
+
+```bash
+# Check for signatures.properties file
+unzip -l build/LogixPLCEmulator-{version}.modl | grep signatures.properties
+
+# Expected output:
+#   1852  2025-11-06 11:47   signatures.properties
+```
+
+## Installation
+
+Ignition Gateway will accept the self-signed certificate without additional configuration:
+
+1. Upload `LogixPLCEmulator-{version}.modl` (signed version) to Gateway
+2. Install normally - no special settings needed
+3. Gateway accepts the Gaskony development certificate
+
+## Production Deployment
+
+For production use, you have two options:
+
+### Option 1: Use Your Own Certificate
+1. Generate production certificates with private passwords:
+   ```bash
+   keytool -genkeypair -alias production -keyalg RSA -keysize 4096 \
+       -validity 3650 -keystore production.jks \
+       -storepass <SECURE_PASSWORD> -keypass <SECURE_PASSWORD> \
+       -dname "CN=Your Company, OU=Production, O=Your Company, C=US"
+
+   keytool -exportcert -alias production \
+       -keystore production.jks -storepass <SECURE_PASSWORD> \
+       -file production.der -rfc
+   ```
+
+2. Update `gradle.properties` (or use environment variables in CI/CD):
+   ```properties
+   ignition.signing.keystoreFile=production.jks
+   ignition.signing.keystorePassword=${KEYSTORE_PASSWORD}
+   ignition.signing.certFile=production.der
+   ignition.signing.certAlias=production
+   ignition.signing.certPassword=${CERT_PASSWORD}
+   ```
+
+3. Build: `./gradlew clean build`
+
+4. **NEVER commit production keystore or passwords to git**
+
+### Option 2: Internal Distribution
+1. Build with dev certificate for testing
+2. For production, use your own production certificate
+3. Distribute the signed module internally
+4. Users may need to trust your certificate in Ignition Gateway settings
+
+## CI/CD Integration
+
+For GitHub Actions or other CI/CD:
+
+```yaml
+- name: Build Signed Module
+  env:
+    KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+    CERT_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+  run: |
+    echo "ignition.signing.keystorePassword=$KEYSTORE_PASSWORD" >> gradle.properties
+    echo "ignition.signing.certPassword=$CERT_PASSWORD" >> gradle.properties
+    ./gradlew clean build
+```
+
+Store production passwords as repository secrets, not in code.
+
+## References
+
+- [Ignition Module SDK Documentation](https://github.com/inductiveautomation/ignition-sdk-examples)
+- [Java Keytool Documentation](https://docs.oracle.com/en/java/javase/17/docs/specs/man/keytool.html)
+- [Gaskony-Ignition/module-plc-emulator](https://github.com/Gaskony-Ignition/module-plc-emulator)
+
+## FAQ
+
+### How do I get the signing password?
+Signing passwords are stored in CI/CD secrets and are not committed to version control. For local development:
+- Copy `gradle.properties.template` to `gradle.properties`
+- Fill in credentials from your team's secret management system
+- Or use environment variables as documented in the CI/CD Integration section
+
+### Will Ignition Gateway accept self-signed certificates?
+Yes. Ignition Gateway accepts self-signed module certificates without additional configuration. However, best practice for production is to use officially-signed modules.
+
+### Can I use the unsigned module instead?
+Yes, but you may need to enable "Allow unsigned modules" in Gateway Config > System > Security. The signed module is recommended and works without any Gateway configuration changes.
+
+### How long are the certificates valid?
+10 years (2025-2035). You can regenerate with different validity using the `-validity` parameter to keytool.
+
+### What if my certificate expires?
+Simply regenerate using the keytool commands above. Then rebuild the module.
