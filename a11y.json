@@ -1,0 +1,8 @@
+{
+  "gateway": "module-testing",
+  "web": [
+    "http://192.168.153.128:8088/res/logixemulator/standalone.html"
+  ],
+  "login": true,
+  "exceptions": []
+}

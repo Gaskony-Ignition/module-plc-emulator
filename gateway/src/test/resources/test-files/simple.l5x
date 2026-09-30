@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="TestController" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="MyTag" DataType="DINT">
+                <Data Format="Decorated">
+                    <DataValue DataType="DINT" Radix="Decimal" Value="42"/>
+                </Data>
+            </Tag>
+            <Tag Name="MyBool" DataType="BOOL">
+                <Data Format="Decorated">
+                    <DataValue DataType="BOOL" Value="0"/>
+                </Data>
+            </Tag>
+        </Tags>
+        <Programs>
+            <Program Name="MainProgram">
+                <Tags>
+                    <Tag Name="LocalTag" DataType="DINT">
+                        <Data Format="Decorated">
+                            <DataValue DataType="DINT" Radix="Decimal" Value="100"/>
+                        </Data>
+                    </Tag>
+                </Tags>
+            </Program>
+        </Programs>
+    </Controller>
+</RSLogix5000Content>

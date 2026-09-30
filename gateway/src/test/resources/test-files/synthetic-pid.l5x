@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SYNTHETIC fixture (not a real Studio 5000 export) for the C4 classic PID full-set fidelity test
+  (ADDRESSING.md §3.11, §5.9). ADDRESSING.md records that DataType="PID" does not appear anywhere
+  in the licensed corpus, so this small top-level fixture is synthesised to exercise the 49-member
+  set (21 status bits + 28 REAL parameters) verbatim from the Logix5000 reference manual.
+-->
+<RSLogix5000Content SchemaRevision="1.0">
+    <Controller Name="PidSynthetic" ProcessorType="1756-L83E">
+        <Tags>
+            <Tag Name="TestPid" TagType="Base" DataType="PID" Radix="NullType" Constant="false" ExternalAccess="Read/Write"/>
+        </Tags>
+    </Controller>
+</RSLogix5000Content>
