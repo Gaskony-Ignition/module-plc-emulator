@@ -1,0 +1,117 @@
+(* Synthetic demo plant export for the Logix PLC Emulator public README screenshots. *)
+(* Generic, invented tag names only - no real site, vendor or field-device identifiers. *)
+
+IE_VER := 2.11;
+
+CONTROLLER DemoPlantController (ProcessorType := "1756-L83E")
+	DATATYPE PumpType (FamilyType := NoFamily)
+		REAL RunHours;
+		REAL FlowRate;
+		TIMER RunTimer;
+		SINT ZZZZZZZZZZPumpType4 (Hidden := 1);
+		BIT Running ZZZZZZZZZZPumpType4 : 0;
+		BIT Fault ZZZZZZZZZZPumpType4 : 1;
+		BIT RemoteAuto ZZZZZZZZZZPumpType4 : 2;
+	END_DATATYPE
+
+	DATATYPE ValveType (FamilyType := NoFamily)
+		TIMER TravelTimer;
+		SINT ZZZZZZZZZZValveType2 (Hidden := 1);
+		BIT Open ZZZZZZZZZZValveType2 : 0;
+		BIT Closed ZZZZZZZZZZValveType2 : 1;
+		BIT Fault ZZZZZZZZZZValveType2 : 2;
+	END_DATATYPE
+
+	DATATYPE TankType (FamilyType := NoFamily)
+		REAL Level;
+		REAL LevelSetpoint;
+		DINT AlarmWord;
+		SINT ZZZZZZZZZZTankType3 (Hidden := 1);
+		BIT HighAlarm ZZZZZZZZZZTankType3 : 0;
+		BIT LowAlarm ZZZZZZZZZZTankType3 : 1;
+	END_DATATYPE
+
+	TAG
+		PUMP_101 : PumpType (Description := "Generic transfer pump 101") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_102 : PumpType (Description := "Generic transfer pump 102") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_103 : PumpType (Description := "Generic transfer pump 103") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_104 : PumpType (Description := "Generic transfer pump 104") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_105 : PumpType (Description := "Generic transfer pump 105") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_106 : PumpType (Description := "Generic transfer pump 106") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_107 : PumpType (Description := "Generic transfer pump 107") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_108 : PumpType (Description := "Generic transfer pump 108") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_109 : PumpType (Description := "Generic transfer pump 109") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_110 : PumpType (Description := "Generic transfer pump 110") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_111 : PumpType (Description := "Generic transfer pump 111") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_112 : PumpType (Description := "Generic transfer pump 112") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_113 : PumpType (Description := "Generic transfer pump 113") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_114 : PumpType (Description := "Generic transfer pump 114") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		PUMP_115 : PumpType (Description := "Generic transfer pump 115") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		VALVE_201 : ValveType (Description := "Generic isolation valve 201") := [[0,0,0],0];
+		VALVE_202 : ValveType (Description := "Generic isolation valve 202") := [[0,0,0],0];
+		VALVE_203 : ValveType (Description := "Generic isolation valve 203") := [[0,0,0],0];
+		VALVE_204 : ValveType (Description := "Generic isolation valve 204") := [[0,0,0],0];
+		VALVE_205 : ValveType (Description := "Generic isolation valve 205") := [[0,0,0],0];
+		VALVE_206 : ValveType (Description := "Generic isolation valve 206") := [[0,0,0],0];
+		VALVE_207 : ValveType (Description := "Generic isolation valve 207") := [[0,0,0],0];
+		VALVE_208 : ValveType (Description := "Generic isolation valve 208") := [[0,0,0],0];
+		VALVE_209 : ValveType (Description := "Generic isolation valve 209") := [[0,0,0],0];
+		VALVE_210 : ValveType (Description := "Generic isolation valve 210") := [[0,0,0],0];
+		VALVE_211 : ValveType (Description := "Generic isolation valve 211") := [[0,0,0],0];
+		VALVE_212 : ValveType (Description := "Generic isolation valve 212") := [[0,0,0],0];
+		VALVE_213 : ValveType (Description := "Generic isolation valve 213") := [[0,0,0],0];
+		VALVE_214 : ValveType (Description := "Generic isolation valve 214") := [[0,0,0],0];
+		VALVE_215 : ValveType (Description := "Generic isolation valve 215") := [[0,0,0],0];
+		VALVE_216 : ValveType (Description := "Generic isolation valve 216") := [[0,0,0],0];
+		VALVE_217 : ValveType (Description := "Generic isolation valve 217") := [[0,0,0],0];
+		VALVE_218 : ValveType (Description := "Generic isolation valve 218") := [[0,0,0],0];
+		VALVE_219 : ValveType (Description := "Generic isolation valve 219") := [[0,0,0],0];
+		VALVE_220 : ValveType (Description := "Generic isolation valve 220") := [[0,0,0],0];
+		TANK_301 : TankType (Description := "Generic storage tank 301") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_302 : TankType (Description := "Generic storage tank 302") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_303 : TankType (Description := "Generic storage tank 303") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_304 : TankType (Description := "Generic storage tank 304") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_305 : TankType (Description := "Generic storage tank 305") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_306 : TankType (Description := "Generic storage tank 306") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_307 : TankType (Description := "Generic storage tank 307") := [0.00000000e+000,0.00000000e+000,0,0];
+		TANK_308 : TankType (Description := "Generic storage tank 308") := [0.00000000e+000,0.00000000e+000,0,0];
+		FLOW_TOTALISER_401 : DINT (RADIX := Decimal, Description := "Cumulative flow totaliser") := 0;
+		FLOW_TOTALISER_402 : DINT (RADIX := Decimal, Description := "Cumulative flow totaliser") := 0;
+		ANALOG_INPUTS : REAL[16] (RADIX := Float, Description := "Generic 4-20mA input array") := [0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000,0.00000000e+000];
+		ALARM_WORDS : DINT[8] (RADIX := Decimal, Description := "Packed alarm summary words") := [0,0,0,0,0,0,0,0];
+		SystemHealthy : BOOL (RADIX := Decimal, Description := "Overall plant health flag") := 0;
+	END_TAG
+
+	PROGRAM Filtration (Description := "Filtration stage")
+		TAG
+		VALVE_401 : ValveType (Description := "Backwash inlet valve 401") := [[0,0,0],0];
+		VALVE_402 : ValveType (Description := "Backwash drain valve 402") := [[0,0,0],0];
+			FILTER_DP_402 : REAL (RADIX := Float, Description := "Filter differential pressure") := 0.00000000e+000;
+			BACKWASH_TIMER : TIMER (RADIX := Decimal) := [0,0,0];
+		END_TAG
+		ROUTINE MainRoutine
+			N: XIC(VALVE_401.Open)OTE(VALVE_402.Closed);
+		END_ROUTINE
+	END_PROGRAM
+
+	PROGRAM Dosing (Description := "Chemical dosing stage")
+		TAG
+		DOSING_PUMP_101 : PumpType (Description := "Chemical dosing pump 101") := [0.00000000e+000,0.00000000e+000,[0,0,0],0];
+		DOSING_TANK_101 : TankType (Description := "Chemical day tank 101") := [0.00000000e+000,0.00000000e+000,0,0];
+		END_TAG
+		ROUTINE MainRoutine
+			N: XIC(DOSING_PUMP_101.Running)OTE(DOSING_TANK_101.HighAlarm);
+		END_ROUTINE
+	END_PROGRAM
+
+	TASK MainTask (Type := CONTINUOUS,
+	               Rate := 10,
+	               Priority := 10,
+	               Watchdog := 500,
+	               DisableUpdateOutputs := No,
+	               InhibitTask := No)
+			Filtration;
+			Dosing;
+	END_TASK
+
+END_CONTROLLER

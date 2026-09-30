@@ -1,0 +1,8 @@
+(* L5K-GRAMMAR.md §6.2 loud_fail fixture (a) - a file with recognisable content   *)
+(* but NO CONTROLLER block is not an L5K export: parse must return null (§5.1).   *)
+
+IE_VER := 2.11;
+
+DATATYPE Orphan (FamilyType := NoFamily)
+	DINT Val (Radix := Decimal);
+END_DATATYPE

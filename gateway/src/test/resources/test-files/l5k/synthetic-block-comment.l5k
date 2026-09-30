@@ -1,0 +1,10 @@
+CONTROLLER BlockComment (Description := "FIX-B fixture: a block comment inside a TAG block")
+	TAG
+		FirstTag : DINT (RADIX := Decimal) := 0;
+		(* a standalone block comment sitting between two tag declarations - must be skipped
+		   entirely, not merged into either neighbour's statement *)
+		SecondTag : DINT (RADIX := Decimal) := 0;
+		ThirdTag : DINT (* an inline comment inside the attribute list, containing a ; semicolon
+		   and a [ bracket to prove it does not perturb depth tracking *) (RADIX := Decimal) := 0;
+	END_TAG
+END_CONTROLLER
