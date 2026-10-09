@@ -126,13 +126,13 @@ class DeviceConfigServiceTest {
         + "layout")
     void sanitizeStatusStripsAbsoluteUnixPath() {
         String raw = "Error: Hot reload failed - "
-            + "/home/nigel/data/logix-emulator/plc1.l5x (No such file or directory)";
+            + "/opt/ignition/data/logix-emulator/plc1.l5x (No such file or directory)";
 
         String sanitized = DeviceConfigService.sanitizeStatusForResponse(raw);
 
         assertThat(sanitized)
             .as("the absolute path must not appear verbatim")
-            .doesNotContain("/home/nigel")
+            .doesNotContain("/opt/ignition")
             .contains("<path>")
             .contains("Error: Hot reload failed");
     }

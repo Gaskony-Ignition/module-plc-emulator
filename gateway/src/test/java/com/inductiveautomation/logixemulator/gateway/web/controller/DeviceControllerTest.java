@@ -226,7 +226,7 @@ class DeviceControllerTest {
         when(deviceManager.findDeviceByName("DodPLC1")).thenReturn(Optional.of(device));
         when(deviceManager.saveFileToDevice(eq(device), anyString(), anyString())).thenReturn(true);
         when(device.getStatus()).thenReturn(
-            "Error: /home/nigel/ignition-data/logix-emulator/DodPLC1.l5k (No such file or directory)");
+            "Error: /opt/ignition/data/logix-emulator/DodPLC1.l5k (No such file or directory)");
 
         JSONObject result = controller.processDeviceUpload(
             resp, new JSONObject(), "DodPLC1", "CONTROLLER DodPLC1 (ProcessorType := \"1756-L83E\")", "real-world.l5k");
@@ -235,10 +235,10 @@ class DeviceControllerTest {
         assertThat(result.getBoolean("success")).isFalse();
         assertThat(result.getString("error"))
             .as("the absolute path must not be echoed verbatim in the error field")
-            .doesNotContain("/home/nigel");
+            .doesNotContain("/opt/ignition");
         assertThat(result.getString("status"))
             .as("the absolute path must not be echoed verbatim in the status field")
-            .doesNotContain("/home/nigel");
+            .doesNotContain("/opt/ignition");
     }
 
     @Test

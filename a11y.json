@@ -1,7 +1,8 @@
 {
+  "_comment": "web URLs are absolute: replace GATEWAY with the test gateway host before running a11y-gate.sh",
   "gateway": "module-testing",
   "web": [
-    "http://192.168.153.128:8088/res/logixemulator/standalone.html"
+    "http://GATEWAY:8088/res/logixemulator/standalone.html"
   ],
   "login": true,
   "exceptions": []

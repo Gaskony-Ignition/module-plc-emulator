@@ -344,7 +344,7 @@ The parameter is now accepted and ignored; results are always scoped to this
 module's own loggers. Reading the whole Gateway log is what Ignition's own
 **Status > Logs** page is for, behind the platform's own permissions.
 
-### No administrator tier — BY DESIGN (Nigel's ruling, 10/08/2026)
+### No administrator tier — BY DESIGN (a decision on 10/08/2026)
 
 This module has no administrator tier. `GatewayAuthHelper` offers
 `requireAuthentication()` and `requireCSRFToken()` and nothing else, so every

@@ -970,7 +970,7 @@ Look for parse errors or validation failures.
 
 **View results**:
 ```
-https://github.com/nigelgwork/ignition-plc-simulator/actions
+https://github.com/Gaskony-Ignition/module-plc-emulator/actions
 ```
 
 ### Local CI Testing

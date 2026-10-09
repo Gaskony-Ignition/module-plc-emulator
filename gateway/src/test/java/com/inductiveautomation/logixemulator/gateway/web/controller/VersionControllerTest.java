@@ -376,14 +376,14 @@ class VersionControllerTest {
         when(versionManager.getVersions("DodPLC1_ver.csv")).thenReturn(List.of(oldVersion));
         when(versionManager.restoreVersion(oldVersion, currentFile)).thenReturn(true);
         when(device.getStatus()).thenReturn(
-            "Error: /home/nigel/ignition-data/logix-emulator/DodPLC1_ver.csv (No such file or directory)");
+            "Error: /opt/ignition/data/logix-emulator/DodPLC1_ver.csv (No such file or directory)");
         stubRequestBody("{\"filename\":\"" + oldVersion.getName() + "\"}");
 
         JSONObject result = controller.handleRevertVersion(ctx, resp);
 
         assertThat(result.getBoolean("success")).isFalse();
-        assertThat(result.getString("error")).doesNotContain("/home/nigel");
-        assertThat(result.getString("status")).doesNotContain("/home/nigel");
+        assertThat(result.getString("error")).doesNotContain("/opt/ignition");
+        assertThat(result.getString("status")).doesNotContain("/opt/ignition");
     }
 
     @Test
