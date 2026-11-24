@@ -1,6 +1,6 @@
 # CLAUDE.md - Logix PLC Emulator Module
 
-This file contains module-specific instructions. Shared standards are in `/modules/CLAUDE.md` and `/modules/.claude/skills/`.
+This file contains module-specific instructions. Shared standards are in `../CLAUDE.md` and `../.claude/skills/` (the workspace `modules/` folder).
 
 ## Project Overview
 
@@ -15,23 +15,22 @@ This file contains module-specific instructions. Shared standards are in `/modul
 ## Project Location
 
 ```
-/modules/ignition-module-plc-emulator/
+modules/ignition-module-plc-emulator/
 ```
 
 ## Essential Reading Order
 
 1. **`docs/PROJECT_CHARTER.md`** - Purpose, definition of done, won't-do list — drives all release decisions
 2. **This file** - Overall context and architecture
-3. **`/modules/.claude/skills/`** - Shared skills across all modules
+3. **`../.claude/skills/`** - Shared skills across all modules
 4. **README.md** - User-facing documentation
 
-(There is no `.claude/` directory in this module — shared skills live under
-`/modules/.claude/skills/`.)
+(This module has no skills of its own — shared skills live under
+`../.claude/skills/`.)
 
 ## Build Commands
 
 ```bash
-cd /modules/ignition-module-plc-emulator
 ./gradlew clean build          # Build module
 ./gradlew test                 # Run tests only
 ./gradlew syncVersion          # Sync version to all files
@@ -53,22 +52,23 @@ ignition-module-plc-emulator/
 ├── gateway/                         # Main implementation (G scope)
 │   └── src/main/java/com/inductiveautomation/logixemulator/gateway/
 │       ├── SimulatorModuleHook.java           # Module entry point
+│       ├── OpcUaSimulationEngine.java         # RAMP/SINE/RANDOM/TOGGLE
+│       ├── FileVersionManager.java            # Uploaded-file versions
+│       ├── address/                            # Logix address policy
 │       ├── device/                             # OPC-UA device driver
-│       │   ├── SimulatorDevice.java           # Device lifecycle
-│       │   ├── SimulatorDeviceConfig.java     # Config record
-│       │   └── SimulatorDeviceExtensionPoint.java
+│       │   ├── LogixEmulatorDevice.java       # Device lifecycle
+│       │   ├── LogixEmulatorConfig.java       # Config record
+│       │   └── LogixEmulatorExtensionPoint.java
 │       ├── parser/                             # File format parsers
 │       │   ├── ParserFactory.java             # Auto-detect format
 │       │   ├── L5KParser.java                 # Rockwell L5K
 │       │   ├── L5XParser.java                 # Rockwell L5X (XML)
-│       │   ├── JsonParser.java                # JSON tags
+│       │   ├── JsonPLCParser.java             # JSON tags
 │       │   └── CsvParser.java                 # CSV variables
-│       ├── simulation/                         # Simulation engine
-│       │   └── OpcUaSimulationEngine.java     # RAMP/SINE/RANDOM/TOGGLE
-│       ├── web/                                # Gateway WebUI + REST
-│       │   ├── controller/                    # REST controllers
-│       │   └── routes/                        # HTTP route registration
-│       └── versioning/                         # File version manager
+│       ├── validation/                         # Upload validation
+│       └── web/                                # Gateway WebUI + REST
+│           ├── controller/                    # REST controllers
+│           └── FileUploadRoutes.java, Routes.java  # HTTP route registration
 └── web-ui/                          # React/TypeScript Gateway UI
     ├── package.json
     ├── webpack.config.js
@@ -99,7 +99,7 @@ ignition-module-plc-emulator/
 ## Build Quality Tools
 
 - **Checkstyle** 10.26.1 with `config/checkstyle/checkstyle.xml`
-- **SpotBugs** 6.4.8 (effort=MAX, confidence=MEDIUM, ignoreFailures=true)
+- **SpotBugs** 6.4.8 (effort=MAX, confidence=MEDIUM, ignoreFailures=false — a finding fails the build)
 - **JaCoCo** 0.8.11 (XML + HTML reports)
 - **OWASP Dependency Check** 12.2.0 (failBuildOnCVSS=7.0)
 
