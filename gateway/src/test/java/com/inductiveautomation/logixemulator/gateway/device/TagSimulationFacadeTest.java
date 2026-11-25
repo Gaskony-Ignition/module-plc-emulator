@@ -252,6 +252,35 @@ class TagSimulationFacadeTest {
     }
 
     @Test
+    @DisplayName("Regression #14: enableAllSimulation() leaves timer/counter presets and lengths static")
+    void enableAllSkipsConfigurationMembers() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("Pump1.Running", "Pump1.RunTimer.PRE", "Pump1.RunTimer.ACC",
+                "Program:Main.Count.PRE", "Program:Main.LEN", "Buffer.LEN", "Recipe[2].Dose.pre")
+        );
+
+        f.enableAllSimulation();
+
+        verify(engine).enableAllSimulation(eq(Set.of(
+            "Pump1.Running", "Pump1.RunTimer.ACC", "Program:Main.LEN")));
+    }
+
+    @Test
+    @DisplayName("Regression #14: enableSimulationByScope() leaves presets static too")
+    void enableScopeSkipsConfigurationMembers() {
+        TagSimulationFacade f = new TagSimulationFacade(
+            () -> engine,
+            () -> Set.of("Pump1.RunTimer.PRE", "Pump1.RunTimer.ACC")
+        );
+
+        f.enableSimulationByScope("");
+
+        verify(engine).enableTagSimulation("Pump1.RunTimer.ACC");
+        verify(engine, never()).enableTagSimulation("Pump1.RunTimer.PRE");
+    }
+
+    @Test
     @DisplayName("disableAllSimulation() delegates to engine")
     void disableAllDelegates() {
         facade.disableAllSimulation();

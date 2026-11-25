@@ -7,7 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -42,6 +44,14 @@ public final class TagSimulationFacade {
      * tag, including program-scoped ones.
      */
     private final AddressPolicy policy = new RockwellLogixPolicy();
+
+    /**
+     * Structure members that hold configuration rather than process values: a TIMER or COUNTER
+     * preset ({@code .PRE}) and a CONTROL or STRING length ({@code .LEN}). A real controller
+     * does not move these on its own, so bulk enabling leaves them static (known issue #14).
+     * They can still be simulated one tag at a time.
+     */
+    private static final Set<String> CONFIGURATION_MEMBERS = Set.of("PRE", "LEN");
 
     /**
      * @param engineSupplier returns the current simulation engine (may be
@@ -194,7 +204,7 @@ public final class TagSimulationFacade {
         int count = 0;
         int skippedReadOnly = 0;
         for (String tagPath : allTagPathsSupplier.get()) {
-            if (policy.matchesScope(tagPath, scope)) {
+            if (policy.matchesScope(tagPath, scope) && !isConfigurationMember(tagPath)) {
                 if (readOnlyPredicate.test(tagPath)) {
                     skippedReadOnly++;
                     continue;
@@ -224,13 +234,34 @@ public final class TagSimulationFacade {
         logger.info("Disabled simulation for {} tags in scope: {}", count, scope);
     }
 
-    /** Enable simulation for every known tag path. */
+    /** Enable simulation for every known tag path except configuration members (see {@link #isConfigurationMember}). */
     public void enableAllSimulation() {
         OpcUaSimulationEngine engine = engineSupplier.get();
         if (engine == null) {
             return;
         }
-        engine.enableAllSimulation(allTagPathsSupplier.get());
+        engine.enableAllSimulation(allTagPathsSupplier.get().stream()
+            .filter(tagPath -> !isConfigurationMember(tagPath))
+            .collect(Collectors.toSet()));
+    }
+
+    /**
+     * True when {@code tagPath} names a configuration member of a structure ({@code .PRE},
+     * {@code .LEN}). A program-scoped tag's own name follows the first {@code "."}
+     * ({@code Program:Main.LEN} is a tag, not a member), so that part is skipped first.
+     */
+    static boolean isConfigurationMember(String tagPath) {
+        String path = tagPath;
+        if (path.startsWith("Program:")) {
+            int programEnd = path.indexOf('.');
+            if (programEnd < 0) {
+                return false;
+            }
+            path = path.substring(programEnd + 1);
+        }
+        int memberStart = path.lastIndexOf('.');
+        return memberStart >= 0
+            && CONFIGURATION_MEMBERS.contains(path.substring(memberStart + 1).toUpperCase(Locale.ROOT));
     }
 
     /** Disable simulation for every tag. */

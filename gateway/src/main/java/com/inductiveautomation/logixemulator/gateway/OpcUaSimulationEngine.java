@@ -218,8 +218,8 @@ public class OpcUaSimulationEngine {
                 LogixEmulatorConfig.SimulationPattern pattern = tagPatterns.getOrDefault(tagKey, defaultPattern);
                 BaselineState baseline = tagBaselines.get(tagKey);
                 Object newValue = (baseline == null)
-                    ? calculateValue(currentValue, elapsedSeconds, pattern)
-                    : calculateRecalibratedValue(currentValue, elapsedSeconds, pattern, baseline);
+                    ? calculateValue(tagKey, currentValue, elapsedSeconds, pattern)
+                    : calculateRecalibratedValue(tagKey, currentValue, elapsedSeconds, pattern, baseline);
 
                 // Update the node value (this automatically notifies subscribers).
                 variableNode.setValue(new DataValue(
@@ -251,14 +251,20 @@ public class OpcUaSimulationEngine {
     /**
      * Calculate new simulated value based on pattern and type.
      */
-    private Object calculateValue(Object currentValue, double elapsedSeconds, LogixEmulatorConfig.SimulationPattern pattern) {
+    private Object calculateValue(String tagKey, Object currentValue, double elapsedSeconds,
+                                  LogixEmulatorConfig.SimulationPattern pattern) {
         // Determine data type. Unsigned types (C6: USINT/UINT/UDINT/ULINT and the
         // WORD/DWORD/LWORD aliases) arrive as Milo's UByte/UShort/UInteger/ULong
         // wrappers, none of which are a signed Short/Integer/Long — they must be
         // matched explicitly or the tag falls through to the return-unchanged path
         // and never simulates (the bug the independent review flagged).
         if (currentValue instanceof Boolean) {
-            return calculateBooleanValue(elapsedSeconds, pattern);
+            // A tag given its own pattern keeps the shared 2 s toggle it always had. A tag on the
+            // default pattern (simulate-all, scope, or plain enable) gets its own period and phase,
+            // so the BOOL members of one UDT do not all flip together (known issue #14).
+            return tagPatterns.containsKey(tagKey)
+                ? calculateBooleanValue(elapsedSeconds, pattern)
+                : staggeredBooleanValue(tagKey, elapsedSeconds);
         } else if (currentValue instanceof Short) {
             return (short) calculateNumericValue(elapsedSeconds, -128, 127, pattern);
         } else if (currentValue instanceof Integer) {
@@ -295,6 +301,21 @@ public class OpcUaSimulationEngine {
     private Boolean calculateBooleanValue(double elapsedSeconds, LogixEmulatorConfig.SimulationPattern pattern) {
         double period = 2.0; // Toggle every 2 seconds
         return (elapsedSeconds % period) < (period / 2.0);
+    }
+
+    /**
+     * Square wave whose period (4-20 s) and phase come from the tag key, so the result is the same
+     * for a given tag on every run and gateway, but differs between tags. {@link String#hashCode()}
+     * is specified by the JLS, so it is stable across JVMs.
+     */
+    static boolean staggeredBooleanValue(String tagKey, double elapsedSeconds) {
+        int h = tagKey.hashCode();
+        h ^= h >>> 16;
+        h *= 0x45d9f3b;
+        h ^= h >>> 16;
+        double period = 4.0 + Math.floorMod(h, 17);
+        double offset = Math.floorMod(h >>> 8, 1000) / 1000.0 * period;
+        return ((elapsedSeconds + offset) % period) < (period / 2.0);
     }
 
     /**
@@ -564,6 +585,7 @@ public class OpcUaSimulationEngine {
      * TOGGLE flips boolean baselines around their own phase.
      */
     private Object calculateRecalibratedValue(
+            String tagKey,
             Object currentValue,
             double elapsedSeconds,
             LogixEmulatorConfig.SimulationPattern pattern,
@@ -579,7 +601,7 @@ public class OpcUaSimulationEngine {
             base = toDouble(baseline.value, currentValue);
         } catch (NumberFormatException e) {
             // Fall back to the unrecalibrated path if the baseline cannot be coerced
-            return calculateValue(currentValue, elapsedSeconds, pattern);
+            return calculateValue(tagKey, currentValue, elapsedSeconds, pattern);
         }
 
         switch (pattern) {
