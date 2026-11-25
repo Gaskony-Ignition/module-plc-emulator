@@ -111,13 +111,10 @@ External Access) is normative in [docs/ADDRESSING.md](docs/ADDRESSING.md).
 ## Supported Formats
 
 - **Rockwell L5K** (Allen-Bradley Studio 5000 / RSLogix 5000 export) — **the
-  only supported Rockwell format.** Full UDT/AOI expansion, driver-matching
-  NodeIds, module I/O tags, grammar-specified and verified against real site
-  exports. Fails loudly with a clear error on export text it cannot parse
-  rather than silently substituting a demo tag structure.
+  only supported Rockwell format.** Export text it cannot parse fails with a
+  clear error rather than a substituted demo tag structure.
 - **Rockwell L5X** (XML export) — **not supported.** Uploading a `.l5x` is
-  rejected with a message asking you to export as L5K instead. Support was
-  removed in 11.0.0; see [CHANGELOG.md](CHANGELOG.md).
+  rejected with a message asking you to export as L5K instead.
 - **JSON** — Generic JSON tag definitions.
 - **CSV** — Variable lists.
 
