@@ -641,7 +641,7 @@ curl -b cookies.txt http://localhost:8088/data/logixemulator/system/stats
   "cpuUsage": 4.2,
   "ramUsage": 536870912,
   "ramTotal": 2147483648,
-  "moduleVersion": "11.1.5",
+  "moduleVersion": "11.1.6",
   "deviceCount": 2
 }
 ```

@@ -314,6 +314,19 @@ class TagWriteDispatcherTest {
     }
 
     @Test
+    @DisplayName("getAllTagValues() strips the gateway's [Device] prefix so keys round-trip through nodeId()")
+    void getAllStripsDevicePrefix() {
+        when(context.getName()).thenReturn("PLC1");
+        UaVariableNode n1 = mockVarNode("[PLC1]PUMP_101.RunTimer.ACC", 7);
+        UaVariableNode n2 = mockVarNode("[PLC1]Program:Dosing.Rate", 1.5);
+        when(nodeManager.getNodes()).thenReturn(List.of(n1, n2));
+
+        Map<String, Object> values = dispatcher.getAllTagValues();
+
+        assertThat(values).containsOnlyKeys("PUMP_101.RunTimer.ACC", "Program:Dosing.Rate");
+    }
+
+    @Test
     @DisplayName("getAllTagValues() ignores non-variable nodes")
     void getAllSkipsNonVariableNodes() {
         UaVariableNode v = mockVarNode("Var", 1);

@@ -188,6 +188,10 @@ public final class TagWriteDispatcher {
      */
     public Map<String, Object> getAllTagValues() {
         Map<String, Object> values = new HashMap<>();
+        // On a gateway, DeviceContext.nodeId() puts "[DeviceName]" in front of every
+        // identifier. Callers feed these keys back through context.nodeId(), which adds it
+        // again, so the keys must be the bare tag paths or every lookup misses.
+        String devicePrefix = "[" + context.getName() + "]";
         try {
             nodeManagerSupplier.get().getNodes().forEach(node -> {
                 if (node instanceof UaVariableNode varNode) {
@@ -196,6 +200,9 @@ public final class TagWriteDispatcher {
                         DataValue dataValue = varNode.getValue();
                         if (dataValue != null && dataValue.getValue() != null) {
                             String nodeIdStr = varNode.getNodeId().getIdentifier().toString();
+                            if (nodeIdStr.startsWith(devicePrefix)) {
+                                nodeIdStr = nodeIdStr.substring(devicePrefix.length());
+                            }
                             values.put(nodeIdStr, dataValue.getValue().getValue());
                         }
                     } catch (Exception e) {

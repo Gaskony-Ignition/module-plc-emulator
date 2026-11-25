@@ -162,7 +162,7 @@ If using self-signed certificates and Ignition rejects the module:
 
 Update version in `build.gradle.kts`:
 ```kotlin
-version = "11.1.5"
+version = "11.1.6"
 ```
 
 This updates:

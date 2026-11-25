@@ -5,6 +5,16 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.1.6] - 2026-11-25
+### Fixed
+- **"Simulate all" and scope simulation never changed a value on a gateway.** The tag list
+  they draw from was keyed by the full OPC UA identifier (`[Device]TAG`), and the engine
+  resolves each key through `DeviceContext.nodeId()`, which adds `[Device]` again, so every
+  lookup missed and the tick skipped the tag silently. Per-tag simulation was unaffected.
+  The same keys stopped the Tag Browser's live values from showing, and made the read-only
+  check pass every tag. Keys are now the bare tag paths. Present since at least 11.1.4; found
+  by reading tags through Ignition's OPC UA server on a test gateway.
+
 ## [11.1.5] - 2026-11-25
 ### Changed
 - **Build:** Gradle wrapper 8.10.2 → 9.9.2 (`io.ia.sdk.modl` stays 0.5.0, the latest). Deprecated `by tasks.registering` / `by extra` delegates replaced with `tasks.register(…)` / `extra.set(…)`; `syncVersion` no longer reads `Task.project` at execution time. Build docs updated for Gradle 9.9.2.
