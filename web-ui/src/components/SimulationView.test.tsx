@@ -3,6 +3,17 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import SimulationView from './SimulationView'
 import { mockGateway, defaultRoutes, callsTo, headersOf, jsonResponse } from '../test/gatewayMock'
 
+/** Issue #12: simulation on in config, but the program file failed to parse, so nothing simulates. */
+const brokenDevice = {
+  name: 'Broken_PLC',
+  status: "Error: Rockwell L5K parser failed to parse file 'Broken_PLC.L5K'. Check gateway logs for details.",
+  enabled: true,
+  fileName: '',
+  parserType: 'Rockwell L5K (Allen-Bradley)',
+  simulationEnabled: true,
+  simulating: false,
+}
+
 describe('SimulationView', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -13,6 +24,17 @@ describe('SimulationView', () => {
     render(<SimulationView />)
 
     expect(await screen.findByText('No devices configured')).toBeInTheDocument()
+  })
+
+  it('does not count a device whose file failed to parse in Simulation Active (#12)', async () => {
+    const routes = defaultRoutes()
+    const list = routes['/devices'] as { devices: unknown[] }
+    mockGateway({ ...routes, '/devices': { ...list, devices: [...list.devices, brokenDevice], count: 3 } })
+    render(<SimulationView />)
+
+    await screen.findByText('Broken_PLC')
+    const value = screen.getByText('Simulation Active').nextElementSibling?.textContent
+    expect(value).toBe('1')
   })
 
   it('shows the load error when /devices answers 500', async () => {

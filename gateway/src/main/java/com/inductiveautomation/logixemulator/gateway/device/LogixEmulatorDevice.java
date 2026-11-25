@@ -471,6 +471,17 @@ public final class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle 
         return tagSimulationFacade.isSimulationEngineAvailable();
     }
 
+    /**
+     * Whether this device is actually simulating: simulation is on in its config AND a program
+     * file loaded, so the engine is running over a built address space (known issue #12). The
+     * engine is only started after a successful parse and build, so a device whose file failed
+     * to parse, or that is still waiting for an upload, reports {@code false} even with the
+     * config flag set.
+     */
+    public boolean isSimulating() {
+        return config.simulation().enabled() && parsedData != null && isSimulationEngineAvailable();
+    }
+
     /** @see TagSimulationFacade#getSimulatedTagCount() */
     public int getSimulatedTagCount() {
         return tagSimulationFacade.getSimulatedTagCount();

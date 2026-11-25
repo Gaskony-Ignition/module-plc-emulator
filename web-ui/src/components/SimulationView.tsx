@@ -132,7 +132,7 @@ function SimulationView() {
     }
   }, [fetchSimState])
 
-  const simEnabledDevices = devices.filter(d => d.simulationEnabled)
+  const simulatingDevices = devices.filter(d => d.simulating)
 
   if (loading) {
     return (
@@ -174,7 +174,7 @@ function SimulationView() {
         <div className="sim-stat-card">
           <div className="sim-stat-card-icon"><Zap size={18} /></div>
           <div className="sim-stat-card-label">Simulation Active</div>
-          <div className="sim-stat-card-value">{simEnabledDevices.length}</div>
+          <div className="sim-stat-card-value">{simulatingDevices.length}</div>
         </div>
       </div>
 
@@ -214,7 +214,7 @@ function SimulationView() {
                     <span className="sim-device-status">{device.status}</span>
                   </div>
                   <div className="sim-device-badges">
-                    {device.simulationEnabled && (
+                    {device.simulating && (
                       <span className="sim-badge sim-badge-active">
                         <Zap size={10} /> SIM
                       </span>

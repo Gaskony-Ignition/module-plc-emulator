@@ -66,6 +66,7 @@ export const devicesPayload = {
       fileName: 'Line1.L5K',
       parserType: 'Rockwell L5K (Allen-Bradley)',
       simulationEnabled: true,
+      simulating: true,
     },
     {
       name: 'Packaging_PLC',
@@ -74,6 +75,7 @@ export const devicesPayload = {
       fileName: 'Packaging.json',
       parserType: 'JSON Format',
       simulationEnabled: false,
+      simulating: false,
     },
   ],
   count: 2,
@@ -94,6 +96,7 @@ export function deviceStatusPayload(name: string) {
     parserType: running ? 'Rockwell L5K (Allen-Bradley)' : 'JSON Format',
     enabled: true,
     simulationEnabled: running,
+    simulating: running,
   }
 }
 

@@ -256,7 +256,8 @@ public class DeviceController {
                 .put("enabled", config.general().enabled())
                 .put("fileName", config.parser().fileName())
                 .put("parserType", config.parser().parserType().getDisplayName())
-                .put("simulationEnabled", config.simulation().enabled()));
+                .put("simulationEnabled", config.simulation().enabled())
+                .put("simulating", device.isSimulating()));
         }
 
         return result.put("success", true).put("devices", devices).put("count", devices.length());
@@ -295,7 +296,8 @@ public class DeviceController {
             .put("filePath", hasFile ? file.getName() : null)
             .put("parserType", config.parser().parserType().getDisplayName())
             .put("enabled", config.general().enabled())
-            .put("simulationEnabled", config.simulation().enabled());
+            .put("simulationEnabled", config.simulation().enabled())
+            .put("simulating", device.isSimulating());
     }
 
     public JSONObject handleDeleteFile(RequestContext ctx, HttpServletResponse resp) throws JSONException {

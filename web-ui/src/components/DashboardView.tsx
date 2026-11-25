@@ -68,7 +68,7 @@ function DashboardView({ onNavigate }: DashboardViewProps) {
       setStats({
         deviceCount: devices.length,
         totalTags: tagTotal,
-        simulatingDevices: devices.filter(d => d.simulationEnabled).length,
+        simulatingDevices: devices.filter(d => d.simulating).length,
         healthyDevices: healthyCount,
       })
     } catch (err) {

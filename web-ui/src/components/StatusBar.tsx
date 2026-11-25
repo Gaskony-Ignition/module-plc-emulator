@@ -38,9 +38,9 @@ function StatusBar() {
   // Fetch device simulation counts every 15s — paused when tab hidden.
   const fetchDevices = useCallback(async () => {
     try {
-      const data = await apiGet<{ devices: { simulationEnabled: boolean }[] }>(API.DEVICES)
+      const data = await apiGet<{ devices: { simulating: boolean }[] }>(API.DEVICES)
       const devices = data.devices || []
-      setSimulatingCount(devices.filter((d: { simulationEnabled: boolean }) => d.simulationEnabled).length)
+      setSimulatingCount(devices.filter((d: { simulating: boolean }) => d.simulating).length)
     } catch {
       // silently ignore
     }

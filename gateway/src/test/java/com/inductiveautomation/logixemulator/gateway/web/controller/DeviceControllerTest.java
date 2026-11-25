@@ -132,6 +132,63 @@ class DeviceControllerTest {
         assertThat(result.getInt("count")).isEqualTo(1);
     }
 
+    /** A device with simulation switched on in config whose engine state is {@code simulating}. */
+    private LogixEmulatorDevice simulationConfiguredDevice(String name, String status, boolean simulating) {
+        LogixEmulatorDevice device = mock(LogixEmulatorDevice.class);
+        LogixEmulatorConfig config = mock(LogixEmulatorConfig.class);
+        LogixEmulatorConfig.General general = mock(LogixEmulatorConfig.General.class);
+        LogixEmulatorConfig.ParserSettings parser = mock(LogixEmulatorConfig.ParserSettings.class);
+        LogixEmulatorConfig.SimulationSettings simulation = mock(LogixEmulatorConfig.SimulationSettings.class);
+        lenient().when(device.getName()).thenReturn(name);
+        when(device.getStatus()).thenReturn(status);
+        when(device.getConfiguration()).thenReturn(config);
+        when(device.isSimulating()).thenReturn(simulating);
+        when(config.general()).thenReturn(general);
+        when(config.parser()).thenReturn(parser);
+        when(config.simulation()).thenReturn(simulation);
+        when(parser.parserType()).thenReturn(LogixEmulatorConfig.ParserType.ROCKWELL);
+        when(simulation.enabled()).thenReturn(true);
+        return device;
+    }
+
+    private void authenticate() {
+        HttpSession session = mock(HttpSession.class);
+        when(request.getSession(false)).thenReturn(session);
+        when(session.getAttribute("user")).thenReturn("admin");
+    }
+
+    @Test
+    @DisplayName("Regression #12: handleListDevices() reports simulating=false for a device whose file failed to parse")
+    void testHandleListDevicesReportsActualSimulation() throws Exception {
+        authenticate();
+        LogixEmulatorDevice good = simulationConfiguredDevice("Good_PLC", "Running", true);
+        LogixEmulatorDevice broken = simulationConfiguredDevice("Broken_PLC",
+            "Error: Rockwell L5K parser failed to parse file 'Broken_PLC.L5K'.", false);
+        when(registry.getRegisteredDevices()).thenReturn(List.of(good, broken));
+
+        JSONObject result = controller.handleListDevices(ctx, resp);
+
+        var devices = result.getJSONArray("devices");
+        assertThat(devices.getJSONObject(0).getBoolean("simulationEnabled")).isTrue();
+        assertThat(devices.getJSONObject(0).getBoolean("simulating")).isTrue();
+        assertThat(devices.getJSONObject(1).getBoolean("simulationEnabled")).isTrue();
+        assertThat(devices.getJSONObject(1).getBoolean("simulating")).isFalse();
+    }
+
+    @Test
+    @DisplayName("Regression #12: handleDeviceStatus() reports simulating=false for a device whose file failed to parse")
+    void testHandleDeviceStatusReportsActualSimulation() throws Exception {
+        authenticate();
+        LogixEmulatorDevice broken = simulationConfiguredDevice("Broken_PLC", "Error: parse failed", false);
+        when(ctx.getParameter("name")).thenReturn("Broken_PLC");
+        when(deviceManager.findDeviceByName("Broken_PLC")).thenReturn(Optional.of(broken));
+
+        JSONObject result = controller.handleDeviceStatus(ctx, resp);
+
+        assertThat(result.getBoolean("simulationEnabled")).isTrue();
+        assertThat(result.getBoolean("simulating")).isFalse();
+    }
+
     // -------------------------------------------------------------------------
     // handleDeviceStatus — device not found
     // -------------------------------------------------------------------------

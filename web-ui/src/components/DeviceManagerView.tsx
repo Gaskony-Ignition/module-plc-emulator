@@ -43,7 +43,7 @@ function DeviceManagerView() {
   const [versionsRefreshKey, setVersionsRefreshKey] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const simEnabledCount = devices.filter((d) => d.simulationEnabled).length
+  const simulatingCount = devices.filter((d) => d.simulating).length
 
   const loadDevices = useCallback(async () => {
     setLoadingDevices(true)
@@ -203,7 +203,7 @@ function DeviceManagerView() {
   return (
     <div className="dm-view">
       {/* Header */}
-      <PageHeader icon={HardDrive} title="Device Manager" subtitle={`Upload L5K files and manage PLC device configurations${simEnabledCount > 0 ? ` \u00b7 ${simEnabledCount} simulating` : ''}`}>
+      <PageHeader icon={HardDrive} title="Device Manager" subtitle={`Upload L5K files and manage PLC device configurations${simulatingCount > 0 ? ` \u00b7 ${simulatingCount} simulating` : ''}`}>
         <button className="dm-refresh-btn" onClick={handleRefresh} disabled={refreshing || loadingDevices} title="Refresh">
           <RefreshCw size={16} className={refreshing || loadingDevices ? 'spinning' : ''} />
         </button>

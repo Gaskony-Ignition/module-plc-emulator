@@ -16,6 +16,7 @@ interface DeviceDetail {
   hasFile: boolean
   fileSize: number
   simulationEnabled: boolean
+  simulating: boolean
   enabled: boolean
 }
 
@@ -82,6 +83,7 @@ function DiagnosticsView() {
             hasFile: false,
             fileSize: 0,
             simulationEnabled: deviceList[i].simulationEnabled,
+            simulating: deviceList[i].simulating,
             enabled: deviceList[i].enabled,
           })
         }
@@ -231,8 +233,8 @@ function DiagnosticsView() {
                 </div>
                 <div className="diagnostics-field">
                   <span className="diagnostics-field-label">Simulation</span>
-                  <span className={`diagnostics-field-value ${device.simulationEnabled ? 'active' : ''}`}>
-                    {device.simulationEnabled ? 'Active' : 'Off'}
+                  <span className={`diagnostics-field-value ${device.simulating ? 'active' : ''}`}>
+                    {device.simulating ? 'Active' : 'Off'}
                   </span>
                 </div>
               </div>

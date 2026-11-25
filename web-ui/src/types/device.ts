@@ -7,6 +7,8 @@ export interface DeviceInfo {
   fileName: string;
   parserType: string;
   simulationEnabled: boolean;
+  /** Simulation on in config AND the program file loaded, so the engine is running (issue #12). */
+  simulating: boolean;
 }
 
 export interface DeviceStatus {
@@ -21,6 +23,7 @@ export interface DeviceStatus {
   parserType: string;
   enabled: boolean;
   simulationEnabled: boolean;
+  simulating: boolean;
 }
 
 export interface TagStats {
