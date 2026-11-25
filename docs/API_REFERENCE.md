@@ -365,7 +365,8 @@ print(response.json())
       "enabled": true,
       "fileName": "plc.L5K",
       "parserType": "Rockwell L5K",
-      "simulationEnabled": false
+      "simulationEnabled": false,
+      "simulating": false
     },
     {
       "name": "TestDevice",
@@ -373,12 +374,17 @@ print(response.json())
       "enabled": true,
       "fileName": null,
       "parserType": "JSON",
-      "simulationEnabled": false
+      "simulationEnabled": false,
+      "simulating": false
     }
   ],
   "count": 2
 }
 ```
+
+`simulationEnabled` is the device's "Enable Simulation" setting. `simulating` is true only when
+that setting is on and a program file has loaded, so the simulation engine is running; a device
+whose file failed to parse reports `simulationEnabled: true, simulating: false`.
 
 > **Phantom route corrected**: there is no `GET /data/logixemulator/devices/{name}` endpoint —
 > per-device detail is `GET /device/:name/status` below.
@@ -415,10 +421,11 @@ curl -b cookies.txt http://localhost:8088/data/logixemulator/device/Building1_PL
   "hasFile": true,
   "fileSize": 123456,
   "lastModified": 1732270200000,
-  "filePath": "Building1_PLC_plc.L5K",
+  "filePath": "Building1_PLC.plc.L5K",
   "parserType": "Rockwell L5K",
   "enabled": true,
-  "simulationEnabled": false
+  "simulationEnabled": false,
+  "simulating": false
 }
 ```
 
@@ -641,7 +648,7 @@ curl -b cookies.txt http://localhost:8088/data/logixemulator/system/stats
   "cpuUsage": 4.2,
   "ramUsage": 536870912,
   "ramTotal": 2147483648,
-  "moduleVersion": "11.1.7",
+  "moduleVersion": "11.1.8",
   "deviceCount": 2
 }
 ```

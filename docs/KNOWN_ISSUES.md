@@ -1,6 +1,6 @@
 # Known Issues and Limitations
 
-## Current Version: v11.1.7
+## Current Version: v11.1.8
 
 ### Known Limitations
 
@@ -287,33 +287,6 @@ other change to `handleFileUpload`. The fix should resolve the device name from 
 pass `getValidatedMaxFileSizeMB()` through to all three gates. Until then, treat the field as
 display-only.
 
-#### 12. A Device That Failed to Load Still Counts as Simulating
-
-**Status**: Open (found 25/11/2026 capturing the 11.1.7 screenshots)
-**Severity**: Low (display only)
-
-A device whose program file failed to parse has no tags, yet the Dashboard's SIMULATING count and
-the Simulation view's SIMULATION ACTIVE count include it. They count the `simulationEnabled` config
-flag (`/device/<name>/status`), not whether the engine is simulating anything. The device's own
-status line shows the parse error correctly.
-
-#### 13. Stored Program Filename Repeats the Device Name
-
-**Status**: Open (found 25/11/2026)
-**Severity**: Cosmetic
-
-Uploading `Packaging_PLC.L5K` to device `Packaging_PLC` is stored and reported as
-`Packaging_PLC.Packaging_PLC.L5K`, and that name appears in errors on the gateway's Devices page.
-
-#### 14. Simulate-All RAMP Drives Every BOOL in a UDT Together
-
-**Status**: Open (found 25/11/2026)
-**Severity**: Low (simulated data looks implausible, nothing breaks)
-
-With simulate-all on RAMP, all BOOL members of a UDT toggle in step, so a pump can read Fault and
-Running true at once, and preset members such as `RunTimer.PRE` ramp too. Set per-tag patterns
-(or switch simulation off on status and preset members) for believable demo data.
-
 ---
 
 ## Reporting New Issues
@@ -321,12 +294,12 @@ Running true at once, and preset members such as `RunTimer.PRE` ramp too. Set pe
 If you encounter issues not listed here:
 
 1. **Check Gateway Logs**: `Status > Logs > Gateway` (filter for "logixemulator")
-2. **Verify Module Version**: Config > Modules (should show v11.1.7)
+2. **Verify Module Version**: Config > Modules (should show v11.1.8)
 3. **Check Device Status**: Config > Devices > Edit device (status field shows current state)
 
 **Report Issues With:**
 - Ignition version (e.g., 8.3.2)
-- Module version (e.g., v11.1.7)
+- Module version (e.g., v11.1.8)
 - Parser type being used
 - Steps to reproduce
 - Relevant log excerpts
@@ -338,6 +311,11 @@ If you encounter issues not listed here:
 ## Resolved Issues
 
 The following issues have been **completely resolved**:
+
+### v11.1.8 Fixes:
+- #12 A device whose program file failed to parse still counted as simulating on the Dashboard and Simulation views -> **FIXED in v11.1.8** (the device list and status now report `simulating`, true only when simulation is on and a file loaded; the counts use it)
+- #13 Uploading `Packaging_PLC.L5K` to device `Packaging_PLC` was stored as `Packaging_PLC.Packaging_PLC.L5K` -> **FIXED in v11.1.8** (the device prefix is not added twice; files already stored under the doubled name still load)
+- #14 Simulate-all drove every BOOL in a UDT together and ramped `.PRE` presets -> **FIXED in v11.1.8** (BOOLs on the default pattern get their own period and phase from the tag path; `.PRE` and `.LEN` are left out of simulate-all and scope simulation)
 
 ### v8.0.0 Fixes (MAJOR RENAME & REFOCUS):
 - Renamed module from "Enhanced PLC Simulator" to "Logix PLC Emulator"

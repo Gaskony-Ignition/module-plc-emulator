@@ -5,6 +5,25 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.1.8] - 2026-11-26
+### Fixed
+- **A device whose program file failed to parse counted as simulating.** The Dashboard's
+  Simulating card, the Simulation view's Simulation Active card, the status bar and the Device
+  Manager subtitle counted the "Enable Simulation" setting, not whether anything was simulating.
+  `/devices` and `/device/<name>/status` now also return `simulating`: true only when the setting
+  is on and a file has loaded, so the simulation engine is running. The counts, the Simulation
+  view's SIM badge and the Diagnostics "Simulation" field use it. (Known issue #12.)
+- **The stored program file repeated the device name.** Uploading `Packaging_PLC.L5K` to device
+  `Packaging_PLC` was stored and reported as `Packaging_PLC.Packaging_PLC.L5K`. A filename that
+  already starts with `<device>.` is now stored as it is. Files stored under the doubled name by
+  earlier versions are left in place and still load. (Known issue #13.)
+- **Simulate-all drove every BOOL of a UDT together and ramped presets.** All BOOLs shared one
+  2-second toggle, so a pump could read Running and Fault true at once, and `RunTimer.PRE` ramped
+  like a process value. A BOOL on the device's default pattern now toggles with its own period
+  (4–20 s) and phase, worked out from its tag path so it is the same on every run. Simulate-all
+  and scope simulation leave `.PRE` and `.LEN` members alone; they can still be simulated one tag
+  at a time. A tag given its own pattern behaves exactly as before. (Known issue #14.)
+
 ## [11.1.7] - 2026-11-25
 ### Fixed
 - **Web UI: a Disconnected device showed a green status dot** (Simulation and Diagnostics
