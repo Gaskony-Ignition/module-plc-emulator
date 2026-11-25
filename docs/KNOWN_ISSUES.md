@@ -287,6 +287,33 @@ other change to `handleFileUpload`. The fix should resolve the device name from 
 pass `getValidatedMaxFileSizeMB()` through to all three gates. Until then, treat the field as
 display-only.
 
+#### 12. A Device That Failed to Load Still Counts as Simulating
+
+**Status**: Open (found 25/11/2026 capturing the 11.1.7 screenshots)
+**Severity**: Low (display only)
+
+A device whose program file failed to parse has no tags, yet the Dashboard's SIMULATING count and
+the Simulation view's SIMULATION ACTIVE count include it. They count the `simulationEnabled` config
+flag (`/device/<name>/status`), not whether the engine is simulating anything. The device's own
+status line shows the parse error correctly.
+
+#### 13. Stored Program Filename Repeats the Device Name
+
+**Status**: Open (found 25/11/2026)
+**Severity**: Cosmetic
+
+Uploading `Packaging_PLC.L5K` to device `Packaging_PLC` is stored and reported as
+`Packaging_PLC.Packaging_PLC.L5K`, and that name appears in errors on the gateway's Devices page.
+
+#### 14. Simulate-All RAMP Drives Every BOOL in a UDT Together
+
+**Status**: Open (found 25/11/2026)
+**Severity**: Low (simulated data looks implausible, nothing breaks)
+
+With simulate-all on RAMP, all BOOL members of a UDT toggle in step, so a pump can read Fault and
+Running true at once, and preset members such as `RunTimer.PRE` ramp too. Set per-tag patterns
+(or switch simulation off on status and preset members) for believable demo data.
+
 ---
 
 ## Reporting New Issues
