@@ -87,6 +87,37 @@ class DeviceFileManagerTest {
         ));
     }
 
+    // ========== saveFileToDevice() — known issue #13 ==========
+
+    @Test
+    @DisplayName("Regression #13: a filename already starting with '<device>.' is stored once, not doubled")
+    void testSaveFileToDeviceDoesNotDoubleDevicePrefix() throws Exception {
+        when(device.getName()).thenReturn("Packaging_PLC");
+
+        boolean result = manager.saveFileToDevice(device, "content", "Packaging_PLC.L5K");
+
+        assertThat(result).isTrue();
+        File storageDir = manager.getStorageDirectory();
+        assertThat(new File(storageDir, "Packaging_PLC.L5K")).exists();
+        assertThat(new File(storageDir, "Packaging_PLC.Packaging_PLC.L5K")).doesNotExist();
+        verify(device).setCurrentFilePath(argThat(path ->
+            path != null && new File(path).getName().equals("Packaging_PLC.L5K")
+        ));
+    }
+
+    @Test
+    @DisplayName("Regression #13: the device prefix is still added when the name only resembles it")
+    void testDeviceSpecificFileNameKeepsPrefixForOtherNames() {
+        assertThat(DeviceFileManager.deviceSpecificFileName("Packaging_PLC", "Line3.L5K"))
+            .isEqualTo("Packaging_PLC.Line3.L5K");
+        // "Packaging_PLC_2.L5K" is not "<device>." - prefix still required for ownership
+        assertThat(DeviceFileManager.deviceSpecificFileName("Packaging_PLC", "Packaging_PLC_2.L5K"))
+            .isEqualTo("Packaging_PLC.Packaging_PLC_2.L5K");
+        // a bare "<device>." with nothing after it is not a usable name on its own
+        assertThat(DeviceFileManager.deviceSpecificFileName("PLC", "PLC."))
+            .isEqualTo("PLC.PLC.");
+    }
+
     // ========== saveFileToDevice() — sanitization ==========
 
     @Test

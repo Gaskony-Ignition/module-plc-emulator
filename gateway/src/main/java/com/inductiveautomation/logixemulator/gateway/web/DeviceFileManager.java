@@ -121,7 +121,7 @@ public class DeviceFileManager {
             }
 
             String sanitizedFileName = PathSecurity.sanitizeFileName(filename);
-            String deviceSpecificName = device.getName() + DEVICE_FILE_SEPARATOR + sanitizedFileName;
+            String deviceSpecificName = deviceSpecificFileName(device.getName(), sanitizedFileName);
             File targetFile = new File(storageDir, deviceSpecificName);
 
             Files.writeString(
@@ -141,6 +141,22 @@ public class DeviceFileManager {
             logger.error("Error saving file to device", e);
             return false;
         }
+    }
+
+    /**
+     * On-disk name for a file uploaded to {@code deviceName}: the device prefix plus the uploaded
+     * name, unless the uploaded name already carries that prefix (known issue #13: uploading
+     * {@code Packaging_PLC.L5K} to device {@code Packaging_PLC} was stored as
+     * {@code Packaging_PLC.Packaging_PLC.L5K}). The result always starts with
+     * {@code deviceName + DEVICE_FILE_SEPARATOR}, so the FIX-3 ownership match still holds.
+     * Files already stored under a doubled name are left alone and still load.
+     */
+    static String deviceSpecificFileName(String deviceName, String sanitizedFileName) {
+        String prefix = deviceName + DEVICE_FILE_SEPARATOR;
+        if (sanitizedFileName.startsWith(prefix) && sanitizedFileName.length() > prefix.length()) {
+            return sanitizedFileName;
+        }
+        return prefix + sanitizedFileName;
     }
 
     /**

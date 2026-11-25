@@ -129,6 +129,34 @@ class FilePreparationTest {
     }
 
     @Test
+    @DisplayName("Upgrade guard for #13: a file stored before 11.1.8 under the doubled name is still found")
+    void findsLegacyDoubledName() throws Exception {
+        Files.writeString(tempDir.resolve("MyDevice.MyDevice.L5K"), "dummy");
+
+        File found = prep.findExistingFileForDevice(tempDir.toFile());
+
+        assertThat(found).isNotNull();
+        assertThat(found.getName()).isEqualTo("MyDevice.MyDevice.L5K");
+    }
+
+    @Test
+    @DisplayName("Upgrade guard for #13: a config that names the old doubled file still loads it")
+    void prepareFileLoadsConfiguredDoubledName() throws Exception {
+        com.inductiveautomation.ignition.gateway.model.GatewayContext gw =
+            org.mockito.Mockito.mock(com.inductiveautomation.ignition.gateway.model.GatewayContext.class,
+                org.mockito.Mockito.RETURNS_DEEP_STUBS);
+        when(context.getGatewayContext()).thenReturn(gw);
+        when(gw.getSystemManager().getDataDir()).thenReturn(tempDir.toFile());
+        Path storage = Files.createDirectories(tempDir.resolve("logix-emulator"));
+        Path doubled = storage.resolve("MyDevice.MyDevice.L5K");
+        Files.writeString(doubled, "dummy");
+        when(parserConfig.fileContent()).thenReturn(null);
+        when(parserConfig.fileName()).thenReturn("MyDevice.MyDevice.L5K");
+
+        assertThat(prep.prepareFile()).isEqualTo(doubled.toFile().getAbsolutePath());
+    }
+
+    @Test
     @DisplayName("findExistingFileForDevice() ignores hidden, backup, and tilde files")
     void ignoresHiddenAndBackupFiles() throws Exception {
         Files.writeString(tempDir.resolve(".MyDevice.program.l5k"), "x");
