@@ -9,7 +9,8 @@ java {
 }
 
 // Output path for generated resources (using layout.buildDirectory for Gradle 9.0 compatibility)
-val projectOutput: String by extra("${layout.buildDirectory.get().asFile}/generated-resources/")
+val projectOutput = "${layout.buildDirectory.get().asFile}/generated-resources/"
+extra.set("projectOutput", projectOutput)
 
 /**
  * Check if npm/node is available on the system.
@@ -27,7 +28,7 @@ fun isNpmAvailable(): Boolean {
  * Task: Install npm dependencies.
  * Only runs if node_modules doesn't exist.
  */
-val npmInstall by tasks.registering(Exec::class) {
+val npmInstall = tasks.register<Exec>("npmInstall") {
     group = "build"
     description = "Install npm dependencies"
 
@@ -60,7 +61,7 @@ val npmInstall by tasks.registering(Exec::class) {
 /**
  * Task: Build React component with webpack.
  */
-val webpack by tasks.registering(Exec::class) {
+val webpack = tasks.register<Exec>("webpack") {
     group = "Ignition Module"
     description = "Build React component with webpack"
 
@@ -84,7 +85,7 @@ val webpack by tasks.registering(Exec::class) {
 /**
  * Task: Copy standalone page and React UMD libs into mounted resources.
  */
-val copyStandaloneResources by tasks.registering(Copy::class) {
+val copyStandaloneResources = tasks.register<Copy>("copyStandaloneResources") {
     group = "Ignition Module"
     description = "Copy standalone.html and React UMD libraries for dedicated page popout"
 
@@ -110,7 +111,7 @@ tasks {
     }
 }
 
-val deepClean by tasks.registering {
+val deepClean = tasks.register("deepClean") {
     doLast {
         delete(file(".gradle"))
         delete(file("node_modules"))

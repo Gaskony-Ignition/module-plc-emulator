@@ -5,7 +5,7 @@ This guide covers the development workflow, architecture, and procedures for wor
 ## Prerequisites
 
 - **Java 17 JDK** (OpenJDK or Oracle)
-- **Gradle 8.10.2** (wrapper included in project)
+- **Gradle 9.9.2** (wrapper included in project)
 - **Ignition Gateway 8.3+** for testing
 - **IDE**: IntelliJ IDEA or Eclipse with Gradle plugin
 - **Git** for version control
@@ -258,7 +258,7 @@ private void parseMyNewFormat(String content) {
 
 **1. Update `build.gradle.kts`** (this is the single source of truth):
 ```kotlin
-version = "11.1.4"
+version = "11.1.5"
 ```
 
 > **Note**: The `syncVersion` Gradle task runs automatically on every build (as part of `assembleModlStructure`). It propagates the version from `build.gradle.kts` to all other files that embed it — `web-ui/package.json`, `gradle.properties.template`, `gateway/.../SystemController.java`, `web-ui/src/App.tsx`, `license.html`, `README.md`, and all markdown docs (QUICK_START, TESTING, DEVELOPMENT, BUILD, KNOWN_ISSUES, PLAN, plus everything under `docs/`). You only need to manually update `build.gradle.kts`.
@@ -401,7 +401,7 @@ Mark incomplete work:
 
 **Solution**:
 ```bash
-./gradlew wrapper --gradle-version=8.10.2
+./gradlew wrapper --gradle-version=9.9.2
 ./gradlew clean build
 ```
 

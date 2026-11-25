@@ -28,8 +28,13 @@ import java.util.Set;
  * 2. Creates hierarchical OPC-UA address space
  * 3. Simulates dynamic tag values
  * 4. Supports hot-reload when file changes
+ *
+ * <p>Final: the constructor builds collaborators that validate their arguments and can
+ * throw, so a subclass could otherwise observe a partially constructed device
+ * (SpotBugs CT_CONSTRUCTOR_THROW). Nothing subclasses it; tests mock it with Mockito's
+ * inline mock maker, which supports final classes.</p>
  */
-public class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implements Device {
+public final class LogixEmulatorDevice extends ManagedAddressSpaceWithLifecycle implements Device {
 
     private static final Logger logger = LoggerFactory.getLogger(LogixEmulatorDevice.class);
 

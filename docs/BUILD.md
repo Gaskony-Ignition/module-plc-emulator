@@ -5,7 +5,7 @@ This document describes how to build and package the Logix PLC Emulator module f
 
 ## Prerequisites
 - Java 17 JDK
-- Gradle 8.10.2 (wrapper included)
+- Gradle 9.9.2 (wrapper included)
 
 ## Building the Module
 
@@ -162,7 +162,7 @@ If using self-signed certificates and Ignition rejects the module:
 
 Update version in `build.gradle.kts`:
 ```kotlin
-version = "11.1.4"
+version = "11.1.5"
 ```
 
 This updates:

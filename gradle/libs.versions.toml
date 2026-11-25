@@ -1,13 +1,13 @@
 [versions]
 ignition = "8.3.0"
-gson = "2.14.0"
+gson = "2.15.0"
 opc-ua-gateway-api = "10.3.0"
 jakarta-servlet = "6.0.0"
 gateway-web = "8.3.0"
-sqlite-jdbc = "3.53.2.1"
+sqlite-jdbc = "3.54.1.0"
 junit-jupiter = "5.14.4"
 junit-platform-launcher = "1.14.4"
-mockito = "5.23.0"
+mockito = "5.24.0"
 assertj = "3.27.7"
 awaitility = "4.3.0"
 

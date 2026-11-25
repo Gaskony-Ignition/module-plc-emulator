@@ -98,10 +98,10 @@ ignition-module-plc-emulator/
 
 ## Build Quality Tools
 
-- **Checkstyle** 10.26.1 with `config/checkstyle/checkstyle.xml`
-- **SpotBugs** 6.4.8 (effort=MAX, confidence=MEDIUM, ignoreFailures=false — a finding fails the build)
-- **JaCoCo** 0.8.11 (XML + HTML reports)
-- **OWASP Dependency Check** 12.2.0 (failBuildOnCVSS=7.0)
+- **Checkstyle** 12.3.1 (13.x+ needs a Java 21 runtime; the build toolchain is 17) with `config/checkstyle/checkstyle.xml`
+- **SpotBugs** Gradle plugin 6.5.13 (effort=MAX, confidence=MEDIUM, ignoreFailures=false — a finding fails the build)
+- **JaCoCo** 0.8.16 (XML + HTML reports)
+- **OWASP Dependency Check** 13.0.0 (failBuildOnCVSS=7.0)
 
 ## Version Management
 
