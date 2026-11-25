@@ -216,28 +216,30 @@ class OpcUaSimulationEngineAddressSpaceIntegrationTest {
         );
 
         engine.enableTagSimulation("ToggleBool", LogixEmulatorConfig.SimulationPattern.TOGGLE);
+
+        // Read the node's default BEFORE start(). start() schedules the first tick with zero
+        // initial delay and TOGGLE begins in its TRUE half, so a read taken after start() races
+        // the engine thread: on a loaded machine the tick can win and the read sees TRUE
+        // (failed 5 of 10 reruns under load before this was moved).
+        assertThat(toggleNode.getValue().getValue().getValue())
+            .as("BOOL node default before the engine starts")
+            .isEqualTo(false);
+
         engine.start();
 
-        Object initialValue = toggleNode.getValue().getValue().getValue();
-        assertThat(initialValue).as("initial BOOL value").isEqualTo(false);
+        // TOGGLE is wall-clock based: TRUE for the first second of each 2s period, then FALSE.
+        // Wait for the engine to drive the node TRUE, then for it to flip back to FALSE. This
+        // proves both transitions came from the engine without depending on when the first
+        // tick lands relative to this thread; the generous bounds absorb a slow scheduler.
+        await().atMost(5, TimeUnit.SECONDS).pollInterval(20, TimeUnit.MILLISECONDS)
+            .untilAsserted(() -> assertThat(toggleNode.getValue().getValue().getValue())
+                .as("TOGGLE must drive the BOOL node TRUE")
+                .isEqualTo(true));
 
-        // TOGGLE flips every 1s (2s period / 2 halves) — poll across ~2.5s so both a flip away
-        // from the initial value and a flip back are observed.
-        Set<Object> observed = new HashSet<>();
-        long deadline = System.currentTimeMillis() + 2_500;
-        while (System.currentTimeMillis() < deadline && observed.size() < 2) {
-            observed.add(toggleNode.getValue().getValue().getValue());
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-
-        assertThat(observed)
-            .as("TOGGLE must produce both boolean states over successive ticks")
-            .containsExactlyInAnyOrder(true, false);
+        await().atMost(5, TimeUnit.SECONDS).pollInterval(20, TimeUnit.MILLISECONDS)
+            .untilAsserted(() -> assertThat(toggleNode.getValue().getValue().getValue())
+                .as("TOGGLE must flip the BOOL node back to FALSE on a later tick")
+                .isEqualTo(false));
     }
 
     @Test
