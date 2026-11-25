@@ -15,7 +15,8 @@ describe('App', () => {
 
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
     expect(screen.getByRole('navigation')).toBeInTheDocument()
-    expect(screen.getByText('v11.1.5')).toBeInTheDocument()
+    // Version comes from MODULE_VERSION (bumped each release), so match its shape.
+    expect(screen.getByTitle(/^Module v\d+\.\d+\.\d+$/)).toHaveTextContent(/^v\d+\.\d+\.\d+$/)
     // Status bar: device count from /system/stats, simulating count from /devices.
     expect(await screen.findByText('2 devices')).toBeInTheDocument()
     expect(await screen.findByText('1 simulating')).toBeInTheDocument()
