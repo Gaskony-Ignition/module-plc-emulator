@@ -26,39 +26,38 @@ release decision.
 
 The screenshots below are a synthetic demo plant program — `DemoWWTP`, a
 hand-written L5K export with generic pump/valve/tank tags (392 tags, 86 UDT
-instances) invented for these screenshots — emulated on a live 8.3.8 test
+instances) invented for these screenshots — emulated on a live 8.3.10 test
 gateway. The module parses real site exports just as well (that's what the
 fidelity test corpus is for); a synthetic device is pictured here so nothing
 published identifies a real facility.
 
 ![Connection Browser dashboard](docs/images/connection-browser-dashboard.png)
-*The module's landing page inside Gateway Config: `DemoWWTP` emulated with
-392 tags, live simulation status at a glance — this is the "is it working"
-screen.*
+*The module's landing page inside Gateway Config: two emulated devices,
+392 tags, one healthy — `Packaging_PLC` was given a truncated export and
+failed to load. This is the "is it working" screen.*
 
 ![Tag Browser with a live, populated tag tree](docs/images/tag-browser-live-tree.png)
 *The Tag Browser expanded into a synthetic pump UDT (`PUMP_101`) nested under
 `Controller:Global`, Live mode on, showing its `RunTimer`/`Fault`/`FlowRate`/
-`RemoteAuto`/`RunHours`/`Running` members. Folder counts, data types and
-values all come from the parsed program — nothing here is placeholder data.*
+`RemoteAuto`/`RunHours`/`Running` members, with `FlowRate` and `RunHours`
+changing each second under simulation. Folder counts, data types and values
+come from the parsed program.*
 
 ![Simulation Control with bulk simulation enabled](docs/images/simulation-control.png)
-*Bulk simulation enabled with one click: `DemoWWTP` shows `SIM` active with
-414 tags simulating — higher than the 392 declared tags because two array
-tags, `ANALOG_INPUTS` (`REAL[16]`) and `ALARM_WORDS` (`DINT[8]`), each
-simulate as one value per element (392 − 2 + 16 + 8 = 414). This is what
-"acceptance-test with zero PLC hardware" looks like in practice.*
+*Simulation Control across both devices: `DemoWWTP` is running with bulk
+simulation on (409 tags simulating; open its row for Enable/Disable All and
+per-scope controls), and the faulted `Packaging_PLC` shows a red status dot.
+This is acceptance testing with no PLC hardware.*
 
 ![OPC device connections, unfiltered](docs/images/opc-device-connections.png)
-*The emulator is a normal Ignition device driver: `DemoWWTP` shows up under
-Devices → Connections next to every other driver — Ignition's own
-Programmable Device Simulator sits right beside it, both `RUNNING` like any
-real device.*
+*The emulator is a normal Ignition device driver: both devices appear under
+Devices → Connections, `DemoWWTP` `RUNNING` and `Packaging_PLC` reporting its
+parse error, like any real device.*
 
 ![Emulated tags subscribed in the OPC UA Quick Client](docs/images/opc-ua-quick-client.png)
-*Proof the emulation is real OPC-UA, not a UI trick: the standard Ignition
-Quick Client browses into `[DemoWWTP]PUMP_101.FlowRate` and subscribes with
-`GOOD` quality — any Designer, script or binding sees the same thing.*
+*The emulation is real OPC-UA: the standard Ignition Quick Client browses into
+`[DemoWWTP]PUMP_101` and subscribes to five members with `GOOD` quality.
+Any Designer, script or binding sees the same values.*
 
 ## What it does
 
