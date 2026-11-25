@@ -5,6 +5,16 @@ All notable changes to the Logix PLC Emulator module will be documented in this 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [11.1.7] - 2026-11-25
+### Fixed
+- **Web UI: a Disconnected device showed a green status dot** (Simulation and Diagnostics
+  views). The status colour checked for "connected" before "disconnected".
+
+### Added
+- Web UI smoke tests (40 Vitest tests across the app shell, Dashboard, Device Manager, Tag
+  Browser, Simulation and Diagnostics views and the helpers), so the PR coverage check has
+  something to run.
+
 ## [11.1.6] - 2026-11-25
 ### Fixed
 - **"Simulate all" and scope simulation never changed a value on a gateway.** The tag list

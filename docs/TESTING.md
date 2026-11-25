@@ -1,6 +1,6 @@
-# Logix PLC Emulator - Testing Guide v11.1.6
+# Logix PLC Emulator - Testing Guide v11.1.7
 
-**Version**: 11.1.6
+**Version**: 11.1.7
 **Last Updated**: 2026-02-21
 **Status**: Production Ready - Security Hardened & Fully Tested
 
@@ -215,7 +215,7 @@ unzip -l build/LogixPLCEmulator-{version}.modl | head -20
 
 Check module details:
 - **Name**: Logix PLC Emulator
-- **Version**: 11.1.6
+- **Version**: 11.1.7
 - **License**: Free Module
 - **Scopes**: G (Gateway only)
 - **Status**: Running
@@ -986,7 +986,7 @@ https://github.com/Gaskony-Ignition/module-plc-emulator/actions
 
 ## Version Information
 
-**Module Version**: 11.1.6
+**Module Version**: 11.1.7
 **Ignition Compatibility**: 8.3.0+
 **Java Version**: 17
 **Test Framework**: JUnit Jupiter 5.10.1
