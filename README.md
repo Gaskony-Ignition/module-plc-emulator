@@ -33,8 +33,9 @@ published identifies a real facility.
 
 ![Connection Browser dashboard](docs/images/connection-browser-dashboard.png)
 *The module's landing page inside Gateway Config: two emulated devices,
-392 tags, one healthy — `Packaging_PLC` was given a truncated export and
-failed to load. This is the "is it working" screen.*
+392 tags, one healthy and one simulating — `Packaging_PLC` was given a
+truncated export and failed to load, so it has no tags and is not counted as
+simulating. This is the "is it working" screen.*
 
 ![Tag Browser with a live, populated tag tree](docs/images/tag-browser-live-tree.png)
 *The Tag Browser expanded into a synthetic pump UDT (`PUMP_101`) nested under
@@ -45,7 +46,8 @@ come from the parsed program.*
 
 ![Simulation Control with bulk simulation enabled](docs/images/simulation-control.png)
 *Simulation Control across both devices: `DemoWWTP` is running with bulk
-simulation on (409 tags simulating; open its row for Enable/Disable All and
+simulation on (375 tags simulating; timer and counter presets are left
+static; open its row for Enable/Disable All and
 per-scope controls), and the faulted `Packaging_PLC` shows a red status dot.
 This is acceptance testing with no PLC hardware.*
 
